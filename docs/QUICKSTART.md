@@ -139,6 +139,40 @@ for m in msgs:
 "
 ```
 
+## Step 9: Run the Example Agent
+
+Try the included example agent to see a full SYN -> WORK -> FIN cycle:
+
+```bash
+# From the repo root:
+cd reference/python && pip install -e . && cd ../..
+
+# Run as "engineering" namespace against the sample bus:
+HERMES_BUS=examples/bus-sample.jsonl python examples/simple_agent.py engineering
+
+# Run as your own namespace against your real bus:
+python examples/simple_agent.py [your-namespace]
+```
+
+The example agent (`examples/simple_agent.py`) is a working template — copy it and adapt the WORK phase for your own logic.
+
+## Automated Setup
+
+Instead of steps 1-5 above, you can bootstrap everything with one command:
+
+```bash
+# Default namespaces (controller, engineering, operations, finance):
+bash scripts/init_hermes.sh
+
+# Custom namespaces for your team:
+bash scripts/init_hermes.sh sales engineering support
+
+# Custom location:
+HERMES_HOME=/path/to/shared/dir bash scripts/init_hermes.sh
+```
+
+This creates the directory structure, bus files, routing table template, and namespace configs. Safe to re-run.
+
 ## What's Next?
 
 - Read the [Architecture Guide](ARCHITECTURE.md) for the full picture
