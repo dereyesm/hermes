@@ -9,6 +9,61 @@ This project follows a versioning scheme where:
 
 ---
 
+## [v0.3.0-alpha] — 2026-03-02
+
+### Transport Semantics & Phase 1 Infra
+
+This release formalizes the boundary between fire-and-forget (DGM) and task-oriented (REL) messages, implements the gateway and profile specs, and ships the HERMES Manifesto.
+
+### Added
+
+- **ARC-0768: Datagram & Reliable Message Semantics** (IMPLEMENTED)
+  - Two transport modes: DGM (fire-and-forget) for `state`, `event`, `alert`, `dojo_event` and REL (tracked delivery) for `request`, `dispatch`, `data_cross`
+  - Correlation IDs: `[CID:token]` / `[RE:token]` payload convention for request-response linking
+  - Computed state machine: SENT → ACKED → RESOLVED (derived from bus state, no schema change)
+  - Escalation protocol: unresolved REL messages generate `UNRESOLVED:` broadcast alerts on expiry
+  - Full backward compatibility — CID/RE are payload conventions within the existing `msg` field
+
+- **ARC-2606: Agent Profile & Discovery** (IMPLEMENTED)
+  - Namespace capability advertisement via `profile.json`
+  - Discovery protocol for agents to find compatible peers
+  - Profile schema with capabilities, supported types, and metadata
+
+- **ARC-3022: Agent Gateway Protocol** — promoted from DRAFT to IMPLEMENTED
+  - Added epigraph, hive topology section, protocol bridge section
+  - Reference implementation: `gateway.py` (476 lines) with full Gateway class
+
+- **docs/MANIFESTO.md** — The HERMES Manifesto
+  - Design philosophy and principles for the protocol
+  - The case for open agent communication standards
+
+- **Reference implementation expansions**:
+  - `gateway.py` — Full ARC-3022 Gateway implementation (identity translation, outbound filter, inbound validation, attestation tracking)
+  - `message.py` — ARC-0768 functions: `transport_mode()`, `extract_cid()`, `extract_re()`, `RELIABLE_TYPES`
+  - `bus.py` — ARC-0768 operations: `find_unresolved()`, `find_expired_unresolved()`, `correlate()`, `generate_escalation()`
+  - `sync.py` — `SynResult.unresolved` field, enhanced SYN report with `[UNRESOLVED]` section
+
+- **Test suite expansion**: 46 → 214 tests
+  - `test_transport.py` — 46 tests for ARC-0768 (transport modes, CID/RE parsing, lifecycle, escalation)
+  - `test_gateway.py` — 50 tests for ARC-3022 gateway
+  - `test_bus.py` — 43 tests for bus operations
+  - `test_sync.py` — 29 tests for SYN/FIN protocol
+
+- **ARC-2119: Requirement Level Keywords** (IMPLEMENTED, Meta tier)
+  - Canonical HERMES reference for MUST/SHOULD/MAY keywords (supplements RFC 2119)
+  - Agent-specific definitions, usage guidelines for spec authors, conformance mapping
+
+### Changed
+
+- **spec/INDEX.md** — ARC-0768 renamed and IMPLEMENTED, ARC-2606 added as IMPLEMENTED, ARC-3022 promoted to IMPLEMENTED, ARC-2119 IMPLEMENTED
+- 11 specs total (10 IMPLEMENTED + 1 INFORMATIONAL)
+
+### Why This Matters
+
+Messages on the bus are not all equal. A heartbeat does not need a handshake. A contract does not tolerate silence. ARC-0768 gives the protocol the language to know the difference — the same way real networks differentiate between UDP (best-effort) and TCP (reliable delivery). Combined with the gateway and profile specs, HERMES now has the full infrastructure for Phase 1 inter-clan communication.
+
+---
+
 ## [v0.2.0-alpha] — 2026-03-01
 
 ### The Agora Begins

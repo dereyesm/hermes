@@ -62,25 +62,28 @@ HERMES uses an RFC-like standards process with three tracks, each mapping to a r
 | **ATR** | ITU-T Rec | Architecture & models | ATR-X.200: Reference Model |
 | **AES** | IEEE Std | Implementation standards | AES-802.1Q: Namespace Isolation |
 
-### Core Standards (Phase 0 — Implemented)
+### Implemented Standards (11 specs)
+
+| Standard | Title | Track |
+|----------|-------|-------|
+| [ARC-0001](spec/ARC-0001.md) | HERMES Architecture | Core |
+| [ARC-0768](spec/ARC-0768.md) | Datagram & Reliable Message Semantics | Core |
+| [ARC-0791](spec/ARC-0791.md) | Addressing & Routing | Core |
+| [ARC-0793](spec/ARC-0793.md) | Reliable Transport | Core |
+| [ARC-1918](spec/ARC-1918.md) | Private Spaces & Firewall | Core |
+| [ARC-2606](spec/ARC-2606.md) | Agent Profile & Discovery | Extension |
+| [ARC-3022](spec/ARC-3022.md) | Agent Gateway Protocol | Extension |
+| [ARC-5322](spec/ARC-5322.md) | Message Format | Core |
+| [ATR-X.200](spec/ATR-X200.md) | Reference Model | Core |
+| [ATR-Q.700](spec/ATR-Q700.md) | Out-of-Band Signaling | Philosophy |
+| [ARC-2119](spec/ARC-2119.md) | Requirement Level Keywords | Meta |
+
+### Next Up
 
 | Standard | Title | Status |
 |----------|-------|--------|
-| [ARC-0001](spec/ARC-0001.md) | HERMES Architecture | IMPLEMENTED |
-| [ATR-X.200](spec/ATR-X200.md) | Reference Model | IMPLEMENTED |
-| [ARC-5322](spec/ARC-5322.md) | Message Format | IMPLEMENTED |
-| [ARC-0793](spec/ARC-0793.md) | Reliable Transport | IMPLEMENTED |
-| [ARC-0791](spec/ARC-0791.md) | Addressing & Routing | IMPLEMENTED |
-| [ARC-1918](spec/ARC-1918.md) | Private Spaces & Firewall | IMPLEMENTED |
-| [ATR-Q.700](spec/ATR-Q700.md) | Out-of-Band Signaling | INFORMATIONAL |
-
-### Next: The Agora (Phase 1 — In Progress)
-
-| Standard | Title | Status |
-|----------|-------|--------|
-| [ARC-3022](spec/ARC-3022.md) | Agent Gateway Protocol | DRAFT |
-| ARC-2606 | Agent Profile & Discovery | PLANNED |
-| ARC-4861 | Cross-Clan Attestation | PLANNED |
+| ARC-1035 | Namespace Resolution | PLANNED |
+| ARC-8446 | Encrypted Bus Protocol | PLANNED |
 | AES-2040 | Agent Visualization | PLANNED |
 
 Full index: **[spec/INDEX.md](spec/INDEX.md)** | Research agenda: **[docs/RESEARCH-AGENDA.md](docs/RESEARCH-AGENDA.md)**
@@ -157,13 +160,15 @@ See [docs/USE-CASES.md](docs/USE-CASES.md) for real-world scenarios.
 
 ## Reference Implementation
 
-A minimal Python implementation is included for validation and experimentation:
+A Python implementation is included for validation and experimentation (**214 tests passing**):
 
 ```bash
 cd reference/python
 pip install -e .
-python -m pytest tests/
+python -m pytest tests/ -v
 ```
+
+Modules: `message.py` (format + validation), `bus.py` (read/write/archive + ARC-0768 operations), `sync.py` (SYN/FIN lifecycle), `gateway.py` (ARC-3022 gateway).
 
 See [reference/python/](reference/python/) for details.
 
@@ -171,24 +176,27 @@ See [reference/python/](reference/python/) for details.
 
 ```
 hermes/
-├── spec/              # Formal standards (ARC, ATR, AES)
+├── spec/              # Formal standards (10 specs, 30 planned)
 │   ├── ARC-0001.md    #   Architecture (meta-standard)
+│   ├── ARC-0768.md    #   Datagram & Reliable Message Semantics
 │   ├── ARC-0791.md    #   Addressing & Routing
 │   ├── ARC-0793.md    #   Reliable Transport
 │   ├── ARC-1918.md    #   Private Spaces & Firewall
-│   ├── ARC-3022.md    #   Agent Gateway Protocol (DRAFT)
+│   ├── ARC-2606.md    #   Agent Profile & Discovery
+│   ├── ARC-3022.md    #   Agent Gateway Protocol
 │   ├── ARC-5322.md    #   Message Format
 │   ├── ATR-Q700.md    #   Out-of-Band Signaling
 │   ├── ATR-X200.md    #   Reference Model
-│   └── INDEX.md       #   Full standards index (30 planned)
+│   └── INDEX.md       #   Full standards index
 ├── docs/              # Guides and documentation
 │   ├── ARCHITECTURE.md
+│   ├── MANIFESTO.md
 │   ├── QUICKSTART.md
 │   ├── AGENT-STRUCTURE.md
 │   ├── GLOSSARY.md
 │   ├── USE-CASES.md
 │   └── RESEARCH-AGENDA.md
-├── reference/python/  # Reference implementation (46 tests)
+├── reference/python/  # Reference implementation (214 tests)
 ├── examples/          # Sample bus, routes, configs
 ├── CHANGELOG.md       # Release notes
 ├── CONTRIBUTING.md    # How to contribute

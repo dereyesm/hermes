@@ -27,7 +27,7 @@ Core protocol standards governing message formats, transport, addressing, and se
 | ARC-1035 | Namespace Resolution | RFC 1035 (DNS) | PLANNED | Extension |
 | ARC-1122 | Agent Conformance Requirements | RFC 1122 (Host Req.) | PLANNED | Core |
 | [ARC-1918](ARC-1918.md) | Private Spaces & Firewall | RFC 1918 (Private Addr.) | IMPLEMENTED | Core |
-| ARC-2119 | Requirement Level Keywords | RFC 2119 (MUST/SHOULD) | PLANNED | Meta |
+| [ARC-2119](ARC-2119.md) | Requirement Level Keywords | RFC 2119 (MUST/SHOULD) | IMPLEMENTED | Meta |
 | ARC-2818 | Secure Bus Transport | RFC 2818 (HTTPS) | PLANNED | Security |
 | [ARC-5322](ARC-5322.md) | Message Format | RFC 5322 (IMF) | IMPLEMENTED | Core |
 | ARC-6455 | Real-Time Bus Extensions | RFC 6455 (WebSocket) | PLANNED | Extension |
