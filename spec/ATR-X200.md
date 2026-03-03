@@ -640,7 +640,84 @@ which they delegate to external components.
 
 ---
 
-## 9. Security Considerations
+## 9. Control Plane / User Plane Separation (CUPS)
+
+### 9.1 Background
+
+3GPP TS 23.214 introduced Control and User Plane Separation (CUPS) for
+the Evolved Packet Core, enabling independent scaling of control
+functions (policy, routing decisions) and user plane functions (data
+forwarding). The same principle applies to HERMES: the path that
+carries agent messages is architecturally distinct from the path that
+governs how those messages are routed, filtered, and managed.
+
+### 9.2 HERMES CUPS Mapping
+
+HERMES naturally separates into two planes:
+
+- **User Plane (UP)**: The `bus.jsonl` file and its archive. This is
+  where messages transit between agents — analogous to the SGW-U/PGW-U
+  in 3GPP. The UP handles message forwarding only; it does not make
+  routing decisions.
+
+- **Control Plane (CP)**: The `routes.md` routing table, firewall
+  rules (ARC-1918), namespace configuration, and session management
+  (SYN/FIN). This is analogous to the SGW-C/PGW-C in 3GPP. The CP
+  defines the rules that the UP executes.
+
+| 3GPP CUPS Concept | HERMES Equivalent | Description |
+|-------------------|-------------------|-------------|
+| SGW-C / PGW-C (Control) | Controller namespace + `routes.md` | Routing policy, namespace management |
+| SGW-U / PGW-U (User) | `bus.jsonl` message forwarding | Message transit between agents |
+| PFCP Session | Namespace session (SYN/FIN) | Session lifecycle management |
+| PDR (Packet Detection Rule) | Routing rule in `routes.md` | Pattern matching for message routing |
+| FAR (Forwarding Action Rule) | Message type filter + `dst` routing | Action to take on matched messages |
+| Sx interface | Controller ↔ bus read/write interface | CP-UP communication channel |
+
+### 9.3 Separation Rules
+
+1. **Independent evolution.** The UP format (JSONL messages per
+   ARC-5322) and the CP format (routing tables, firewall rules) MUST
+   be independently versionable. Changes to routing logic MUST NOT
+   require changes to the message format.
+
+2. **CP does not transit data.** The routing table and firewall
+   configuration MUST NOT carry agent payload data. They define rules;
+   the bus executes them.
+
+3. **UP does not make policy.** The bus file is a transport medium.
+   Routing decisions, namespace isolation, and access control MUST be
+   resolved by the CP before a message is written to or read from the
+   bus.
+
+4. **Stateless UP operations.** An agent appending to `bus.jsonl` or
+   reading from it SHOULD NOT need to maintain state beyond the current
+   message. The CP maintains session state (SYN/FIN) and routing state
+   (`routes.md`).
+
+### 9.4 Benefits
+
+- **Independent scaling.** In multi-machine deployments, the bus file
+  (UP) can be replicated or sharded without changing routing logic.
+- **Clear responsibility.** Debugging message flow issues reduces to:
+  "Is it a routing problem (CP)?" vs "Is it a message format problem
+  (UP)?"
+- **Evolution path.** Future transport modes (network sockets,
+  real-time streams per ARC-6455) can replace the UP without
+  affecting the CP, and vice versa.
+
+### 9.5 References
+
+- 3GPP TS 23.214 — Architecture enhancements for control and user
+  plane separation of EPC nodes
+- 3GPP TS 29.244 — Interface between the control plane and the user
+  plane nodes (PFCP)
+- BBF TR-369 — User Services Platform (transport-independent
+  management protocol with CP/UP separation)
+
+---
+
+## 10. Security Considerations
 
 HERMES ATR-X.200 does not define an encryption or authentication layer.
 The security model relies on:
@@ -657,7 +734,7 @@ signatures) or L3 (encrypted payloads).
 
 ---
 
-## 10. References
+## 11. References
 
 | Reference | Title |
 |-----------|-------|
@@ -667,6 +744,9 @@ signatures) or L3 (encrypted payloads).
 | RFC 1122 (1989) | Requirements for Internet Hosts — Communication Layers |
 | RFC 793 (1981) | Transmission Control Protocol |
 | HERMES PROTOCOL.md | HERMES Protocol Specification (internal, v1) |
+| 3GPP TS 23.214 | Architecture enhancements for control and user plane separation of EPC nodes |
+| 3GPP TS 29.244 | Interface between the control plane and the user plane nodes (PFCP) |
+| BBF TR-369 | User Services Platform (USP) |
 
 ---
 

@@ -4,28 +4,39 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hermes-protocol"
-version = "0.1.0-alpha"
-description = "Reference implementation of the HERMES inter-agent communication protocol"
+version = "0.3.0a1"
+description = "HERMES: A lightweight, file-based inter-agent communication protocol"
 readme = {text = "HERMES reference implementation. See https://github.com/dereyesm/hermes", content-type = "text/plain"}
 license = "MIT"
 requires-python = ">=3.10"
 authors = [
-    {name = "HERMES Contributors"}
+    {name = "Daniel Reyes", email = "danielreyesma@gmail.com"}
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: System :: Networking",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 
 [project.optional-dependencies]
 dev = ["pytest>=7.0"]
 
+[project.urls]
+Homepage = "https://github.com/dereyesm/hermes"
+Repository = "https://github.com/dereyesm/hermes"
+Issues = "https://github.com/dereyesm/hermes/issues"
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["hermes*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

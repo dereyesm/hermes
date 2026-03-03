@@ -10,6 +10,7 @@ import pytest
 
 from hermes.message import (
     MAX_MSG_LENGTH,
+    VALID_ENCODINGS,
     Message,
     ValidationError,
     create_message,
@@ -207,6 +208,84 @@ class TestSerialization:
         data = json.loads(line)
         assert data["src"] == "eng"
         assert "\n" not in line
+
+
+# ─── Payload Encoding (ARC-5322 Section 7) ─────────────────────────
+
+
+class TestPayloadEncoding:
+    def test_no_encoding_field_backward_compat(self):
+        """Messages without encoding field work as before."""
+        msg = validate_message(_valid_data())
+        assert msg.encoding is None
+
+    def test_raw_encoding_enforces_limit(self):
+        """encoding=raw enforces 120-char limit."""
+        with pytest.raises(ValidationError, match="exceeds"):
+            validate_message(_valid_data(msg="x" * 121, encoding="raw"))
+
+    def test_raw_encoding_within_limit(self):
+        msg = validate_message(_valid_data(msg="x" * 120, encoding="raw"))
+        assert msg.encoding == "raw"
+
+    def test_cbor_encoding_allows_long_payload(self):
+        """encoding=cbor skips the 120-char limit."""
+        long_payload = "o2Rjb3N0GQl4" * 20  # >120 chars
+        msg = validate_message(_valid_data(msg=long_payload, encoding="cbor"))
+        assert msg.encoding == "cbor"
+        assert len(msg.msg) > 120
+
+    def test_ref_encoding_allows_file_path(self):
+        """encoding=ref allows file paths as payload."""
+        msg = validate_message(_valid_data(
+            msg="/shared/reports/q1-analysis.json", encoding="ref"
+        ))
+        assert msg.encoding == "ref"
+
+    def test_invalid_encoding_rejected(self):
+        with pytest.raises(ValidationError, match="Invalid encoding"):
+            validate_message(_valid_data(encoding="protobuf"))
+
+    def test_serialization_omits_raw_encoding(self):
+        """to_dict omits encoding when raw (backward compat)."""
+        msg = create_message(src="eng", dst="*", type="state", msg="ok")
+        d = msg.to_dict()
+        assert "encoding" not in d
+
+    def test_serialization_includes_cbor_encoding(self):
+        """to_dict includes encoding when cbor."""
+        msg = create_message(
+            src="eng", dst="ops", type="data_cross",
+            msg="o2Rjb3N0GQl4", encoding="cbor",
+        )
+        d = msg.to_dict()
+        assert d["encoding"] == "cbor"
+
+    def test_roundtrip_with_encoding(self):
+        """Serialization/deserialization preserves encoding."""
+        msg = create_message(
+            src="eng", dst="ops", type="data_cross",
+            msg="/path/to/data.csv", encoding="ref",
+        )
+        d = msg.to_dict()
+        msg2 = validate_message(d)
+        assert msg2.encoding == "ref"
+        assert msg2.msg == "/path/to/data.csv"
+
+    def test_create_message_with_encoding(self):
+        msg = create_message(
+            src="eng", dst="ops", type="data_cross",
+            msg="o2Rjb3N0GQl4" * 20, encoding="cbor",
+        )
+        assert msg.encoding == "cbor"
+        assert len(msg.msg) > 120
+
+    def test_extra_unknown_field_still_rejected(self):
+        """encoding is allowed, but other extra fields are not."""
+        data = _valid_data()
+        data["priority"] = "high"
+        with pytest.raises(ValidationError, match="Extra fields"):
+            validate_message(data)
 
 
 # ─── Bus Operations ─────────────────────────────────────────────────
