@@ -49,6 +49,9 @@ _NAMESPACE_RE = re.compile(r"^[a-z][a-z0-9\-]{0,62}$")
 # ARC-5322: Max payload length
 MAX_MSG_LENGTH = 120
 
+# ARC-5322 Section 7: Valid payload encoding modes
+VALID_ENCODINGS = frozenset({"raw", "cbor", "ref"})
+
 
 @dataclass(frozen=True)
 class Message:
@@ -61,10 +64,15 @@ class Message:
     msg: str
     ttl: int
     ack: list[str] = field(default_factory=list)
+    encoding: str | None = None
 
     def to_dict(self) -> dict:
-        """Serialize to a dict suitable for JSON encoding."""
-        return {
+        """Serialize to a dict suitable for JSON encoding.
+
+        The `encoding` field is omitted when it is None or "raw" to maintain
+        backward compatibility with Phase 0 implementations.
+        """
+        d = {
             "ts": self.ts.isoformat(),
             "src": self.src,
             "dst": self.dst,
@@ -73,6 +81,10 @@ class Message:
             "ttl": self.ttl,
             "ack": list(self.ack),
         }
+        # Only include encoding when it's not the default (raw/None)
+        if self.encoding is not None and self.encoding != "raw":
+            d["encoding"] = self.encoding
+        return d
 
     def to_jsonl(self) -> str:
         """Serialize to a single JSONL line (no trailing newline)."""
@@ -101,11 +113,28 @@ def validate_message(data: dict) -> Message:
 
     Raises ValidationError if the message is invalid.
     """
-    # Check required fields
+    # Determine which fields are present; encoding is optional
     required = {"ts", "src", "dst", "type", "msg", "ttl", "ack"}
-    missing = required - set(data.keys())
+    allowed_optional = {"encoding"}
+    actual = set(data.keys())
+
+    missing = required - actual
     if missing:
         raise ValidationError(f"Missing required fields: {', '.join(sorted(missing))}")
+
+    extra = actual - required - allowed_optional
+    if extra:
+        raise ValidationError(f"Extra fields not allowed: {', '.join(sorted(extra))}")
+
+    # encoding: optional, defaults to "raw"
+    encoding_raw = data.get("encoding", None)
+    if encoding_raw is not None:
+        if not isinstance(encoding_raw, str):
+            raise ValidationError(f"'encoding' must be a string, got {type(encoding_raw).__name__}")
+        if encoding_raw not in VALID_ENCODINGS:
+            raise ValidationError(
+                f"Invalid encoding '{encoding_raw}'. Valid encodings: {', '.join(sorted(VALID_ENCODINGS))}"
+            )
 
     # ts: must be a valid ISO date
     ts_raw = data["ts"]
@@ -135,17 +164,24 @@ def validate_message(data: dict) -> Message:
             f"Invalid message type '{msg_type}'. Valid types: {', '.join(sorted(VALID_TYPES))}"
         )
 
-    # msg: string, 1-120 chars, no control characters
+    # msg: string, non-empty, no control characters
     msg = data["msg"]
     if not isinstance(msg, str):
         raise ValidationError(f"'msg' must be a string, got {type(msg).__name__}")
     if len(msg) == 0:
         raise ValidationError("'msg' must not be empty")
-    if len(msg) > MAX_MSG_LENGTH:
-        raise ValidationError(
-            f"'msg' exceeds {MAX_MSG_LENGTH} chars (got {len(msg)}). "
-            f"Consider splitting into multiple messages (atomicity principle)"
-        )
+
+    # ARC-5322 Section 7: encoding-dependent length validation
+    # When encoding is absent or "raw", enforce 120-char limit
+    # When encoding is "cbor" or "ref", skip the limit
+    effective_encoding = encoding_raw if encoding_raw is not None else "raw"
+    if effective_encoding == "raw":
+        if len(msg) > MAX_MSG_LENGTH:
+            raise ValidationError(
+                f"'msg' exceeds {MAX_MSG_LENGTH} chars (got {len(msg)}). "
+                f"Consider splitting into multiple messages (atomicity principle)"
+            )
+
     if any(ord(c) < 32 and c not in ("\t",) for c in msg):
         raise ValidationError("'msg' must not contain control characters")
 
@@ -167,7 +203,10 @@ def validate_message(data: dict) -> Message:
             raise ValidationError(f"Duplicate namespace in 'ack': '{ns}'")
         seen.add(ns)
 
-    return Message(ts=ts, src=src, dst=dst, type=msg_type, msg=msg, ttl=ttl, ack=list(ack))
+    return Message(
+        ts=ts, src=src, dst=dst, type=msg_type, msg=msg, ttl=ttl,
+        ack=list(ack), encoding=encoding_raw,
+    )
 
 
 def create_message(
@@ -177,11 +216,13 @@ def create_message(
     msg: str,
     ttl: int | None = None,
     ts: date | None = None,
+    encoding: str | None = None,
 ) -> Message:
     """Create and validate a new HERMES message.
 
     If ttl is not provided, uses the default for the message type.
     If ts is not provided, uses today's date.
+    If encoding is not provided, defaults to raw (field omitted).
     """
     if ttl is None:
         ttl = DEFAULT_TTLS.get(type, 7)
@@ -197,6 +238,8 @@ def create_message(
         "ttl": ttl,
         "ack": [],
     }
+    if encoding is not None:
+        data["encoding"] = encoding
     return validate_message(data)
 
 
