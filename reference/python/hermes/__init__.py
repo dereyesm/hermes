@@ -45,6 +45,15 @@ from .config import (
     save_config,
 )
 from .agora import AgoraDirectory
+from .dojo import (
+    Dojo,
+    Plane,
+    Quest,
+    QuestStatus,
+    QuestType,
+    SkillAvailability,
+    SkillProfile,
+)
 
 __all__ = [
     # Core types
@@ -85,4 +94,12 @@ __all__ = [
     "save_config",
     # Agora
     "AgoraDirectory",
+    # Dojo (Orchestration Plane)
+    "Dojo",
+    "Plane",
+    "Quest",
+    "QuestStatus",
+    "QuestType",
+    "SkillAvailability",
+    "SkillProfile",
 ]
