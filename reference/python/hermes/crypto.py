@@ -24,8 +24,6 @@ from cryptography.hazmat.primitives.asymmetric.x25519 import (
     X25519PublicKey,
 )
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-from cryptography.hazmat.primitives.hashes import SHA256
-from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives.serialization import (
     Encoding,
     NoEncryption,
@@ -147,18 +145,14 @@ def load_peer_public(directory: str, clan_id: str) -> tuple[Ed25519PublicKey, X2
 def derive_shared_secret(
     my_dh_private: X25519PrivateKey, peer_dh_public: X25519PublicKey
 ) -> bytes:
-    """Derive a shared secret using X25519 Diffie-Hellman + HKDF.
+    """Derive a shared secret using X25519 Diffie-Hellman + SHA256.
 
-    The raw DH output is passed through HKDF-SHA256 to produce a
-    uniformly random 256-bit key suitable for AES-256-GCM.
+    The raw DH output is hashed with SHA256 to produce a
+    uniformly distributed 256-bit key suitable for AES-256-GCM.
+    Aligned with Clan JEI implementation for interoperability.
     """
     raw_shared = my_dh_private.exchange(peer_dh_public)
-    return HKDF(
-        algorithm=SHA256(),
-        length=32,
-        salt=None,
-        info=b"hermes-relay-v1",
-    ).derive(raw_shared)
+    return hashlib.sha256(raw_shared).digest()
 
 
 def encrypt_message(shared_secret: bytes, plaintext: str) -> dict:
