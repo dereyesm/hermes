@@ -173,12 +173,12 @@ All commands accept `--dir <path>` to specify the clan directory.
 - Inbound messages are rate-limited per source clan
 - Phase 2 (May-Jun 2026) will add Ed25519 signatures for message authentication
 
-## Example: Clan Momosho D. + Clan Huitaca (First Contact)
+## Example: Clan Momosho D. + Clan JEI (First Contact)
 
 The first two clans on the HERMES network:
 
 ```
-Clan Momosho D. (Daniel)              Clan Huitaca (Jeimmy)
+Clan Momosho D. (Daniel)              Clan JEI (Jeimmy)
 +-------------------------------+     +-------------------------------+
 | bus.jsonl | routes.md         |     | bus.jsonl | routes.md         |
 | registry.json (28 skills)    |     | registry.json (N skills)     |
@@ -206,7 +206,7 @@ Clan Momosho D. (Daniel)              Clan Huitaca (Jeimmy)
 
 ### Key roles per clan
 
-| Role | Clan Momosho D. | Clan Huitaca |
+| Role | Clan Momosho D. | Clan JEI |
 |------|----------------|--------------|
 | **Operator** | Daniel | Jeimmy |
 | **Dojo** (controller) | El Dojo | (Jeimmy names hers) |

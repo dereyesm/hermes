@@ -13,7 +13,7 @@ Inspired by TCP/IP and telecom standards. No servers, no databases -- just files
 
 HERMES (**Heterogeneous Event Routing for Multi-agent Ephemeral Sessions**) is an open protocol for AI agent coordination that requires zero infrastructure. Where other protocols assume HTTP endpoints, cloud services, or container runtimes, HERMES works with nothing more than a shared filesystem and `cat >> bus.jsonl`. It brings telecom engineering rigor -- layered architecture, formal specifications, Shannon constraints, CUPS separation -- to a problem space dominated by ad-hoc solutions.
 
-HERMES is designed to complement existing protocols like MCP and A2A, not replace them. It fills the gaps they were not designed for: bootstrapping agent communication before infrastructure exists, enforcing privacy inside organizational boundaries, and bridging heterogeneous protocols through a gateway-as-NAT pattern.
+HERMES is designed to complement existing protocols like MCP and A2A, not replace them. It fills the gaps they were not designed for: sovereign agent communication without infrastructure, managed coordination through hosted hubs, enforcing privacy inside organizational boundaries, and bridging heterogeneous protocols through a gateway-as-NAT pattern.
 
 ---
 
@@ -28,18 +28,18 @@ The agent communication landscape in 2026 has multiple protocols optimized for d
 | **Ecma NLIP** (TC56) | Envelope protocol, multimodal | HTTP, WebSocket, AMQP | Network transport layer |
 | **SLIM** (IETF draft) | Real-time agent messaging | gRPC + MLS | gRPC infrastructure |
 | **ANP** | Discovery + DIDs | HTTP, JSON-LD | HTTP + DID resolver |
-| **HERMES** | Bootstrap + Private-space + Bridge | **File system** | **None** (filesystem only) |
+| **HERMES** | Sovereign + Hosted dual-mode | **File system / HTTPS** | **None** (Sovereign) or **Hub** (Hosted) |
 
-**HERMES complements, does not replace, existing protocols.** Use MCP for tool binding. Use A2A for real-time agent-to-agent RPC. Use HERMES for the coordination layer that works before infrastructure exists, persists across stateless sessions, respects organizational boundaries, and bridges to everything else through its gateway.
+**HERMES complements, does not replace, existing protocols.** Use MCP for tool binding. Use A2A for real-time agent-to-agent RPC. Use HERMES for the coordination layer that works without infrastructure (Sovereign mode), scales with managed services (Hosted mode), respects organizational boundaries, and bridges to everything else through its gateway.
 
 ```
          MCP                    A2A                   HERMES
     Model ↔ Tools         Agent ↔ Agent          Agent ↔ Agent
          │                      │                      │
     Requires runtime      Requires HTTP         Requires filesystem
-    or HTTP server        endpoints + cloud      (cat >> bus.jsonl)
+    or HTTP server        endpoints + cloud      Sovereign: filesystem
          │                      │                      │
-    Vertical              Horizontal              Bootstrap + Private
+    Vertical              Horizontal              Sovereign + Hosted
     integration           orchestration           + Bridge to both
 ```
 

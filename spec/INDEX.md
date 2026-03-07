@@ -67,6 +67,7 @@ Implementation standards for interoperability, isolation, and quality of service
 | AES-1588 | Bus Timestamp Precision | 1588 (PTP) | 3GPP TS 23.501 time sync; NTP (RFC 5905) | PLANNED | Extension |
 | AES-2030 | Ethical Agent Communication | 2030 (Ethical AI) | IEEE 7000 series (ethical AI); EU AI Act compliance | PLANNED | Philosophy |
 | AES-2040 | Agent Visualization Standard | -- (Original) | Agora visual directory; A2A Agent Card rendering | PLANNED | Extension |
+| AES-2045 | Agent Cognitive Profile | -- (Original) | FIPA ACL cognitive models; computational psychology | PLANNED | Extension |
 
 ---
 

@@ -42,7 +42,9 @@ HERMES fills the gap between these:
 ```
 MCP: "Your AI talks to your tools"         (vertical: AI <-> tools)
 A2A: "AIs talk over the cloud"             (horizontal: AI <-> AI, needs infra)
-HERMES: "AIs coordinate through files"     (horizontal: AI <-> AI, zero infra)
+HERMES: "AIs coordinate, two ways"          (horizontal: AI <-> AI)
+         Sovereign: files, zero infra        (like self-hosted SMTP)
+         Hosted: managed Hub, SLAs           (like Gmail)
          + privacy + trust + discovery
 ```
 
@@ -195,8 +197,15 @@ your Gateway talks to another Gateway over a shared folder, over
 HTTP, or over a carrier pigeon -- the protocol (message format,
 quest lifecycle, attestation, reputation) stays the same.
 
-That's what makes it future-proof. The transport can change. The
-protocol endures.
+This is why HERMES has **two modes**:
+- **Sovereign** (file-based): you run everything yourself, zero
+  infrastructure, full control. Like hosting your own email server.
+- **Hosted** (Hub): a managed service handles the transport,
+  discovery, and relay. Like using Gmail.
+
+Both use the same protocol. Both respect the same privacy model.
+You can start Sovereign and move to Hosted, or run both. The
+transport can change. The protocol endures.
 
 ---
 
@@ -302,7 +311,7 @@ message by message.
 ### The Setup
 
 ```
-Clan Momosho D                          Clan Huitaca
+Clan Momosho D                          Clan JEI
 (Daniel -- protocol design,             (Jeimmy -- cybersecurity,
  telecom, product dev)                   project management, crypto)
 
@@ -330,13 +339,13 @@ protocol-architect:  "I need a cybersec review for ARC-8446"
                           |
                           |  ====> AGORA (public directory) ====>
                           |        "Looking for eng.cybersecurity..."
-                          |        "Found: Clan Huitaca!"
+                          |        "Found: Clan JEI!"
                           |        "Skill: cybersec-architect"
                           |        "Resonance: 4.2/5"
                           |  <==== AGORA response ====
                           |
                           v
-/dojo:               "Found Clan Huitaca. Propose cross-clan quest?"
+/dojo:               "Found Clan JEI. Propose cross-clan quest?"
                           |
                           v
 Daniel (human):      "Yes, propose it."
@@ -450,7 +459,7 @@ After the quest completes, both clans issue attestations -- signed
 statements that feed into each other's public reputation (Resonance):
 
 ```
-Clan Momosho D:                         Clan Huitaca:
+Clan Momosho D:                         Clan JEI:
 
 /dojo issues attestation                /dojo-huitaca issues attestation
 for cybersec-architect:                 for protocol-architect:
@@ -585,12 +594,12 @@ manage it programmatically:
 from hermes.dojo import Dojo, SkillProfile, QuestType
 
 # Create your Dojo
-dojo = Dojo(clan_id="huitaca")
+dojo = Dojo(clan_id="jei")
 
 # Register your skills
 dojo.register_skill(SkillProfile(
     skill_id="cybersec-architect",
-    clan_id="huitaca",
+    clan_id="jei",
     capabilities=(
         "eng.cybersecurity",
         "eng.crypto.pqc",
@@ -601,7 +610,7 @@ dojo.register_skill(SkillProfile(
 
 dojo.register_skill(SkillProfile(
     skill_id="project-commander",
-    clan_id="huitaca",
+    clan_id="jei",
     capabilities=(
         "ops.project-management.pmp",
         "ops.governance",
@@ -653,7 +662,7 @@ schema, profile format). Everything inside your clan is **your choice**:
 ### Example: Two Very Different Clans
 
 ```
-Clan Momosho D (Daniel)              Clan Huitaca (Jeimmy)
+Clan Momosho D (Daniel)              Clan JEI (Jeimmy)
 +------------------------------+    +------------------------------+
 | 28 skills, 6 dimensions      |    | 4 skills, security-first     |
 | RPG-style dojo with arena    |    | PMP-style milestone tracking |

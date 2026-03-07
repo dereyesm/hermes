@@ -7,7 +7,7 @@
 
 HERMES is a lightweight, file-based inter-agent communication protocol with 11 implemented specs and 214 tests. The agent communication landscape has matured rapidly (A2A, MCP, Ecma NLIP, IETF drafts, 3GPP SBA patterns). This plan evolves HERMES to integrate with — not compete against — these standards, while preserving its unique strengths: zero infrastructure, privacy-first, telecom rigor.
 
-**Strategic position**: HERMES is the **Phase 0 bootstrap layer** (when you have no infrastructure), the **private-space protocol** (what happens inside the firewall), and the **bridge framework** (gateway translation to A2A/MCP). It contributes telecom-inspired concepts (CUPS separation, Shannon constraints, gateway-as-NAT) to the broader agent protocol ecosystem.
+**Strategic position**: HERMES is a **dual-mode protocol** — **Sovereign** (file-based, self-hosted, zero infrastructure) and **Hosted** (managed Hub with SLAs). Both modes use the same wire format (ARC-5322), same privacy model (ARC-1918), same gateway-as-NAT (ARC-3022). It contributes telecom-inspired concepts (CUPS separation, Shannon constraints, dual trust metrics) to the broader agent protocol ecosystem.
 
 ---
 
@@ -44,6 +44,7 @@ HERMES is a lightweight, file-based inter-agent communication protocol with 11 i
 4. **Private-first** — ARC-1918 firewalls, gateway-as-NAT (ARC-3022), identity never exposed
 5. **Dual metrics** — Bounty (internal) + Resonance (external) for trust decomposition
 6. **Sovereignty without isolation** — clans connect via Agora without surrendering control
+7. **Dual-mode** — Sovereign (file-based, self-hosted) and Hosted (managed Hub) using the same protocol. Like SMTP and Gmail.
 
 ---
 
@@ -56,15 +57,15 @@ HERMES is a lightweight, file-based inter-agent communication protocol with 11 i
 **Files**: `README.md`, `docs/POSITIONING.md` (new), `spec/INDEX.md`
 
 - [ ] Add ecosystem positioning section to README: "Where HERMES Fits"
-  - Visual landscape map showing MCP (vertical), A2A (horizontal), HERMES (bootstrap + private)
+  - Visual landscape map showing MCP (vertical), A2A (horizontal), HERMES (Sovereign + Hosted)
   - Explicit non-compete statement: HERMES complements, does not replace
 - [ ] Add badges: tests passing, Python version, license, spec count
 - [ ] Add "Standards References" section: formal citations to IETF RFCs, 3GPP TS, BBF TR, Ecma standards
 - [ ] Create `docs/POSITIONING.md`: technical white paper
-  - HERMES as Phase 0 bootstrap layer
-  - HERMES as private-space protocol
-  - HERMES as gateway bridge to A2A/MCP
-  - HERMES as research vehicle for telecom-inspired agent concepts
+  - HERMES dual-mode architecture: Sovereign (file-based) + Hosted (managed Hub)
+  - Privacy-first: ARC-1918 firewalls, gateway-as-NAT
+  - Gateway bridge to A2A/MCP
+  - Research vehicle for telecom-inspired agent concepts
   - Formal references: TS 23.214, TS 23.501, TS 29.244, TR-369, ECMA-430, draft-rosenberg-ai-protocols
 - [ ] Update `spec/INDEX.md`: add "Industry Reference" column mapping each ARC/ATR/AES to its real-world standard body lineage AND modern equivalents
 

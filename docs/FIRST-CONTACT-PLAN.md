@@ -14,7 +14,7 @@
   - **Phase 5**: Co-autora del paper academico (arXiv)
 
 ```
-Clan Momosho D. (Daniel)              Clan Huitaca (Jeimmy)
+Clan Momosho D. (Daniel)              Clan JEI (Jeimmy)
 +-------------------------------+     +-------------------------------+
 | 28 skills, 6 dimensiones     |     | Skills de Jeimmy             |
 | Heraldo (mensajero)          |     | Huitaca (mensajera)          |
@@ -53,7 +53,7 @@ pip install -e ".[dev]"
 **2. Inicializar su clan**
 ```bash
 mkdir ~/huitaca-clan
-python -m hermes init huitaca "Clan Huitaca" --dir ~/huitaca-clan
+python -m hermes init huitaca "Clan JEI" --dir ~/huitaca-clan
 ```
 
 **3. Definir sus primeros skills en gateway.json**
@@ -155,7 +155,7 @@ python -m hermes inbox --dir ~/daniel-clan
 - Como quiere que se llame su Dojo?
 - Primera mision BR cross-clan?
 
-**12. Skills sugeridos para Clan Huitaca (basados en perfil de Jeimmy)**
+**12. Skills sugeridos para Clan JEI (basados en perfil de Jeimmy)**
 
 | Skill sugerido | Rol | Razon |
 |---------------|-----|-------|
