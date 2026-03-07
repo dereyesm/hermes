@@ -37,6 +37,14 @@ from .sync import (
     syn,
     syn_report,
 )
+from .config import (
+    GatewayConfig,
+    PeerConfig,
+    init_clan,
+    load_config,
+    save_config,
+)
+from .agora import AgoraDirectory
 
 __all__ = [
     # Core types
@@ -69,4 +77,12 @@ __all__ = [
     # Constants
     "RELIABLE_TYPES",
     "VALID_TYPES",
+    # Configuration
+    "GatewayConfig",
+    "PeerConfig",
+    "init_clan",
+    "load_config",
+    "save_config",
+    # Agora
+    "AgoraDirectory",
 ]

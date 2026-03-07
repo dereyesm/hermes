@@ -34,6 +34,9 @@ Homepage = "https://github.com/dereyesm/hermes"
 Repository = "https://github.com/dereyesm/hermes"
 Issues = "https://github.com/dereyesm/hermes/issues"
 
+[project.scripts]
+hermes = "hermes.cli:main"
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["hermes*"]
