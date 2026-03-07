@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Respuesta Clan DANI — Alineacion con Clan JEI (La Triada)</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --surface2: #1c2128;
+      --border: #30363d;
+      --accent: #7c3aed;
+      --accent2: #a78bfa;
+      --accent3: #4ade80;
+      --accent4: #f59e0b;
+      --accent5: #38bdf8;
+      --red: #f87171;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --tag-bg: #21262d;
+      --dani: #f97316;
+      --dani2: #fb923c;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      background: rgba(13,17,23,0.95);
+      border-bottom: 1px solid var(--border);
+      backdrop-filter: blur(8px);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 10px 24px;
+      overflow-x: auto;
+    }
+    nav a {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 0.78rem;
+      font-weight: 500;
+      padding: 4px 10px;
+      border-radius: 6px;
+      white-space: nowrap;
+      transition: all 0.2s;
+    }
+    nav a:hover { color: var(--text); background: var(--surface2); }
+    nav .sep { color: var(--border); font-size: 0.9rem; }
+    main {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 90px 24px 80px;
+    }
+    .hero {
+      text-align: center;
+      padding: 60px 0 40px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 60px;
+    }
+    .hero .tag {
+      display: inline-block;
+      background: var(--tag-bg);
+      border: 1px solid var(--border);
+      color: var(--dani2);
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 4px 14px;
+      border-radius: 20px;
+      margin-bottom: 20px;
+    }
+    .hero h1 {
+      font-size: 2.4rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--dani2), var(--accent5));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 12px;
+    }
+    .hero .subtitle {
+      font-size: 1.05rem;
+      color: var(--muted);
+      margin-bottom: 24px;
+    }
+    .hero-meta {
+      display: flex;
+      justify-content: center;
+      gap: 32px;
+      flex-wrap: wrap;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+    .hero-meta span strong { color: var(--text); }
+    section { margin-bottom: 64px; }
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 28px;
+    }
+    .section-num {
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: var(--dani2);
+      background: rgba(249,115,22,0.15);
+      border: 1px solid rgba(249,115,22,0.3);
+      padding: 3px 10px;
+      border-radius: 12px;
+      letter-spacing: 0.05em;
+    }
+    h2 { font-size: 1.4rem; font-weight: 600; color: var(--text); }
+    h3 { font-size: 1.05rem; font-weight: 600; color: var(--dani2); margin: 28px 0 14px; }
+    p { color: var(--muted); margin-bottom: 14px; }
+    .callout {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--dani2);
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin: 20px 0;
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+    .callout strong { color: var(--text); }
+    .callout.jei { border-left-color: var(--accent2); }
+    .callout.success { border-left-color: var(--accent3); }
+    .callout.warning { border-left-color: var(--accent4); }
+    .callout.info { border-left-color: var(--accent5); }
+    .callout.danger { border-left-color: var(--red); }
+
+    /* DANI COMMENT BLOCKS */
+    .dani-comment {
+      background: rgba(249,115,22,0.06);
+      border: 1px solid rgba(249,115,22,0.25);
+      border-left: 3px solid var(--dani);
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin: 16px 0;
+      font-size: 0.88rem;
+    }
+    .dani-comment .dani-label {
+      display: inline-block;
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      background: rgba(249,115,22,0.15);
+      color: var(--dani2);
+      border: 1px solid rgba(249,115,22,0.3);
+      padding: 2px 8px;
+      border-radius: 10px;
+      margin-bottom: 8px;
+    }
+    .dani-comment p { color: var(--text); margin-bottom: 8px; }
+    .dani-comment p:last-child { margin-bottom: 0; }
+    .dani-comment code {
+      font-family: 'Fira Code', monospace;
+      font-size: 0.8rem;
+      background: var(--tag-bg);
+      border: 1px solid var(--border);
+      color: var(--accent3);
+      padding: 1px 6px;
+      border-radius: 4px;
+    }
+
+    .table-wrap { overflow-x: auto; margin: 16px 0; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.87rem; }
+    th {
+      background: var(--surface2);
+      color: var(--dani2);
+      font-weight: 600;
+      text-align: left;
+      padding: 10px 14px;
+      border-bottom: 2px solid var(--border);
+      white-space: nowrap;
+    }
+    td {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      color: var(--muted);
+      vertical-align: top;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--surface2); }
+    td strong { color: var(--text); }
+    td code {
+      font-family: 'Fira Code', monospace;
+      font-size: 0.8rem;
+      background: var(--tag-bg);
+      border: 1px solid var(--border);
+      color: var(--accent3);
+      padding: 1px 6px;
+      border-radius: 4px;
+    }
+    .diagram {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 28px;
+      font-family: 'Fira Code', monospace;
+      font-size: 0.78rem;
+      color: var(--accent3);
+      overflow-x: auto;
+      line-height: 1.7;
+      white-space: pre;
+    }
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 12px;
+    }
+    .status.ok { background: rgba(74,222,128,0.15); color: var(--accent3); }
+    .status.warn { background: rgba(245,158,11,0.15); color: var(--accent4); }
+    .status.fail { background: rgba(248,113,113,0.15); color: var(--red); }
+    .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .dot.ok { background: var(--accent3); }
+    .dot.warn { background: var(--accent4); }
+    .dot.fail { background: var(--red); }
+    .question-block {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px;
+      margin: 10px 0;
+    }
+    .question-block .q {
+      font-weight: 600;
+      color: var(--accent5);
+      margin-bottom: 6px;
+      font-size: 0.95rem;
+    }
+    .question-block .why {
+      font-size: 0.84rem;
+      color: var(--muted);
+    }
+    .steps { list-style: none; margin: 16px 0; }
+    .steps li {
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .steps li:last-child { border-bottom: none; }
+    .step-num {
+      flex-shrink: 0;
+      width: 26px; height: 26px;
+      background: rgba(249,115,22,0.2);
+      border: 1px solid rgba(249,115,22,0.4);
+      color: var(--dani2);
+      font-size: 0.75rem;
+      font-weight: 700;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .step-content { flex: 1; }
+    .step-content strong { color: var(--text); font-size: 0.9rem; }
+    .step-content .step-meta { font-size: 0.8rem; color: var(--muted); margin-top: 3px; }
+    footer {
+      text-align: center;
+      border-top: 1px solid var(--border);
+      padding: 32px 24px;
+      color: var(--muted);
+      font-size: 0.8rem;
+    }
+    footer strong { color: var(--text); }
+  </style>
+</head>
+<body>
+
+<nav>
+  <a href="#ortogonalidad">0. Ortogonalidad</a>
+  <span class="sep">&middot;</span>
+  <a href="#respuestas">1. Las 5 Respuestas</a>
+  <span class="sep">&middot;</span>
+  <a href="#equivalencias">2. Tabla de Equivalencias</a>
+  <span class="sep">&middot;</span>
+  <a href="#routing">3. Routing Inter-Clan</a>
+  <span class="sep">&middot;</span>
+  <a href="#agora">4. Perfil Agora</a>
+  <span class="sep">&middot;</span>
+  <a href="#relay">5. Estado del Relay</a>
+  <span class="sep">&middot;</span>
+  <a href="#comentarios">6. Comentarios al Doc JEI</a>
+  <span class="sep">&middot;</span>
+  <a href="#pasos">7. Proximos Pasos</a>
+</nav>
+
+<main>
+
+  <!-- HERO -->
+  <div class="hero">
+    <div class="tag">DANI-HERMES-001 &middot; v1.0 &middot; 2026-03-07</div>
+    <h1>Respuesta de Clan DANI a La Triada</h1>
+    <p class="subtitle">Alineacion de namespaces, routing inter-clan y comentarios al JEI-PMO-010</p>
+    <div class="hero-meta">
+      <span><strong>Autor:</strong> Daniel Reyes (Protocol Architect)</span>
+      <span><strong>Clan:</strong> Momosho D &middot; 28 skills &middot; 6 dimensiones</span>
+      <span><strong>En respuesta a:</strong> JEI-PMO-010 v1.1 (Jeimmy Gomez)</span>
+    </div>
+  </div>
+
+  <!-- 0. ORTOGONALIDAD -->
+  <section id="ortogonalidad">
+    <div class="section-header">
+      <span class="section-num">00</span>
+      <h2>El hallazgo clave: arquitecturas ortogonales</h2>
+    </div>
+    <div class="callout">
+      <strong>JEI organiza por FUNCION</strong> (estrategia, legal, seguridad, operaciones, gateway, controller).<br/>
+      <strong>DANI organiza por DIMENSION</strong> (Global, Nymyka, MomoshoD, MomoFinance, Zima26, HERMES).
+    </div>
+    <p>
+      Ninguno esta mal. Son <strong style="color:var(--text)">ejes ortogonales</strong> del mismo problema organizacional.
+      Lo elegante del protocolo HERMES (ARC-2314 s16.2) es que <strong style="color:var(--text)">no impone topologia interna</strong>.
+      Cada clan decide como organizarse. Lo que importa es la interfaz externa.
+    </p>
+    <div class="diagram">JEI (por funcion):       estrategia ── legal ── seguridad ── operaciones ── gateway ── controller
+
+DANI (por dimension):    Global ── Nymyka ── MomoshoD ── MomoFinance ── Zima26 ── HERMES
+
+En el Agora, ambos aparecen como UN SOLO super-skill con capacidades agregadas.
+La estructura interna es invisible para el otro clan.</div>
+    <div class="dani-comment">
+      <div class="dani-label">Insight del Protocol Architect</div>
+      <p>Esta ortogonalidad es un hallazgo valioso para el protocolo. Confirma que ARC-2314 funciona como
+        estandar neutral: no fuerza un modelo organizacional. Vamos a documentar esto formalmente como
+        patron reconocido (funcion-based, dimension-based, o mixto).</p>
+    </div>
+  </section>
+
+  <!-- 1. LAS 5 RESPUESTAS -->
+  <section id="respuestas">
+    <div class="section-header">
+      <span class="section-num">01</span>
+      <h2>Respuestas a las 5 preguntas de JEI</h2>
+    </div>
+
+    <h3>Q1: Cuales son los namespaces de tu clan?</h3>
+    <div class="question-block">
+      <div class="q">Pregunta original de JEI</div>
+      <div class="why">Para definir el routing JEI &rarr; DANI correctamente</div>
+    </div>
+    <div class="dani-comment">
+      <div class="dani-label">Respuesta DANI</div>
+      <p>No usamos namespaces por funcion. Usamos <strong>6 dimensiones</strong> (dominios de vida/trabajo), cada una con sus propios skills, MCPs y firewall.</p>
+      <p>Externamente, DANI es un solo endpoint en el Agora. El routing interno lo resuelve nuestro Dojo (integrado en Palas).</p>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Dimension</th><th>Alcance</th><th>Skills</th><th>Cabeza</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Global</strong></td><td>Deliberacion cross-dimensional</td><td>7 (Palas, Ares, Artemisa, Consejo, Dojo, Heraldo, Arena)</td><td>&mdash;</td></tr>
+          <tr><td><strong>Nymyka</strong></td><td>Corporativo (Grupo Nymyka)</td><td>13 (MomoProdDev + 12 asesores)</td><td>MomoProdDev</td></tr>
+          <tr><td><strong>MomoshoD</strong></td><td>Editorial, marca personal</td><td>1 (La Voluntad de D.)</td><td>&mdash;</td></tr>
+          <tr><td><strong>MomoFinance</strong></td><td>Finanzas personales</td><td>2 (Plutus, Oraculo)</td><td>&mdash;</td></tr>
+          <tr><td><strong>Zima26</strong></td><td>Propiedad horizontal (PH)</td><td>5 (admin, legal, fiscal, etc.)</td><td>&mdash;</td></tr>
+          <tr><td><strong>HERMES</strong></td><td>Protocolo open-source</td><td>1 (Protocol Architect)</td><td>Protocol Architect</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Q2: Cual es tu gateway (equivalente a Huitaca)?</h3>
+    <div class="dani-comment">
+      <div class="dani-label">Respuesta DANI</div>
+      <p><strong>Heraldo</strong> &mdash; skill global-limitado (1 MCP: momoshod-gmail), con bridge Telegram. Es la unica puerta de entrada y salida del clan.</p>
+      <p>Equivalencia directa con Huitaca. Ambos operan en el Control Plane (CP) del modelo HERMES.</p>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th></th><th>JEI</th><th>DANI</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Nombre</strong></td><td>Huitaca</td><td>Heraldo</td></tr>
+          <tr><td><strong>Tipo</strong></td><td>Bot Telegram + Agora relay</td><td>Global-limited skill + Telegram bridge</td></tr>
+          <tr><td><strong>Plano HERMES</strong></td><td>Control Plane (CP)</td><td>Control Plane (CP)</td></tr>
+          <tr><td><strong>Puerta humana</strong></td><td>JAi propone, Jeimmy decide</td><td>Heraldo propone, Daniel decide</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Q3: Cual es tu controller (equivalente a GoGi)?</h3>
+    <div class="dani-comment">
+      <div class="dani-label">Respuesta DANI</div>
+      <p><strong>Palas</strong> (con Dojo integrado) &mdash; es nuestro Orchestration Plane (OP), pero tambien maneja estrategia. Es un Deployment Model integrado (ARC-2314 s11.2).</p>
+      <p>La funcion de auditoria de GoGi no tiene equivalente unico en DANI. En nuestro caso, la auditoria es <strong>arquitectural</strong>: cada CLAUDE.md contiene reglas de firewall, y Artemisa (skill guardiana) monitorea calidad y limites.</p>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th></th><th>JEI (GoGi-Sensei)</th><th>DANI (Palas)</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Funciones</strong></td><td>Meta-auditor (read-only) + Dojo</td><td>Estrategia + Dojo + Evaluacion</td></tr>
+          <tr><td><strong>Auditoria</strong></td><td>GoGi audita ambas dimensiones</td><td>Artemisa + firewall en cada CLAUDE.md</td></tr>
+          <tr><td><strong>Deployment</strong></td><td>Controller separado del Dojo</td><td>OP integrado con Strategy</td></tr>
+          <tr><td><strong>Plano HERMES</strong></td><td>OP</td><td>OP + Strategy</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Q4: Hay namespaces equivalentes?</h3>
+    <p>Ver seccion completa de equivalencias abajo.</p>
+
+    <h3>Q5: Como funciona la aprobacion humana?</h3>
+    <div class="dani-comment">
+      <div class="dani-label">Respuesta DANI</div>
+      <p><strong>Triple firewall</strong> + human-in-the-loop para toda accion irreversible.</p>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Capa</th><th>Que protege</th><th>Como funciona</th></tr></thead>
+        <tbody>
+          <tr><td><strong>MCP Firewall</strong></td><td>Acceso a herramientas</td><td>Cada dimension declara MCPs permitidos/prohibidos. Violaciones bloqueadas.</td></tr>
+          <tr><td><strong>Identity Firewall</strong></td><td>Credenciales</td><td>Cada dimension tiene su propia cuenta. Cruce de cuentas prohibido.</td></tr>
+          <tr><td><strong>Epistemological Firewall</strong></td><td>Limites de conocimiento</td><td>Skills no acceden a datos de otras dimensiones sin permiso explicito + traduccion.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      <strong style="color:var(--text)">Regla de salida inter-clan:</strong> Todo lo que sale de Clan DANI pasa por Heraldo (gateway) y
+      requiere aprobacion explicita de Daniel. Mismo modelo que JEI: "JAi propone, Jeimmy decide."
+    </p>
+  </section>
+
+  <!-- 2. TABLA DE EQUIVALENCIAS -->
+  <section id="equivalencias">
+    <div class="section-header">
+      <span class="section-num">02</span>
+      <h2>Tabla de equivalencias namespace-a-namespace</h2>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>JEI Namespace</th><th>Agentes JEI</th><th>Equivalente DANI</th><th>Diferencia clave</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>estrategia</strong></td>
+            <td>JAi</td>
+            <td><code>Consejo</code> (Palas + Ares + Artemisa)</td>
+            <td>JEI: 1 orquestador. DANI: triada deliberativa (3 voces)</td>
+          </tr>
+          <tr>
+            <td><strong>legal</strong></td>
+            <td>Valerio + Valerio-Personal</td>
+            <td><code>consejero-legal</code> (solo Zima26)</td>
+            <td>JEI: cross-dimensional. DANI: scoped a vivienda (Ley 675)</td>
+          </tr>
+          <tr>
+            <td><strong>seguridad</strong></td>
+            <td>Bachue + Bruja</td>
+            <td>Patron arquitectural + <code>Artemisa</code></td>
+            <td>JEI: agentes dedicados. DANI: embedded en cada CLAUDE.md</td>
+          </tr>
+          <tr>
+            <td><strong>operaciones</strong></td>
+            <td>IdA + Pato-Nymyka + Pato-Personal + Sakti</td>
+            <td>Distribuido: 28 skills en 6 dimensiones</td>
+            <td>JEI: namespace centralizado. DANI: cada dim tiene su operacion</td>
+          </tr>
+          <tr>
+            <td><strong>gateway</strong></td>
+            <td>Huitaca</td>
+            <td><code>Heraldo</code></td>
+            <td>Equivalencia directa</td>
+          </tr>
+          <tr>
+            <td><strong>controller</strong></td>
+            <td>GoGi-Sensei</td>
+            <td><code>Palas</code> (Dojo integrado)</td>
+            <td>JEI: audit + dojo separados. DANI: strategy + dojo merged</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Lo que DANI tiene y JEI (aun) no</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Capacidad DANI</th><th>Descripcion</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Arena</strong></td><td>Sistema de crecimiento colaborativo — PvP, Multi, Battle Royale. Skills aprenden colaborando.</td></tr>
+          <tr><td><strong>6 dimensiones</strong></td><td>Separacion de contextos de vida (vs 2 dims + transversal en JEI)</td></tr>
+          <tr><td><strong>Observer skills</strong> (planned)</td><td>Sociologo, antropologo, neurocientifico — observan y analizan interacciones</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Lo que JEI tiene y DANI (aun) no</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Capacidad JEI</th><th>Descripcion</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Legal cross-dimensional</strong></td><td>Valerio opera across dimensiones. DANI solo tiene legal en Zima26.</td></tr>
+          <tr><td><strong>CISO/Riesgos dedicado</strong></td><td>Bruja como agente. En DANI, seguridad es un patron, no un agente.</td></tr>
+          <tr><td><strong>Bienestar dedicado</strong></td><td>Sakti vela por Jeimmy. En DANI, Artemisa cubre esto parcialmente.</td></tr>
+          <tr><td><strong>QA/AppSec dedicado</strong></td><td>Bachue audita codigo. DANI no tiene un equivalente directo.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 3. ROUTING INTER-CLAN -->
+  <section id="routing">
+    <div class="section-header">
+      <span class="section-num">03</span>
+      <h2>Modelo de routing inter-clan</h2>
+    </div>
+    <div class="callout">
+      <strong>Regla fundamental:</strong> TODO el trafico va gateway-a-gateway (Heraldo &harr; Huitaca).
+      No hay canales namespace-a-namespace directos. Cada clan rutea internamente.
+    </div>
+    <div class="diagram">Clan DANI (interno)           Inter-Clan             Clan JEI (interno)
+─────────────────────         ──────────             ────────────────────
+
+  Palas (OP+Strategy)                                  JAi (estrategia)
+    |                                                    |
+    v                                                    v
+  Heraldo (CP) ──────────&gt; Agora &lt;──────────── Huitaca (CP)
+  (gateway)                (relay)              (gateway)
+    ^                                                    ^
+    |                                                    |
+  Daniel                                             Jeimmy
+  (human gate)                                       (human gate)</div>
+    <p>
+      Si Valerio (JEI:legal) necesita comunicarse con consejero-legal (DANI:Zima26), el mensaje fluye:
+    </p>
+    <div class="diagram">Valerio &rarr; JAi &rarr; Huitaca &rarr; [Agora] &rarr; Heraldo &rarr; Palas &rarr; consejero-legal</div>
+    <p style="margin-top: 14px;">
+      Cada hop por un Dojo/orquestador (JAi para JEI, Palas para DANI) asegura governance,
+      logging y aprobacion humana en ambos extremos.
+    </p>
+  </section>
+
+  <!-- 4. PERFIL AGORA -->
+  <section id="agora">
+    <div class="section-header">
+      <span class="section-num">04</span>
+      <h2>Perfil de Clan DANI en el Agora</h2>
+    </div>
+    <p>Per ARC-2314 s16.3, DANI aparece en el Agora como un <strong style="color:var(--text)">super-skill unico</strong>:</p>
+    <div class="diagram">{
+  "clan_id": "momosho-d",
+  "clan_name": "Clan Momosho D",
+  "sovereign": "Daniel Reyes",
+  "gateway": "heraldo",
+  "capabilities": [
+    "engineering/software",
+    "engineering/telecom",
+    "finance/personal",
+    "legal/housing",
+    "creative/editorial",
+    "research/protocol-design",
+    "research/observation"
+  ],
+  "deployment_model": "integrated-op-strategy",
+  "skills_count": 28,
+  "dimensions": 6,
+  "hermes_version": "0.3.0-alpha"
+}</div>
+    <div class="dani-comment">
+      <div class="dani-label">Nota</div>
+      <p>El roster interno de skills, puntuaciones XP y estructura dimensional NO se publican. Solo capacidades agregadas visibles a traves del gateway.</p>
+    </div>
+  </section>
+
+  <!-- 5. ESTADO DEL RELAY -->
+  <section id="relay">
+    <div class="section-header">
+      <span class="section-num">05</span>
+      <h2>Estado del relay inter-clan</h2>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Item</th><th>Estado</th></tr></thead>
+        <tbody>
+          <tr><td>Primer handshake</td><td><span class="status ok"><span class="dot ok"></span> OK &mdash; 28 Feb 2026</span></td></tr>
+          <tr><td>Paquetes recibidos de JEI</td><td><span class="status ok"><span class="dot ok"></span> 2 procesados</span></td></tr>
+          <tr><td>Relay activo</td><td><span class="status fail"><span class="dot fail"></span> CAIDO desde 28 Feb (SSL/token)</span></td></tr>
+          <tr><td>Presentacion JEI recibida</td><td><span class="status ok"><span class="dot ok"></span> Procesada via canal directo (2026-03-05)</span></td></tr>
+          <tr><td>Respuesta DANI</td><td><span class="status ok"><span class="dot ok"></span> Este documento (2026-03-07)</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout warning">
+      <strong>Prioridad:</strong> El relay (<code>jeipgg/nymyka-hermes-relay</code>) debe levantarse antes de poder
+      testear el routing inter-clan descrito arriba. Diagnosticar el issue SSL/token es el primer paso operacional.
+    </div>
+  </section>
+
+  <!-- 6. COMENTARIOS AL DOC JEI -->
+  <section id="comentarios">
+    <div class="section-header">
+      <span class="section-num">06</span>
+      <h2>Comentarios al documento JEI-PMO-010 v1.1</h2>
+    </div>
+    <p>Comentarios seccion por seccion sobre el documento de presentacion de La Triada:</p>
+
+    <h3>Seccion 00: Quienes somos</h3>
+    <div class="callout jei">
+      <strong>JEI dice:</strong> "La Triada es el ecosistema de agentes IA de Jeimmy Gomez [...] es un ecosistema completo con agentes especializados, memoria persistente, comunicacion inter-agente y protocolo formal de gobernanza."
+    </div>
+    <div class="dani-comment">
+      <div class="dani-label">Comentario DANI</div>
+      <p>Excelente nivel de madurez. El ecosistema JEI ya implementa los principios HERMES: memoria persistente, gobernanza formal, separacion de dimensiones, gateway unica. La adopcion de HERMES como protocolo de referencia es natural.</p>
+    </div>
+
+    <h3>Seccion 01: Dimensiones</h3>
+    <div class="callout jei">
+      <strong>JEI dice:</strong> "Dos dimensiones paralelas: Personal y Laboral. Regla de aislamiento: los agentes de la dimension personal NO tienen acceso a datos corporativos."
+    </div>
+    <div class="dani-comment">
+      <div class="dani-label">Comentario DANI</div>
+      <p>DANI tiene 6 dimensiones (vs 2+transversal de JEI). Ambos modelos son validos. El principio de aislamiento es identico: ARC-1918 (Private Spaces &amp; Firewall). JEI lo implementa con 2 dimensiones fuertes; DANI lo implementa con 6 dimensiones granulares. Resultado equivalente.</p>
+    </div>
+
+    <h3>Seccion 02: Super-Agentes</h3>
+    <div class="callout jei">
+      <strong>JEI tiene:</strong> 10 agentes especializados: JAi/Huitaca (estrategia+gateway), GoGi (controller+dojo), Valerio (legal corp), Valerio-Personal (legal pers), Bachue (QA/AppSec), Bruja (CISO), IdA (PMO), Pato-Nymyka (CFO corp), Pato-Personal (CFO pers), Sakti (bienestar).
+    </div>
+    <div class="dani-comment">
+      <div class="dani-label">Comentario DANI</div>
+      <p>Arquitectura robusta. Observaciones clave:</p>
+      <p><strong>Valerio-Personal (nuevo):</strong> Interesante la separacion de legal corporativo vs personal. DANI no tiene equivalente cross-dimensional para legal &mdash; solo <code>consejero-legal</code> en Zima26 (Ley 675). Esto es una ventaja de JEI.</p>
+      <p><strong>Bachue + Bruja:</strong> La dupla QA/AppSec + CISO es poderosa, especialmente con el background de Jeimmy en cybersecurity. DANI maneja seguridad como patron arquitectural (firewall en cada CLAUDE.md), no como agente. Valido pero diferente.</p>
+      <p><strong>Sakti:</strong> Bienestar dedicado. En DANI, Artemisa cubre parcialmente esta funcion pero es mas guardiana de calidad que de bienestar personal. Otro punto donde JEI es mas granular.</p>
+    </div>
+
+    <h3>Seccion 03: Jerarquia de comunicacion</h3>
+    <div class="callout jei">
+      <strong>JEI dice:</strong> "Todo lo que sale hacia Dani (o cualquier externo) pasa obligatoriamente por el chat privado Huitaca-Jeimmy para validacion."
+    </div>
+    <div class="dani-comment">
+      <div class="dani-label">Comentario DANI</div>
+      <p>Modelo identico al de DANI. Heraldo propone, Daniel decide. Esta simetria es ideal para inter-clan: ambos extremos tienen el mismo nivel de control humano. Confianza mutua porque ambos sabemos que nada sale sin validacion de la Soberana/el Soberano.</p>
+    </div>
+
+    <h3>Seccion 04: Canales e interlocutores</h3>
+    <div class="callout jei">
+      <strong>JEI tiene:</strong> Telegram privado (principal), Telegram "Santuario Raftel" (grupo), Discord #bitacora-jei (log), Discord #laboratorio-agentes (experimentos), HERMES Relay GitHub (bot-a-bot).
+    </div>
+    <div class="dani-comment">
+      <div class="dani-label">Comentario DANI</div>
+      <p>DANI actualmente usa: Telegram (heraldo-gateway en Render) + bus.jsonl (HERMES interno) + GitHub relay (inter-clan). Discord aun no esta integrado al bus DANI, pero el Agora spec (ARC-3022 s15) contempla Discord como "plaza publica".</p>
+      <p>Los canales Discord de JEI (<code>#bitacora-jei</code>, <code>#laboratorio-agentes</code>) son write-only (webhooks) &mdash; excelente para trazabilidad sin crear superficie de ataque.</p>
+    </div>
+
+    <h3>Seccion 05: HERMES en JEI</h3>
+    <div class="callout jei">
+      <strong>JEI dice:</strong> "Adoptamos HERMES v4.0 como protocolo de referencia del clan JEI." Topologia estrella con bus.jsonl. Regla ARC-1918: por defecto DENEGAR.
+    </div>
+    <div class="dani-comment">
+      <div class="dani-label">Comentario DANI</div>
+      <p>Nota: la version actual del protocolo es <strong>v0.3.0-alpha</strong> (no v4.0). Es posible que JEI este usando una numeracion interna diferente. Recomendamos alinear la referencia a la version del repo publico (<code>dereyesm/hermes</code>).</p>
+      <p>La topologia estrella con bus.jsonl es el deployment recomendado para Phase 0. El default-deny de ARC-1918 esta correctamente implementado.</p>
+    </div>
+
+    <h3>Seccion 06: Relay JEI-DANI</h3>
+    <div class="callout jei">
+      <strong>JEI dice:</strong> Relay caido desde 28 Feb. Causa probable: cambio de permisos o token expirado en GitHub.
+    </div>
+    <div class="dani-comment">
+      <div class="dani-label">Comentario DANI</div>
+      <p>Confirmamos la caida. El diagnostico y fix es prioridad operacional. Propuesta: sesion conjunta para debuggear el relay <code>jeipgg/nymyka-hermes-relay</code>. Si el token expiro, se regenera. Si es SSL, verificar la configuracion de GitHub API.</p>
+    </div>
+
+    <h3>Seccion 07: Objetivo</h3>
+    <div class="callout jei">
+      <strong>JEI dice:</strong> "Usar dereyesm/hermes como backbone oficial de comunicacion JEI-DANI."
+    </div>
+    <div class="dani-comment">
+      <div class="dani-label">Comentario DANI</div>
+      <p><strong>Alineado.</strong> El repo <code>dereyesm/hermes</code> es el backbone. Las ventajas listadas por JEI (estandar, escalable, mantenido, interoperable) son correctas. Ademas, el desarrollo del protocolo se beneficia de tener un segundo clan que lo valide en produccion.</p>
+    </div>
+
+    <h3>Seccion 08: Proximos pasos</h3>
+    <div class="callout jei">
+      <strong>JEI propone:</strong> 7 pasos desde compartir namespaces hasta primer mensaje real post-fix.
+    </div>
+    <div class="dani-comment">
+      <div class="dani-label">Comentario DANI</div>
+      <p>De acuerdo con la secuencia. Ajustes menores:</p>
+      <p><strong>Paso 1</strong> (namespaces DANI): completado con este documento.</p>
+      <p><strong>Paso 3</strong> (fix relay): sugerimos hacerlo ANTES del mapeo cross-clan (paso 2) para tener el canal activo durante el ejercicio.</p>
+      <p><strong>Paso 6</strong> (ecosystem_manifest): excelente iniciativa. DANI tambien preparara su Agora profile para intercambio reciproco.</p>
+    </div>
+  </section>
+
+  <!-- 7. PROXIMOS PASOS -->
+  <section id="pasos">
+    <div class="section-header">
+      <span class="section-num">07</span>
+      <h2>Proximos pasos acordados</h2>
+    </div>
+    <ul class="steps">
+      <li>
+        <span class="step-num">1</span>
+        <div class="step-content">
+          <strong>Entregar este documento a JEI via canal directo</strong>
+          <div class="step-meta">Responsable: Daniel | Cuando: Inmediato</div>
+        </div>
+      </li>
+      <li>
+        <span class="step-num">2</span>
+        <div class="step-content">
+          <strong>Diagnosticar y arreglar relay caido (SSL/token issue)</strong>
+          <div class="step-meta">Responsable: Daniel + Jeimmy | Cuando: Proxima sesion conjunta</div>
+        </div>
+      </li>
+      <li>
+        <span class="step-num">3</span>
+        <div class="step-content">
+          <strong>JAi genera mapa cross-clan basado en este alignment</strong>
+          <div class="step-meta">Responsable: JAi + Jeimmy | Cuando: Post-entrega de este doc</div>
+        </div>
+      </li>
+      <li>
+        <span class="step-num">4</span>
+        <div class="step-content">
+          <strong>Intercambio de ecosystem_manifests via relay restaurado</strong>
+          <div class="step-meta">Responsable: Ambos | Cuando: Post-fix relay</div>
+        </div>
+      </li>
+      <li>
+        <span class="step-num">5</span>
+        <div class="step-content">
+          <strong>Primer mensaje real inter-clan (quest proposal o hello_ack)</strong>
+          <div class="step-meta">Responsable: Ambos | Cuando: Post-manifests</div>
+        </div>
+      </li>
+      <li>
+        <span class="step-num">6</span>
+        <div class="step-content">
+          <strong>Documentar ortogonalidad funcion/dimension como patron en ARC-2314</strong>
+          <div class="step-meta">Responsable: Protocol Architect | Cuando: Siguiente iteracion del spec</div>
+        </div>
+      </li>
+    </ul>
+  </section>
+
+</main>
+
+<footer>
+  Preparado por <strong>Protocol Architect</strong> &middot; Clan Momosho D &middot; 2026-03-07<br/>
+  En respuesta a <strong>JEI-PMO-010 v1.1</strong> (JAi + Jeimmy Gomez, La Triada)<br/>
+  <span style="font-size:0.75rem;margin-top:6px;display:block;">DANI-HERMES-001 &middot; v1.0 &middot; Pendiente aprobacion Daniel para envio</span>
+</footer>
+
+</body>
+</html>

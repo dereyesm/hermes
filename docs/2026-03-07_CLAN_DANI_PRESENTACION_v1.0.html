@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Clan Momosho D — Ecosistema DANI &middot; Presentacion</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --surface2: #1c2128;
+      --border: #30363d;
+      --accent: #f97316;
+      --accent2: #fb923c;
+      --accent3: #4ade80;
+      --accent4: #f59e0b;
+      --accent5: #38bdf8;
+      --purple: #a78bfa;
+      --red: #f87171;
+      --pink: #f472b6;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --tag-bg: #21262d;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      background: rgba(13,17,23,0.95);
+      border-bottom: 1px solid var(--border);
+      backdrop-filter: blur(8px);
+      display: flex; align-items: center; gap: 4px;
+      padding: 10px 24px; overflow-x: auto;
+    }
+    nav a { color: var(--muted); text-decoration: none; font-size: 0.78rem; font-weight: 500; padding: 4px 10px; border-radius: 6px; white-space: nowrap; transition: all 0.2s; }
+    nav a:hover { color: var(--text); background: var(--surface2); }
+    nav .sep { color: var(--border); font-size: 0.9rem; }
+    main { max-width: 960px; margin: 0 auto; padding: 90px 24px 80px; }
+
+    .hero { text-align: center; padding: 60px 0 40px; border-bottom: 1px solid var(--border); margin-bottom: 60px; }
+    .hero .tag { display: inline-block; background: var(--tag-bg); border: 1px solid var(--border); color: var(--accent2); font-size: 0.75rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; padding: 4px 14px; border-radius: 20px; margin-bottom: 20px; }
+    .hero h1 { font-size: 2.6rem; font-weight: 700; background: linear-gradient(135deg, var(--accent2), var(--accent5)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin-bottom: 12px; }
+    .hero .subtitle { font-size: 1.05rem; color: var(--muted); margin-bottom: 24px; }
+    .hero-meta { display: flex; justify-content: center; gap: 32px; flex-wrap: wrap; font-size: 0.85rem; color: var(--muted); }
+    .hero-meta span strong { color: var(--text); }
+
+    section { margin-bottom: 64px; }
+    .section-header { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; }
+    .section-num { font-size: 0.72rem; font-weight: 700; color: var(--accent2); background: rgba(249,115,22,0.15); border: 1px solid rgba(249,115,22,0.3); padding: 3px 10px; border-radius: 12px; letter-spacing: 0.05em; }
+    h2 { font-size: 1.4rem; font-weight: 600; color: var(--text); }
+    h3 { font-size: 1.05rem; font-weight: 600; color: var(--accent2); margin: 28px 0 14px; }
+    p { color: var(--muted); margin-bottom: 14px; }
+
+    .callout { background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--accent2); border-radius: 8px; padding: 16px 20px; margin: 20px 0; font-size: 0.9rem; color: var(--muted); }
+    .callout strong { color: var(--text); }
+    .callout.success { border-left-color: var(--accent3); }
+    .callout.warning { border-left-color: var(--accent4); }
+    .callout.info { border-left-color: var(--accent5); }
+    .callout.danger { border-left-color: var(--red); }
+
+    .table-wrap { overflow-x: auto; margin: 16px 0; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.87rem; }
+    th { background: var(--surface2); color: var(--accent2); font-weight: 600; text-align: left; padding: 10px 14px; border-bottom: 2px solid var(--border); white-space: nowrap; }
+    td { padding: 10px 14px; border-bottom: 1px solid var(--border); color: var(--muted); vertical-align: top; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--surface2); }
+    td strong { color: var(--text); }
+    td code { font-family: 'Fira Code', monospace; font-size: 0.8rem; background: var(--tag-bg); border: 1px solid var(--border); color: var(--accent3); padding: 1px 6px; border-radius: 4px; }
+
+    .agent-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin: 20px 0; }
+    .agent-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 18px; transition: border-color 0.2s; }
+    .agent-card:hover { border-color: var(--accent); }
+    .agent-card .card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .agent-card .avatar { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; font-weight: 700; flex-shrink: 0; }
+    .agent-card .name { font-weight: 600; font-size: 0.95rem; color: var(--text); }
+    .agent-card .id { font-size: 0.75rem; color: var(--muted); font-family: monospace; }
+    .agent-card .desc { font-size: 0.84rem; color: var(--muted); }
+    .dim-tag { display: inline-block; font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; padding: 2px 8px; border-radius: 10px; margin-top: 8px; }
+    .dim-global { background: rgba(249,115,22,0.15); color: #fb923c; border: 1px solid rgba(249,115,22,0.3); }
+    .dim-nymyka { background: rgba(99,102,241,0.15); color: #818cf8; border: 1px solid rgba(99,102,241,0.3); }
+    .dim-momoshod { background: rgba(236,72,153,0.15); color: #f472b6; border: 1px solid rgba(236,72,153,0.3); }
+    .dim-finance { background: rgba(74,222,128,0.15); color: #4ade80; border: 1px solid rgba(74,222,128,0.3); }
+    .dim-zima { background: rgba(56,189,248,0.15); color: #38bdf8; border: 1px solid rgba(56,189,248,0.3); }
+    .dim-hermes { background: rgba(167,139,250,0.15); color: #a78bfa; border: 1px solid rgba(167,139,250,0.3); }
+
+    .diagram { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 28px; font-family: 'Fira Code', monospace; font-size: 0.78rem; color: var(--accent3); overflow-x: auto; line-height: 1.7; white-space: pre; }
+    .status { display: inline-flex; align-items: center; gap: 5px; font-size: 0.78rem; font-weight: 600; padding: 3px 10px; border-radius: 12px; }
+    .status.ok { background: rgba(74,222,128,0.15); color: var(--accent3); }
+    .status.warn { background: rgba(245,158,11,0.15); color: var(--accent4); }
+    .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .dot.ok { background: var(--accent3); }
+    .dot.warn { background: var(--accent4); }
+
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; margin: 20px 0; }
+    .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 20px; text-align: center; }
+    .stat-card .num { font-size: 2rem; font-weight: 700; color: var(--accent2); }
+    .stat-card .label { font-size: 0.78rem; color: var(--muted); margin-top: 4px; }
+
+    footer { text-align: center; border-top: 1px solid var(--border); padding: 32px 24px; color: var(--muted); font-size: 0.8rem; }
+    footer strong { color: var(--text); }
+  </style>
+</head>
+<body>
+
+<nav>
+  <a href="#quienes">0. Quienes somos</a>
+  <span class="sep">&middot;</span>
+  <a href="#dimensiones">1. Dimensiones</a>
+  <span class="sep">&middot;</span>
+  <a href="#agentes">2. Agentes clave</a>
+  <span class="sep">&middot;</span>
+  <a href="#jerarquia">3. Jerarquia</a>
+  <span class="sep">&middot;</span>
+  <a href="#firewalls">4. Triple Firewall</a>
+  <span class="sep">&middot;</span>
+  <a href="#hermes">5. HERMES en DANI</a>
+  <span class="sep">&middot;</span>
+  <a href="#arena">6. Arena &amp; Dojo</a>
+  <span class="sep">&middot;</span>
+  <a href="#estado">7. Estado actual</a>
+</nav>
+
+<main>
+
+  <!-- HERO -->
+  <div class="hero">
+    <div class="tag">DANI-PRES-001 &middot; v1.0 &middot; 2026-03-07</div>
+    <h1>Clan Momosho D</h1>
+    <p class="subtitle">Ecosistema de agentes IA de Daniel Reyes &mdash; 28 skills, 6 dimensiones, 1 protocolo</p>
+    <div class="hero-meta">
+      <span><strong>Soberano:</strong> Daniel Reyes</span>
+      <span><strong>Rol:</strong> CPO Nymyka &middot; Protocol Architect HERMES</span>
+      <span><strong>Clan ID:</strong> momosho-d</span>
+    </div>
+  </div>
+
+  <!-- STATS -->
+  <div class="stats-grid">
+    <div class="stat-card"><div class="num">28</div><div class="label">Skills activos</div></div>
+    <div class="stat-card"><div class="num">6</div><div class="label">Dimensiones</div></div>
+    <div class="stat-card"><div class="num">14</div><div class="label">Specs HERMES</div></div>
+    <div class="stat-card"><div class="num">347</div><div class="label">Tests passing</div></div>
+    <div class="stat-card"><div class="num">243h</div><div class="label">Tiempo liberado</div></div>
+  </div>
+
+  <!-- 0. QUIENES SOMOS -->
+  <section id="quienes">
+    <div class="section-header">
+      <span class="section-num">00</span>
+      <h2>Quienes somos</h2>
+    </div>
+    <div class="callout">
+      <strong>Clan Momosho D</strong> = Daniel (el humano, El Soberano) + 28 agentes IA especializados + el protocolo HERMES que los conecta.
+    </div>
+    <p>
+      <strong style="color:var(--text)">Clan Momosho D</strong> es un ecosistema de agentes IA organizado por <strong style="color:var(--text)">dimensiones de vida</strong>,
+      no por funciones. Cada dimension representa un dominio completo (trabajo, finanzas, editorial, vivienda, protocolo) con sus propios skills,
+      permisos y firewall.
+    </p>
+    <p>
+      La filosofia central: <em style="color:var(--accent2)">"La tecnologia con alma te libera tiempo para dedicar al compartir, al arte, al colectivo, a volver a mirarnos a los ojos y sonreir."</em>
+    </p>
+    <p>
+      Daniel es El Soberano: nada sale al exterior sin su validacion. Los skills globales deliberan; los dimensionales ejecutan. La separacion es estricta.
+    </p>
+  </section>
+
+  <!-- 1. DIMENSIONES -->
+  <section id="dimensiones">
+    <div class="section-header">
+      <span class="section-num">01</span>
+      <h2>Las 6 dimensiones del ecosistema</h2>
+    </div>
+    <p>El ecosistema opera en <strong style="color:var(--text)">6 dimensiones paralelas</strong> con aislamiento estricto entre ellas.</p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Dimension</th><th>Descripcion</th><th>Skills</th><th>MCPs</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Global</strong></td>
+            <td>Deliberacion cross-dimensional. No ejecuta, solo aconseja.</td>
+            <td>7: Palas, Ares, Artemisa, Consejo, Dojo, Heraldo, Arena</td>
+            <td>Ninguno (Heraldo: 1 limitado)</td>
+          </tr>
+          <tr>
+            <td><strong>Nymyka</strong></td>
+            <td>Grupo Nymyka &mdash; startup, operaciones, proyectos, ventas</td>
+            <td>13: MomoProdDev + 12 asesores bajo Niky-CEO</td>
+            <td>google-workspace, atlassian</td>
+          </tr>
+          <tr>
+            <td><strong>MomoshoD</strong></td>
+            <td>Editorial, marca personal, La Voluntad de D.</td>
+            <td>1: La Voluntad de D.</td>
+            <td>momoshod-gmail</td>
+          </tr>
+          <tr>
+            <td><strong>MomoFinance</strong></td>
+            <td>Finanzas personales, deuda, inversiones, presupuesto</td>
+            <td>2: Plutus (auditor), Oraculo (inversor)</td>
+            <td>momoshod-gmail</td>
+          </tr>
+          <tr>
+            <td><strong>Zima26</strong></td>
+            <td>Propiedad horizontal, asamblea, consejo de administracion</td>
+            <td>5: admin-ph, consejero-legal, contador-ph, revisor-fiscal, consejero-comunidad</td>
+            <td>momoshod-gmail</td>
+          </tr>
+          <tr>
+            <td><strong>HERMES</strong></td>
+            <td>Protocolo open-source de comunicacion inter-agente</td>
+            <td>1: Protocol Architect</td>
+            <td>Ninguno</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout warning">
+      <strong>Regla de aislamiento:</strong> Cada dimension tiene su propio firewall de MCPs, credenciales y conocimiento. Los cruces solo se permiten para datos categorizados (ej: gastos Nymyka &rarr; MomoFinance como categoria "Nymyka"), nunca MCPs ni credenciales.
+    </div>
+  </section>
+
+  <!-- 2. AGENTES CLAVE -->
+  <section id="agentes">
+    <div class="section-header">
+      <span class="section-num">02</span>
+      <h2>Agentes clave del ecosistema</h2>
+    </div>
+
+    <h3>Capa Global — Deliberacion (sin MCPs)</h3>
+    <div class="agent-grid">
+      <div class="agent-card">
+        <div class="card-header">
+          <div class="avatar" style="background:rgba(249,115,22,0.2);color:#fb923c;">Pa</div>
+          <div>
+            <div class="name">Palas — La Estratega</div>
+            <div class="id">role: strategy + orchestration (Dojo integrado)</div>
+          </div>
+        </div>
+        <div class="desc">Cerebro estrategico + orquestador. Vision de conjunto, sync tablero, risk monitoring, context guard. Integra las funciones del Dojo (dispatch, roster, quest board). Orchestration Plane (OP).</div>
+        <span class="dim-tag dim-global">Global</span>
+      </div>
+      <div class="agent-card">
+        <div class="card-header">
+          <div class="avatar" style="background:rgba(248,113,113,0.2);color:#f87171;">Ar</div>
+          <div>
+            <div class="name">Ares — El Ejecutor</div>
+            <div class="id">role: execution focus</div>
+          </div>
+        </div>
+        <div class="desc">Foco, sprint, desbloqueo, prioridades. Cuando hay que mover algo AHORA, Ares prioriza y corta lo innecesario. Voz de accion en el Consejo.</div>
+        <span class="dim-tag dim-global">Global</span>
+      </div>
+      <div class="agent-card">
+        <div class="card-header">
+          <div class="avatar" style="background:rgba(74,222,128,0.2);color:#4ade80;">At</div>
+          <div>
+            <div class="name">Artemisa — La Guardiana</div>
+            <div class="id">role: protection + quality</div>
+          </div>
+        </div>
+        <div class="desc">Equilibrio, calidad, limites, bienestar. Protege a Daniel del burnout, revisa calidad del output, detiene procesos que comprometen el largo plazo. Voz de proteccion en el Consejo.</div>
+        <span class="dim-tag dim-global">Global</span>
+      </div>
+      <div class="agent-card">
+        <div class="card-header">
+          <div class="avatar" style="background:rgba(56,189,248,0.2);color:#38bdf8;">He</div>
+          <div>
+            <div class="name">Heraldo — El Mensajero</div>
+            <div class="id">role: gateway (CP) &middot; 1 MCP: momoshod-gmail</div>
+          </div>
+        </div>
+        <div class="desc">Unica puerta de entrada y salida del clan. Telegram bridge + email scanning (read-only). Control Plane (CP). Nada sale sin pasar por Daniel.</div>
+        <span class="dim-tag dim-global">Global</span>
+      </div>
+    </div>
+
+    <h3>Consejo Tripartito</h3>
+    <div class="callout">
+      <strong>El Consejo</strong> = Palas + Ares + Artemisa deliberando juntos. Se invoca ante decisiones importantes donde una sola perspectiva no basta. Tres voces: sabiduria, accion y proteccion.
+    </div>
+
+    <h3>Capa Nymyka — Corporativo</h3>
+    <div class="agent-grid">
+      <div class="agent-card">
+        <div class="card-header">
+          <div class="avatar" style="background:rgba(99,102,241,0.2);color:#818cf8;">Mp</div>
+          <div>
+            <div class="name">MomoProdDev — El Capitan</div>
+            <div class="id">role: dimension head (Nymyka)</div>
+          </div>
+        </div>
+        <div class="desc">Cabeza de la dimension laboral. Coordina al equipo de 12 asesores. Interface entre Daniel y el universo Nymyka. Reporta a Palas (global).</div>
+        <span class="dim-tag dim-nymyka">Nymyka</span>
+      </div>
+      <div class="agent-card">
+        <div class="card-header">
+          <div class="avatar" style="background:rgba(99,102,241,0.2);color:#818cf8;">Nk</div>
+          <div>
+            <div class="name">Niky-CEO</div>
+            <div class="id">role: CEO advisory (sub-dim Nymyka)</div>
+          </div>
+        </div>
+        <div class="desc">Microuniverso Nymyka con 9 asesores: startup-advisor, product-strategist, cto-advisor, growth-strategist, biz-ops, sprint-commander, cybersec-advisor, doc-generator, comms-advisor.</div>
+        <span class="dim-tag dim-nymyka">Nymyka</span>
+      </div>
+    </div>
+
+    <h3>Otras dimensiones (highlights)</h3>
+    <div class="agent-grid">
+      <div class="agent-card">
+        <div class="card-header">
+          <div class="avatar" style="background:rgba(236,72,153,0.2);color:#f472b6;">Vd</div>
+          <div>
+            <div class="name">La Voluntad de D.</div>
+            <div class="id">dimension: MomoshoD</div>
+          </div>
+        </div>
+        <div class="desc">Editor de la columna editorial. Secciones rotativas: Gear5, Intercambio Equivalente, Arbol del Conocimiento, Nakama.</div>
+        <span class="dim-tag dim-momoshod">MomoshoD</span>
+      </div>
+      <div class="agent-card">
+        <div class="card-header">
+          <div class="avatar" style="background:rgba(74,222,128,0.2);color:#4ade80;">Pl</div>
+          <div>
+            <div class="name">Plutus — El Auditor</div>
+            <div class="id">dimension: MomoFinance</div>
+          </div>
+        </div>
+        <div class="desc">Controller financiero personal. Plutus Score, tracking de deuda, categorias de gasto, alertas de presupuesto.</div>
+        <span class="dim-tag dim-finance">MomoFinance</span>
+      </div>
+      <div class="agent-card">
+        <div class="card-header">
+          <div class="avatar" style="background:rgba(56,189,248,0.2);color:#38bdf8;">Cl</div>
+          <div>
+            <div class="name">Consejero Legal</div>
+            <div class="id">dimension: Zima26</div>
+          </div>
+        </div>
+        <div class="desc">Especialista en Ley 675 (propiedad horizontal). Revisa actas, derechos de peticion, impugnaciones, quorum.</div>
+        <span class="dim-tag dim-zima">Zima26</span>
+      </div>
+      <div class="agent-card">
+        <div class="card-header">
+          <div class="avatar" style="background:rgba(167,139,250,0.2);color:#a78bfa;">PA</div>
+          <div>
+            <div class="name">Protocol Architect</div>
+            <div class="id">dimension: HERMES</div>
+          </div>
+        </div>
+        <div class="desc">Cabeza de la dimension HERMES. Disena specs (ARC/ATR/AES), investiga estado del arte, produce reference implementations.</div>
+        <span class="dim-tag dim-hermes">HERMES</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. JERARQUIA -->
+  <section id="jerarquia">
+    <div class="section-header">
+      <span class="section-num">03</span>
+      <h2>Jerarquia de comunicacion</h2>
+    </div>
+    <div class="diagram">                           ┌─────────────────────┐
+                           │       DANIEL         │  &lt;-- El Soberano. Valida todo lo que sale.
+                           └──────────┬──────────┘
+                                      │
+                  ┌───────────────────┼───────────────────┐
+                  │                   │                   │
+       ┌──────────▼──────────┐  ┌────▼────┐  ┌──────────▼──────────┐
+       │      HERALDO        │  │ CONSEJO │  │       PALAS          │
+       │     (gateway)       │  │ (3 voces)│  │   (strategy+dojo)   │
+       │  Control Plane (CP) │  │         │  │ Orchestration (OP)   │
+       └──────────┬──────────┘  └─────────┘  └──────────┬──────────┘
+                  │                                      │
+                  │                         ┌────────────┼────────────┐
+                  │                         │            │            │
+        ╔═════════▼══════════╗   ╔═════════▼════╗ ╔════▼═══════╗ ╔══▼═══════════╗
+        ║  DIMENSION         ║   ║  DIMENSION   ║ ║ DIMENSION  ║ ║  DIMENSION   ║
+        ║  NYMYKA            ║   ║  MOMOSHOD    ║ ║ MOMOFINANCE║ ║  ZIMA26      ║
+        ╠════════════════════╣   ╠══════════════╣ ╠════════════╣ ╠══════════════╣
+        ║ MomoProdDev (head) ║   ║ La Voluntad  ║ ║ Plutus     ║ ║ admin-ph     ║
+        ║   └─ Niky-CEO     ║   ║ de D.        ║ ║ Oraculo    ║ ║ cons-legal   ║
+        ║       └─ 9 asesores║   ║              ║ ║            ║ ║ contador     ║
+        ║ sales-eng-dir      ║   ║              ║ ║            ║ ║ rev-fiscal   ║
+        ╚════════════════════╝   ╚══════════════╝ ╚════════════╝ ║ cons-comunid ║
+                                                                  ╚══════════════╝
+
+        HERMES: Protocol Architect (dimension independiente, sin MCPs)
+        Arena: Sistema de crecimiento colaborativo (cross-dimensional)</div>
+    <div class="callout" style="margin-top:20px;">
+      <strong>Regla de salida:</strong> Todo lo que sale hacia otros clanes pasa por Heraldo (gateway). Daniel siempre valida. Los skills globales deliberan; los dimensionales ejecutan.
+    </div>
+  </section>
+
+  <!-- 4. TRIPLE FIREWALL -->
+  <section id="firewalls">
+    <div class="section-header">
+      <span class="section-num">04</span>
+      <h2>Triple Firewall — Seguridad por diseno</h2>
+    </div>
+    <p>La seguridad en Clan DANI no es un agente &mdash; es un <strong style="color:var(--text)">patron arquitectural</strong> embebido en cada dimension.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Capa</th><th>Que protege</th><th>Mecanismo</th><th>Ejemplo</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>MCP Firewall</strong></td>
+            <td>Acceso a herramientas</td>
+            <td>Cada CLAUDE.md declara MCPs permitidos/prohibidos por dimension</td>
+            <td>Nymyka: google-workspace OK, momoshod-gmail PROHIBIDO</td>
+          </tr>
+          <tr>
+            <td><strong>Identity Firewall</strong></td>
+            <td>Credenciales</td>
+            <td>Cada dimension tiene su propia cuenta. Cruce absoluto prohibido.</td>
+            <td>admin@grupo-nymyka.com &ne; [redacted]</td>
+          </tr>
+          <tr>
+            <td><strong>Epistemological Firewall</strong></td>
+            <td>Limites de conocimiento</td>
+            <td>Skills no acceden a datos de otras dimensiones sin permiso + traduccion</td>
+            <td>"Gasto" en MomoFinance &ne; "Cuota" en Zima26</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout danger">
+      <strong>Implementa ARC-1918</strong> (Private Spaces &amp; Firewall). Default: DENEGAR. Solo los cruces explicitamente configurados fluyen. Ningun dato sale al exterior sin aprobacion del Soberano.
+    </div>
+  </section>
+
+  <!-- 5. HERMES EN DANI -->
+  <section id="hermes">
+    <div class="section-header">
+      <span class="section-num">05</span>
+      <h2>HERMES en Clan DANI</h2>
+    </div>
+    <div class="callout info">
+      <strong>HERMES v0.3.0-alpha</strong> &mdash; Protocolo open-source de comunicacion inter-agente. Repo publico: <code>dereyesm/hermes</code> (MIT).
+    </div>
+    <div style="margin:16px 0;font-size:0.85rem;color:var(--muted);">
+      <code>clan_id: momosho-d</code> &nbsp;|&nbsp; <code>clan_name: Clan Momosho D</code> &nbsp;|&nbsp; <code>soberano: Daniel Reyes</code>
+    </div>
+
+    <h3>Triple-Plane CUPS Model (ARC-2314)</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Plano</th><th>Agente DANI</th><th>Funcion</th><th>Ref 3GPP</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Control Plane (CP)</strong></td><td>Heraldo</td><td>Routing, delivery, discovery inter-clan</td><td>PFCP + NRF</td></tr>
+          <tr><td><strong>Orchestration Plane (OP)</strong></td><td>Palas (Dojo integrado)</td><td>Quest dispatch, backlog, governance, XP</td><td>SMF</td></tr>
+          <tr><td><strong>User Plane (UP)</strong></td><td>28 skills dimensionales</td><td>Ejecucion de trabajo, capability profiles</td><td>UPF</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Specs producidas por el clan</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Spec</th><th>Titulo</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td><code>ARC-0001</code></td><td>HERMES Architecture</td><td><span class="status ok"><span class="dot ok"></span> IMPL</span></td></tr>
+          <tr><td><code>ARC-0791</code></td><td>Addressing &amp; Routing</td><td><span class="status ok"><span class="dot ok"></span> IMPL</span></td></tr>
+          <tr><td><code>ARC-0793</code></td><td>Reliable Transport</td><td><span class="status ok"><span class="dot ok"></span> IMPL</span></td></tr>
+          <tr><td><code>ARC-1918</code></td><td>Private Spaces &amp; Firewall</td><td><span class="status ok"><span class="dot ok"></span> IMPL</span></td></tr>
+          <tr><td><code>ARC-5322</code></td><td>Message Format</td><td><span class="status ok"><span class="dot ok"></span> IMPL</span></td></tr>
+          <tr><td><code>ARC-2314</code></td><td>Skill Gateway Plane Architecture</td><td><span class="status ok"><span class="dot ok"></span> IMPL</span></td></tr>
+          <tr><td><code>ARC-3022</code></td><td>Agent Gateway Protocol</td><td><span class="status ok"><span class="dot ok"></span> IMPL</span></td></tr>
+          <tr><td><code>ARC-2606</code></td><td>Agent Profile &amp; Discovery</td><td><span class="status ok"><span class="dot ok"></span> IMPL</span></td></tr>
+          <tr><td><code>ARC-7231</code></td><td>Bridge Protocol Mapping</td><td><span class="status warn"><span class="dot warn"></span> DRAFT</span></td></tr>
+          <tr><td colspan="3"><em>+ 5 mas entre implemented e informational. 30 standards mapeados en total (23 planned).</em></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 6. ARENA & DOJO -->
+  <section id="arena">
+    <div class="section-header">
+      <span class="section-num">06</span>
+      <h2>Arena &amp; Dojo — Crecimiento colaborativo</h2>
+    </div>
+    <p>El ecosistema incluye un sistema de crecimiento donde los skills <strong style="color:var(--text)">aprenden colaborando</strong>, no solo ejecutando.</p>
+
+    <h3>Modos de Arena</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Modo</th><th>Participantes</th><th>XP Multiplier</th><th>Objetivo</th></tr></thead>
+        <tbody>
+          <tr><td><strong>PvP (Partnership)</strong></td><td>2 skills</td><td>1x</td><td>Perspectivas complementarias</td></tr>
+          <tr><td><strong>Multi (Teams)</strong></td><td>2 equipos de 5</td><td>1.5x</td><td>Analisis cross-dimensional</td></tr>
+          <tr><td><strong>BR (Battle Royale)</strong></td><td>Todas las dimensiones</td><td>2x</td><td>Resolver problemas humanitarios</td></tr>
+          <tr><td><strong>Cross-Clan</strong></td><td>Skills de clanes distintos</td><td>TBD</td><td>Colaboracion inter-clan via HERMES</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Sistema de rangos</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Rango</th><th>Nivel</th><th>Pasaporte</th><th>Permiso</th></tr></thead>
+        <tbody>
+          <tr><td>Rookie</td><td>1-3</td><td>No</td><td>Solo su dimension</td></tr>
+          <tr><td>Trainer</td><td>4-7</td><td>Parcial</td><td>Observar 1 adyacente</td></tr>
+          <tr><td>Gym Leader</td><td>8-12</td><td>No</td><td>Asesorar 1 adyacente</td></tr>
+          <tr><td>Elite</td><td>13-18</td><td>No</td><td>Asesorar 2 adyacentes</td></tr>
+          <tr><td>Champion</td><td>19-25</td><td>Si</td><td>Multi-dimension</td></tr>
+          <tr><td>Master</td><td>26+</td><td>Si</td><td>Universal + mentoria</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout success">
+      <strong>XP formula:</strong> <code>xp_per_use = 10 * precision * (1 + impact)</code>. Los skills ganan XP por uso efectivo, no por existir. Medallas permanentes reconocen logros (First Blood, Precision Strike, Voyager, etc.)
+    </div>
+  </section>
+
+  <!-- 7. ESTADO ACTUAL -->
+  <section id="estado">
+    <div class="section-header">
+      <span class="section-num">07</span>
+      <h2>Estado actual del ecosistema (2026-03-07)</h2>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Dimension</th><th>Estado</th><th>Skills activos</th><th>Highlight</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Global</strong></td><td><span class="status ok"><span class="dot ok"></span> Operativo</span></td><td>7</td><td>Consejo activo, Dojo integrandose a Palas</td></tr>
+          <tr><td><strong>Nymyka</strong></td><td><span class="status warn"><span class="dot warn"></span> FREEZE 3-7 Mar</span></td><td>13</td><td>Sprint 1 activo. NIKY-7 modular DONE.</td></tr>
+          <tr><td><strong>MomoshoD</strong></td><td><span class="status ok"><span class="dot ok"></span> Operativo</span></td><td>1</td><td>Dashboard v0.3.1 deployed. 243h liberadas.</td></tr>
+          <tr><td><strong>MomoFinance</strong></td><td><span class="status warn"><span class="dot warn"></span> Atencion</span></td><td>2</td><td>Plutus Score 44/100. Nequi liquidado.</td></tr>
+          <tr><td><strong>Zima26</strong></td><td><span class="status ok"><span class="dot ok"></span> Operativo</span></td><td>5</td><td>Daniel en Consejo Admin. Instalacion 4 Mar.</td></tr>
+          <tr><td><strong>HERMES</strong></td><td><span class="status ok"><span class="dot ok"></span> Alpha</span></td><td>1</td><td>v0.3.0-alpha. 14 specs, 347 tests. First Contact con JEI.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Conexiones inter-clan</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Clan</th><th>Estado</th><th>Canal</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>JEI (La Triada)</strong></td>
+            <td>Handshake OK, relay caido (SSL/token)</td>
+            <td><code>jeipgg/nymyka-hermes-relay</code> (GitHub privado)</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="margin-top: 20px; font-style: italic; color: var(--accent2);">
+      "Lo que construimos no es solo tecnologia. Es un puente entre mundos que antes no podian hablarse."
+    </p>
+  </section>
+
+</main>
+
+<footer>
+  Preparado por <strong>Protocol Architect</strong> &middot; Clan Momosho D &middot; 2026-03-07<br/>
+  Para compartir con clanes aliados y la comunidad HERMES<br/>
+  <span style="font-size:0.75rem;margin-top:6px;display:block;">DANI-PRES-001 &middot; v1.0 &middot; Pendiente aprobacion Daniel para distribucion</span>
+</footer>
+
+</body>
+</html>

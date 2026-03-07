@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>La Triada — Ecosistema JEI · Presentación para Dani</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --surface2: #1c2128;
+      --border: #30363d;
+      --accent: #7c3aed;
+      --accent2: #a78bfa;
+      --accent3: #4ade80;
+      --accent4: #f59e0b;
+      --accent5: #38bdf8;
+      --red: #f87171;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --tag-bg: #21262d;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    /* NAV */
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      background: rgba(13,17,23,0.95);
+      border-bottom: 1px solid var(--border);
+      backdrop-filter: blur(8px);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 10px 24px;
+      overflow-x: auto;
+    }
+    nav a {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 0.78rem;
+      font-weight: 500;
+      padding: 4px 10px;
+      border-radius: 6px;
+      white-space: nowrap;
+      transition: all 0.2s;
+    }
+    nav a:hover { color: var(--text); background: var(--surface2); }
+    nav .sep { color: var(--border); font-size: 0.9rem; }
+
+    /* LAYOUT */
+    main {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 90px 24px 80px;
+    }
+
+    /* HERO */
+    .hero {
+      text-align: center;
+      padding: 60px 0 40px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 60px;
+    }
+    .hero .tag {
+      display: inline-block;
+      background: var(--tag-bg);
+      border: 1px solid var(--border);
+      color: var(--accent2);
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 4px 14px;
+      border-radius: 20px;
+      margin-bottom: 20px;
+    }
+    .hero h1 {
+      font-size: 2.6rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--accent2), var(--accent5));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 12px;
+    }
+    .hero .subtitle {
+      font-size: 1.05rem;
+      color: var(--muted);
+      margin-bottom: 24px;
+    }
+    .hero-meta {
+      display: flex;
+      justify-content: center;
+      gap: 32px;
+      flex-wrap: wrap;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+    .hero-meta span strong { color: var(--text); }
+
+    /* SECTIONS */
+    section {
+      margin-bottom: 64px;
+    }
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 28px;
+    }
+    .section-num {
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: var(--accent2);
+      background: rgba(124,58,237,0.15);
+      border: 1px solid rgba(124,58,237,0.3);
+      padding: 3px 10px;
+      border-radius: 12px;
+      letter-spacing: 0.05em;
+    }
+    h2 {
+      font-size: 1.4rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+    h3 {
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: var(--accent2);
+      margin: 28px 0 14px;
+    }
+    p { color: var(--muted); margin-bottom: 14px; }
+
+    /* CALLOUT */
+    .callout {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent2);
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin: 20px 0;
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+    .callout strong { color: var(--text); }
+    .callout.warning { border-left-color: var(--accent4); }
+    .callout.success { border-left-color: var(--accent3); }
+    .callout.danger { border-left-color: var(--red); }
+    .callout.info { border-left-color: var(--accent5); }
+
+    /* TABLES */
+    .table-wrap { overflow-x: auto; margin: 16px 0; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.87rem;
+    }
+    th {
+      background: var(--surface2);
+      color: var(--accent2);
+      font-weight: 600;
+      text-align: left;
+      padding: 10px 14px;
+      border-bottom: 2px solid var(--border);
+      white-space: nowrap;
+    }
+    td {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      color: var(--muted);
+      vertical-align: top;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--surface2); }
+    td strong { color: var(--text); }
+    td code {
+      font-family: 'Fira Code', 'Cascadia Code', monospace;
+      font-size: 0.8rem;
+      background: var(--tag-bg);
+      border: 1px solid var(--border);
+      color: var(--accent3);
+      padding: 1px 6px;
+      border-radius: 4px;
+    }
+
+    /* AGENT CARDS */
+    .agent-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+      margin: 20px 0;
+    }
+    .agent-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 18px;
+      transition: border-color 0.2s;
+    }
+    .agent-card:hover { border-color: var(--accent); }
+    .agent-card .card-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .agent-card .avatar {
+      width: 36px; height: 36px;
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.1rem;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .agent-card .name { font-weight: 600; font-size: 0.95rem; color: var(--text); }
+    .agent-card .id { font-size: 0.75rem; color: var(--muted); font-family: monospace; }
+    .agent-card .desc { font-size: 0.84rem; color: var(--muted); }
+    .dim-tag {
+      display: inline-block;
+      font-size: 0.68rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding: 2px 8px;
+      border-radius: 10px;
+      margin-top: 8px;
+    }
+    .dim-personal { background: rgba(249,115,22,0.15); color: #fb923c; border: 1px solid rgba(249,115,22,0.3); }
+    .dim-laboral  { background: rgba(99,102,241,0.15); color: #818cf8; border: 1px solid rgba(99,102,241,0.3); }
+    .dim-trans    { background: rgba(20,184,166,0.15); color: #2dd4bf; border: 1px solid rgba(20,184,166,0.3); }
+    .new-badge {
+      display: inline-block;
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      background: rgba(74,222,128,0.15);
+      color: var(--accent3);
+      border: 1px solid rgba(74,222,128,0.3);
+      padding: 1px 7px;
+      border-radius: 10px;
+      margin-left: 6px;
+      vertical-align: middle;
+    }
+
+    /* DIAGRAM */
+    .diagram {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 28px;
+      font-family: 'Fira Code', 'Cascadia Code', monospace;
+      font-size: 0.78rem;
+      color: var(--accent3);
+      overflow-x: auto;
+      line-height: 1.7;
+      white-space: pre;
+    }
+
+    /* STATUS BADGES */
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 12px;
+    }
+    .status.ok  { background: rgba(74,222,128,0.15); color: var(--accent3); }
+    .status.warn { background: rgba(245,158,11,0.15); color: var(--accent4); }
+    .status.fail { background: rgba(248,113,113,0.15); color: var(--red); }
+    .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .dot.ok { background: var(--accent3); }
+    .dot.warn { background: var(--accent4); }
+    .dot.fail { background: var(--red); }
+
+    /* STEPS */
+    .steps { list-style: none; margin: 16px 0; }
+    .steps li {
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .steps li:last-child { border-bottom: none; }
+    .step-num {
+      flex-shrink: 0;
+      width: 26px; height: 26px;
+      background: rgba(124,58,237,0.2);
+      border: 1px solid rgba(124,58,237,0.4);
+      color: var(--accent2);
+      font-size: 0.75rem;
+      font-weight: 700;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .step-content { flex: 1; }
+    .step-content strong { color: var(--text); font-size: 0.9rem; }
+    .step-content .step-meta { font-size: 0.8rem; color: var(--muted); margin-top: 3px; }
+
+    /* QUESTIONS */
+    .question-block {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px;
+      margin: 10px 0;
+    }
+    .question-block .q {
+      font-weight: 600;
+      color: var(--accent5);
+      margin-bottom: 6px;
+      font-size: 0.95rem;
+    }
+    .question-block .why {
+      font-size: 0.84rem;
+      color: var(--muted);
+    }
+
+    /* FOOTER */
+    footer {
+      text-align: center;
+      border-top: 1px solid var(--border);
+      padding: 32px 24px;
+      color: var(--muted);
+      font-size: 0.8rem;
+    }
+    footer strong { color: var(--text); }
+  </style>
+</head>
+<body>
+
+<nav>
+  <a href="#quienes">0. Quienes somos</a>
+  <span class="sep">·</span>
+  <a href="#dimensiones">1. Dimensiones</a>
+  <span class="sep">·</span>
+  <a href="#agentes">2. Agentes</a>
+  <span class="sep">·</span>
+  <a href="#jerarquia">3. Jerarquia</a>
+  <span class="sep">·</span>
+  <a href="#canales">4. Canales</a>
+  <span class="sep">·</span>
+  <a href="#hermes">5. HERMES</a>
+  <span class="sep">·</span>
+  <a href="#relay">6. Relay JEI↔DANI</a>
+  <span class="sep">·</span>
+  <a href="#objetivo">7. Objetivo</a>
+  <span class="sep">·</span>
+  <a href="#pasos">8. Proximos pasos</a>
+</nav>
+
+<main>
+
+  <!-- HERO -->
+  <div class="hero">
+    <div class="tag">JEI-PMO-010 · v1.1 · 2026-03-05</div>
+    <h1>La Triada — Ecosistema JEI</h1>
+    <p class="subtitle">Presentacion para Daniel Reyes · Reunion HERMES Cross-Ecosistema</p>
+    <div class="hero-meta">
+      <span><strong>Autora:</strong> Jeimmy Patricia Gomez Gil</span>
+      <span><strong>Rol:</strong> CSO · CISO · PMO · Operations Lead</span>
+      <span><strong>Empresa:</strong> Grupo Nymyka</span>
+    </div>
+  </div>
+
+  <!-- 0. QUIENES SOMOS -->
+  <section id="quienes">
+    <div class="section-header">
+      <span class="section-num">00</span>
+      <h2>Quienes somos</h2>
+    </div>
+    <div class="callout">
+      <strong>La Triada</strong> = Jeimmy (la humana, La Soberana) + sus agentes IA + el protocolo HERMES que los conecta.
+    </div>
+    <p>
+      <strong style="color:var(--text)">La Triada</strong> es el ecosistema de agentes IA de Jeimmy Gomez, CSO/CISO de Grupo Nymyka.
+      No es un chatbot ni una herramienta puntual — es un ecosistema completo con agentes especializados, memoria
+      persistente, comunicacion inter-agente y protocolo formal de gobernanza.
+    </p>
+    <p>
+      Cada agente tiene un rol, una dimension (personal o laboral), un namespace HERMES y sus propios archivos
+      de memoria. Jeimmy es La Soberana: nada sale al exterior sin su validacion.
+    </p>
+  </section>
+
+  <!-- 1. DIMENSIONES -->
+  <section id="dimensiones">
+    <div class="section-header">
+      <span class="section-num">01</span>
+      <h2>Las dos dimensiones del ecosistema</h2>
+    </div>
+    <p>El ecosistema JEI opera en <strong style="color:var(--text)">dos dimensiones paralelas</strong> que se mantienen separadas por diseno.</p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Dimension</th>
+            <th>Descripcion</th>
+            <th>Agentes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Personal</strong></td>
+            <td>Vida personal de Jeimmy — bienestar, salud, finanzas, legal personal</td>
+            <td><code>sakti</code> · <code>pato_personal</code> · <code>valerio_personal</code></td>
+          </tr>
+          <tr>
+            <td><strong>Laboral</strong></td>
+            <td>Grupo Nymyka — estrategia, operaciones, proyectos, legal, seguridad</td>
+            <td><code>jai</code> · <code>valerio</code> · <code>bachue</code> · <code>bruja</code> · <code>ida</code> · <code>pato_nymyka</code></td>
+          </tr>
+          <tr>
+            <td><strong>Transversal</strong></td>
+            <td>Meta-auditoria + gateway — sin acceso a contenido, solo senalizacion</td>
+            <td><code>gogi</code> (controller) · <code>huitaca</code> (gateway)</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout warning">
+      <strong>Regla de aislamiento:</strong> Los agentes de la dimension personal NO tienen acceso a datos corporativos y viceversa.
+      Esta separacion es intencional y refleja el principio "Security by Design" de Jeimmy como CISO.
+    </div>
+  </section>
+
+  <!-- 2. AGENTES -->
+  <section id="agentes">
+    <div class="section-header">
+      <span class="section-num">02</span>
+      <h2>Super-Agentes — Quienes son y que hacen</h2>
+    </div>
+
+    <h3>Capa de Estrategia y Gobierno</h3>
+    <div class="agent-grid">
+      <div class="agent-card">
+        <div class="card-header">
+          <div class="avatar" style="background:rgba(124,58,237,0.2);color:#a78bfa;">Ji</div>
+          <div>
+            <div class="name">JAi / Huitaca</div>
+            <div class="id">namespace: estrategia · gateway</div>
+          </div>
+        </div>
+        <div class="desc">Cerebro del ecosistema. Procesa todas las solicitudes de Jeimmy, coordina los demas agentes, toma decisiones estrategicas para Nymyka. Huitaca es su interfaz Telegram.</div>
+        <span class="dim-tag dim-trans">Transversal</span>
+      </div>
+      <div class="agent-card">
+        <div class="card-header">
+          <div class="avatar" style="background:rgba(20,184,166,0.2);color:#2dd4bf;">Gg</div>
+          <div>
+            <div class="name">GoGi-Sensei</div>
+            <div class="id">namespace: controller</div>
+          </div>
+        </div>
+        <div class="desc">Meta-auditor + Sensei del Dojo JEI. Audita la calidad del ecosistema, gestiona el aprendizaje colectivo, actualiza el roster de agentes y mantiene la memoria colectiva.</div>
+        <span class="dim-tag dim-trans">Transversal</span>
+      </div>
+    </div>
+
+    <h3>Capa Legal y Seguridad</h3>
+    <div class="agent-grid">
+      <div class="agent-card">
+        <div class="card-header">
+          <div class="avatar" style="background:rgba(99,102,241,0.2);color:#818cf8;">Va</div>
+          <div>
+            <div class="name">Valerio</div>
+            <div class="id">namespace: legal</div>
+          </div>
+        </div>
+        <div class="desc">Legal Corporativo de Nymyka. Revisa contratos, clausulas, PI, cumplimiento DIAN, NDA. Nada corporativo sale al exterior sin pasar por Valerio. Emite <code>[ALERTA_ROJA_LEGAL]</code> cuando hay riesgo.</div>
+        <span class="dim-tag dim-laboral">Laboral</span>
+      </div>
+      <div class="agent-card" style="border-color: rgba(74,222,128,0.3);">
+        <div class="card-header">
+          <div class="avatar" style="background:rgba(249,115,22,0.2);color:#fb923c;">Vp</div>
+          <div>
+            <div class="name">Valerio-Personal <span class="new-badge">Nuevo</span></div>
+            <div class="id">namespace: legal</div>
+          </div>
+        </div>
+        <div class="desc">Legal Personal de Jeimmy como persona natural. Maneja contratos, bienes raices, seguros, obligaciones civiles. Mismo rigor que Valerio — scope exclusivamente personal. Datos 100% confidenciales.</div>
+        <div style="font-size:0.78rem;color:var(--muted);margin-top:10px;"><strong style="color:var(--text)">Asuntos activos:</strong> VP-001 Leasing → credito hipotecario (FC Alliance) · VP-002 Polizas Davivienda</div>
+        <span class="dim-tag dim-personal">Personal</span>
+      </div>
+      <div class="agent-card">
+        <div class="card-header">
+          <div class="avatar" style="background:rgba(34,197,94,0.2);color:#4ade80;">Ba</div>
+          <div>
+            <div class="name">Bachue</div>
+            <div class="id">namespace: seguridad</div>
+          </div>
+        </div>
+        <div class="desc">QA/AppSec — Guardiana del codigo. Audita antes de produccion, detecta vulnerabilidades OWASP, puede bloquear un deploy si hay fallo critico. Sinergia con Valerio en hallazgos tecnico-legales.</div>
+        <span class="dim-tag dim-laboral">Laboral</span>
+      </div>
+      <div class="agent-card">
+        <div class="card-header">
+          <div class="avatar" style="background:rgba(248,113,113,0.2);color:#f87171;">Br</div>
+          <div>
+            <div class="name">Bruja</div>
+            <div class="id">namespace: seguridad</div>
+          </div>
+        </div>
+        <div class="desc">CISO — Gestion de Riesgos. Mantiene el registro de riesgos activos, alerta sobre amenazas de seguridad, soporte a Jeimmy como CISO de Grupo Nymyka.</div>
+        <span class="dim-tag dim-laboral">Laboral</span>
+      </div>
+    </div>
+
+    <h3>Capa de Operaciones</h3>
+    <div class="agent-grid">
+      <div class="agent-card">
+        <div class="card-header">
+          <div class="avatar" style="background:rgba(56,189,248,0.2);color:#38bdf8;">Id</div>
+          <div>
+            <div class="name">IdA</div>
+            <div class="id">namespace: operaciones</div>
+          </div>
+        </div>
+        <div class="desc">PMO / Operations Lead. Gestiona el portafolio de proyectos de Nymyka (Lafayette, Superinflables, Niky). Jira + gestion extra-Jira. Detecta bloqueos proactivamente.</div>
+        <span class="dim-tag dim-laboral">Laboral</span>
+      </div>
+      <div class="agent-card">
+        <div class="card-header">
+          <div class="avatar" style="background:rgba(245,158,11,0.2);color:#f59e0b;">Pn</div>
+          <div>
+            <div class="name">Pato-Nymyka</div>
+            <div class="id">namespace: operaciones</div>
+          </div>
+        </div>
+        <div class="desc">CFO Corporativo. Controla los costos de empresa — APIs, infraestructura, proyectos. Alerta si se supera el presupuesto corporativo.</div>
+        <span class="dim-tag dim-laboral">Laboral</span>
+      </div>
+      <div class="agent-card">
+        <div class="card-header">
+          <div class="avatar" style="background:rgba(249,115,22,0.2);color:#fb923c;">Pp</div>
+          <div>
+            <div class="name">Pato-Personal</div>
+            <div class="id">namespace: operaciones</div>
+          </div>
+        </div>
+        <div class="desc">CFO Personal. Finanzas personales de Jeimmy. Monitorea gastos, presupuesto mensual personal y planificacion financiera individual.</div>
+        <span class="dim-tag dim-personal">Personal</span>
+      </div>
+      <div class="agent-card">
+        <div class="card-header">
+          <div class="avatar" style="background:rgba(236,72,153,0.2);color:#f472b6;">Sk</div>
+          <div>
+            <div class="name">Sakti</div>
+            <div class="id">namespace: operaciones</div>
+          </div>
+        </div>
+        <div class="desc">Bienestar. Vela por la salud y bienestar de Jeimmy. Check-ins, rutinas, alertas de sobrecarga. Confidencial — no sale al bus externo.</div>
+        <span class="dim-tag dim-personal">Personal</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. JERARQUIA -->
+  <section id="jerarquia">
+    <div class="section-header">
+      <span class="section-num">03</span>
+      <h2>Jerarquia de comunicacion</h2>
+    </div>
+    <div class="diagram">                         ┌─────────────────────┐
+                         │       JEIMMY        │  &lt;-- La Soberana. Valida todo lo que sale.
+                         └──────────┬──────────┘
+                                    │ Telegram (chat privado)
+                         ┌──────────▼──────────┐
+                         │      HUITACA        │  &lt;-- Gateway. Unica entrada/salida del clan.
+                         │     (gateway)       │       Bot Telegram + conexion al Agora/DANI
+                         └──────────┬──────────┘
+                                    │ bus.jsonl (HERMES)
+                       ┌────────────▼────────────┐
+                       │           JAi           │  &lt;-- Orquestador. Procesa y despacha.
+                       │       (estrategia)      │
+                       └───────┬─────────┬───────┘
+                               │         │
+             ╔═════════════════▼══╗   ╔══▼══════════════════╗
+             ║  DIMENSION         ║   ║  DIMENSION          ║
+             ║  LABORAL           ║   ║  PERSONAL           ║
+             ╠════════════════════╣   ╠═════════════════════╣
+             ║                    ║   ║                     ║
+             ║ Valerio            ║   ║ Valerio-Personal    ║ &lt;-- NUEVO
+             ║ (legal corp.)      ║   ║ (legal personal)    ║
+             ║                    ║   ║                     ║
+             ║ Bachue             ║   ║ Sakti               ║
+             ║ (QA/AppSec)        ║   ║ (bienestar)         ║
+             ║                    ║   ║                     ║
+             ║ Bruja              ║   ║ Pato-Personal       ║
+             ║ (CISO/riesgos)     ║   ║ (finanzas pers.)    ║
+             ║                    ║   ║                     ║
+             ║ IdA                ║   ╚═════════════════════╝
+             ║ (PMO/ops)          ║
+             ║   └─ Pato-Nymyka   ║
+             ║      (fin. corp)   ║
+             ╚════════════════════╝
+
+             GoGi-Sensei (controller) -- audita AMBAS dimensiones en modo read-only
+             Huitaca (gateway) -- unica puerta de entrada/salida del clan</div>
+    <div class="callout" style="margin-top:20px;">
+      <strong>Regla de salida:</strong> Todo lo que sale hacia Dani (o cualquier externo) pasa obligatoriamente por el chat
+      privado Huitaca&harr;Jeimmy para validacion. JAi propone — Jeimmy decide.
+    </div>
+  </section>
+
+  <!-- 4. CANALES -->
+  <section id="canales">
+    <div class="section-header">
+      <span class="section-num">04</span>
+      <h2>Canales e interlocutores</h2>
+    </div>
+    <h3>Canales activos</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Canal</th><th>Tipo</th><th>Uso</th><th>Direccion</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Telegram privado</strong> (Jeimmy &harr; Huitaca)</td>
+            <td>Real-time bidireccional</td>
+            <td>Conversacion principal con JAi. Validacion de todo lo que sale al exterior.</td>
+            <td>&harr; Bidireccional</td>
+          </tr>
+          <tr>
+            <td><strong>Telegram "Santuario Raftel"</strong></td>
+            <td>Real-time grupo</td>
+            <td>Mensajes del equipo (Dani, Jeimmy, etc.). Huitaca escucha y responde con validacion de Jeimmy.</td>
+            <td>&harr; Equipo externo</td>
+          </tr>
+          <tr>
+            <td><strong>Discord #bitacora-jei</strong></td>
+            <td>Write-only (webhook)</td>
+            <td>Log de actividad del ecosistema. No es canal de interaccion.</td>
+            <td>&rarr; Solo escritura</td>
+          </tr>
+          <tr>
+            <td><strong>Discord #laboratorio-agentes</strong></td>
+            <td>Write-only (webhook)</td>
+            <td>Experimentos, dojo_events, evolucion del sistema.</td>
+            <td>&rarr; Solo escritura</td>
+          </tr>
+          <tr>
+            <td><strong>HERMES Relay (GitHub)</strong></td>
+            <td>Async JSONL</td>
+            <td>Canal bot-a-bot JEI&harr;DANI. Bus inter-clan.</td>
+            <td>&harr; Bot-a-bot</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <h3>Interlocutores</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Quien</th><th>Rol</th><th>Como se comunica con JEI</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Jeimmy</strong></td>
+            <td>La Soberana</td>
+            <td>Telegram privado con Huitaca (JAi). Toda decision pasa por aqui.</td>
+          </tr>
+          <tr>
+            <td><strong>Dani (Daniel Reyes)</strong></td>
+            <td>CPO Nymyka + clan DANI</td>
+            <td>Telegram grupo Santuario Raftel + HERMES Relay (bot-a-bot async)</td>
+          </tr>
+          <tr>
+            <td><strong>Equipo Nymyka</strong></td>
+            <td>Jonatan (CTO) · Diana (CFO) · Juan David (CRO)</td>
+            <td>Telegram grupo — Huitaca/JAi no interactuan directamente sin validacion</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 5. HERMES -->
+  <section id="hermes">
+    <div class="section-header">
+      <span class="section-num">05</span>
+      <h2>HERMES en JEI — Namespaces actuales</h2>
+    </div>
+    <div class="callout info">
+      Adoptamos <strong>HERMES v4.0</strong> (<code>dereyesm/hermes</code>) como protocolo de referencia del clan JEI.
+    </div>
+    <div style="margin:16px 0;font-size:0.85rem;color:var(--muted);">
+      <code>clan_id: jei</code> &nbsp;|&nbsp; <code>clan_name: La Triada</code> &nbsp;|&nbsp; <code>soberana: Jeimmy Gomez</code>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Namespace</th><th>Head</th><th>Agentes</th><th>Funcion</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>estrategia</code></td>
+            <td><code>jai</code></td>
+            <td>JAi</td>
+            <td>Orquestacion, decisiones, interface con humanos</td>
+          </tr>
+          <tr>
+            <td><code>legal</code></td>
+            <td><code>valerio</code></td>
+            <td>Valerio <span class="new-badge" style="font-size:0.65rem;">+</span> Valerio-Personal</td>
+            <td>Legal corporativo (Valerio) + legal personal Jeimmy (Valerio-Personal)</td>
+          </tr>
+          <tr>
+            <td><code>seguridad</code></td>
+            <td><code>bachue</code></td>
+            <td>Bachue + Bruja</td>
+            <td>QA/AppSec (Bachue) + CISO/Riesgos (Bruja)</td>
+          </tr>
+          <tr>
+            <td><code>operaciones</code></td>
+            <td><code>ida</code></td>
+            <td>IdA + Pato-Nymyka + Pato-Personal + Sakti</td>
+            <td>PMO + finanzas corp + finanzas personales + bienestar</td>
+          </tr>
+          <tr>
+            <td><code>gateway</code></td>
+            <td><code>huitaca</code></td>
+            <td>Huitaca</td>
+            <td>Unica entrada/salida (Telegram + Agora inter-clan)</td>
+          </tr>
+          <tr>
+            <td><code>controller</code></td>
+            <td><code>gogi</code></td>
+            <td>GoGi-Sensei</td>
+            <td>Auditoria read-only + Sensei del Dojo</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <h3>Topologia interna (estrella HERMES)</h3>
+    <div class="diagram">estrategia  ──┐
+legal       ──┤
+seguridad   ──┼──&gt; bus.jsonl ──&gt; [routing] ──&gt; destino correcto
+operaciones ──┤
+gateway     ──┘
+controller     (read-only, audita todo)</div>
+    <div class="callout danger" style="margin-top:20px;">
+      <strong>Regla ARC-1918 (Firewall):</strong> Por defecto DENEGAR. Solo los cruces explicitamente permitidos fluyen.
+      Ningun dato sale al clan DANI sin aprobacion explicita de Jeimmy.
+    </div>
+  </section>
+
+  <!-- 6. RELAY -->
+  <section id="relay">
+    <div class="section-header">
+      <span class="section-num">06</span>
+      <h2>Conexion Inter-Clan JEI &harr; DANI — Estado actual</h2>
+    </div>
+    <h3>Agora actual (relay privado)</h3>
+    <div class="diagram">Clan JEI                    GitHub (privado)             Clan DANI
+──────────                  ────────────────             ──────────
+bus.jsonl ──&gt; jei_outbox.jsonl &lt;───────────────────── bus_dani.jsonl
+              dani_outbox.jsonl ───────────────────────&gt; bus_dani.jsonl
+hermes_relay.py (poll 30s)                           hermes_relay_dani.py</div>
+    <p style="margin-top:14px;">Repo: <code>jeipgg/nymyka-hermes-relay</code> (privado) — Dani como collaborator ✅</p>
+    <h3>Estado del relay</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Item</th><th>Estado</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Primer handshake completado</td>
+            <td><span class="status ok"><span class="dot ok"></span> OK — 28 Feb 2026</span></td>
+          </tr>
+          <tr>
+            <td>Paquetes recibidos de DANI</td>
+            <td><span class="status ok"><span class="dot ok"></span> 2 paquetes procesados</span></td>
+          </tr>
+          <tr>
+            <td>Relay activo</td>
+            <td><span class="status fail"><span class="dot fail"></span> CAIDO desde 28 Feb — errores SSL/connection</span></td>
+          </tr>
+          <tr>
+            <td>Causa probable</td>
+            <td>Cambio de permisos o token expirado en GitHub</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout warning">
+      El relay cayo el mismo dia del handshake inicial. El diagnostico y fix es uno de los objetivos de esta reunion.
+    </div>
+  </section>
+
+  <!-- 7. OBJETIVO -->
+  <section id="objetivo">
+    <div class="section-header">
+      <span class="section-num">07</span>
+      <h2>Lo que queremos construir juntos</h2>
+    </div>
+    <div class="callout">
+      <strong>Objetivo:</strong> Usar <code>dereyesm/hermes</code> como backbone oficial de comunicacion JEI &harr; DANI
+      — y eventualmente como backbone para cualquier otro ecosistema que se integre.
+    </div>
+    <h3>Por que el repo publico de Dani como backbone</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Razon</th><th>Descripcion</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Protocolo estandar</strong></td><td>Un solo estandar HERMES para todos los clanes — no reinventamos nada</td></tr>
+          <tr><td><strong>Escalable</strong></td><td>Si manana hay un tercer ecosistema, usa el mismo backbone</td></tr>
+          <tr><td><strong>Mantenido</strong></td><td>Dani evoluciona el protocolo y todos los clanes se benefician</td></tr>
+          <tr><td><strong>Interoperabilidad</strong></td><td>Los namespaces de cualquier clan pueden hablar con cualquier otro sin adaptadores</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <h3>Namespace alignment — Preguntas clave para Dani</h3>
+    <div class="question-block">
+      <div class="q">¿Cuales son los namespaces de tu clan?</div>
+      <div class="why">Para definir el routing JEI &rarr; DANI correctamente</div>
+    </div>
+    <div class="question-block">
+      <div class="q">¿Cual es tu gateway (equivalente a Huitaca)?</div>
+      <div class="why">Para saber a quien llega un <code>dst: "dani"</code></div>
+    </div>
+    <div class="question-block">
+      <div class="q">¿Cual es tu controller (equivalente a GoGi)?</div>
+      <div class="why">Para sincronizar ecosystem_manifests entre clanes</div>
+    </div>
+    <div class="question-block">
+      <div class="q">¿Hay namespaces equivalentes (ej. legal, seguridad)?</div>
+      <div class="why">Para establecer canales directos entre namespaces pares</div>
+    </div>
+    <div class="question-block">
+      <div class="q">¿Como funciona la aprobacion humana en tu clan?</div>
+      <div class="why">Para entender el nivel de autonomia bot-a-bot y los limites de interaccion</div>
+    </div>
+
+    <h3>Tabla de alineacion (a completar con Dani)</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Namespace JEI</th><th>Agentes JEI</th><th>Equivalente DANI</th><th>Canal directo</th></tr></thead>
+        <tbody>
+          <tr><td><code>estrategia</code></td><td>JAi</td><td>?</td><td>?</td></tr>
+          <tr>
+            <td><code>legal</code></td>
+            <td>Valerio + Valerio-Personal <span class="new-badge">Nuevo</span></td>
+            <td>?</td>
+            <td>?</td>
+          </tr>
+          <tr><td><code>seguridad</code></td><td>Bachue + Bruja</td><td>?</td><td>?</td></tr>
+          <tr><td><code>operaciones</code></td><td>IdA + Patos + Sakti</td><td>?</td><td>?</td></tr>
+          <tr><td><code>gateway</code></td><td>Huitaca</td><td>?</td><td>Si — canal principal</td></tr>
+          <tr><td><code>controller</code></td><td>GoGi-Sensei</td><td>?</td><td>Para ecosystem_manifests</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 8. PROXIMOS PASOS -->
+  <section id="pasos">
+    <div class="section-header">
+      <span class="section-num">08</span>
+      <h2>Proximos pasos propuestos</h2>
+    </div>
+    <ul class="steps">
+      <li>
+        <span class="step-num">1</span>
+        <div class="step-content">
+          <strong>Dani comparte namespaces y estructura de agentes de su clan</strong>
+          <div class="step-meta">Responsable: Dani &nbsp;|&nbsp; Cuando: Durante la reunion</div>
+        </div>
+      </li>
+      <li>
+        <span class="step-num">2</span>
+        <div class="step-content">
+          <strong>JAi mapea el ecosistema DANI + genera mapa cross-clan</strong>
+          <div class="step-meta">Responsable: JAi + Jeimmy &nbsp;|&nbsp; Cuando: Post-reunion (sesion 1)</div>
+        </div>
+      </li>
+      <li>
+        <span class="step-num">3</span>
+        <div class="step-content">
+          <strong>Diagnosticar y arreglar relay caido (SSL / token issue)</strong>
+          <div class="step-meta">Responsable: Dani + JAi &nbsp;|&nbsp; Cuando: Post-reunion (sesion 1)</div>
+        </div>
+      </li>
+      <li>
+        <span class="step-num">4</span>
+        <div class="step-content">
+          <strong>Adoptar <code>dereyesm/hermes</code> como backbone oficial JEI &harr; DANI</strong>
+          <div class="step-meta">Responsable: JAi + Dani &nbsp;|&nbsp; Cuando: Post-reunion (sesion 2)</div>
+        </div>
+      </li>
+      <li>
+        <span class="step-num">5</span>
+        <div class="step-content">
+          <strong>Alinear namespaces formalmente — routing JEI &harr; DANI</strong>
+          <div class="step-meta">Responsable: Ambos &nbsp;|&nbsp; Cuando: Post-reunion (sesion 2)</div>
+        </div>
+      </li>
+      <li>
+        <span class="step-num">6</span>
+        <div class="step-content">
+          <strong>Presentar Valerio-Personal + Bachue a DANI via <code>ecosystem_manifest</code></strong>
+          <div class="step-meta">Responsable: GoGi + Jeimmy &nbsp;|&nbsp; Cuando: Post-reunion (sesion 2)</div>
+        </div>
+      </li>
+      <li>
+        <span class="step-num">7</span>
+        <div class="step-content">
+          <strong>Primer mensaje real post-fix entre clanes</strong>
+          <div class="step-meta">Responsable: Ambos &nbsp;|&nbsp; Cuando: Post-reunion (sesion 2)</div>
+        </div>
+      </li>
+    </ul>
+  </section>
+
+</main>
+
+<footer>
+  Preparado por <strong>JAi</strong> · Ecosistema JEI · La Triada · 2026-03-05<br/>
+  Para uso en reunion virtual con <strong>Daniel Reyes (DANI)</strong><br/>
+  <span style="font-size:0.75rem;margin-top:6px;display:block;">JEI-PMO-010 · v1.1 · Borrador — pendiente aprobacion Jeimmy (CSO/CISO)</span>
+</footer>
+
+</body>
+</html>

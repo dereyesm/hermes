@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DANI-HERMES-002 — Respuesta a JEI-SEC-001 (Bruja/CISO)</title>
+  <style>
+    :root {
+      --bg: #ffffff;
+      --surface: #fdf6f0;
+      --surface2: #fff3e8;
+      --border: #e8ddd3;
+      --orange: #e85d04;
+      --orange-dark: #c44900;
+      --orange-light: #f4a261;
+      --orange-bg: #fff0e0;
+      --black: #1a1a1a;
+      --muted: #5c5c5c;
+      --green: #2d6a4f;
+      --green-bg: #edf7f0;
+      --red: #c1121f;
+      --red-bg: #fdf0f0;
+      --blue: #1d5b8c;
+      --blue-bg: #eef5fa;
+      --tag-bg: #f5ede4;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--black);
+      line-height: 1.7;
+    }
+    main {
+      max-width: 780px;
+      margin: 0 auto;
+      padding: 40px 24px 60px;
+    }
+    .hero {
+      text-align: center;
+      padding: 40px 0 32px;
+      border-bottom: 3px solid var(--orange);
+      margin-bottom: 48px;
+    }
+    .hero .tag {
+      display: inline-block;
+      background: var(--orange);
+      color: #fff;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 5px 16px;
+      border-radius: 20px;
+      margin-bottom: 18px;
+    }
+    .hero h1 {
+      font-size: 2rem;
+      font-weight: 800;
+      color: var(--orange-dark);
+      margin-bottom: 10px;
+    }
+    .hero .subtitle {
+      font-size: 0.95rem;
+      color: var(--muted);
+      margin-bottom: 20px;
+    }
+    .hero-meta {
+      display: flex;
+      justify-content: center;
+      gap: 28px;
+      flex-wrap: wrap;
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+    .hero-meta strong { color: var(--black); }
+
+    section { margin-bottom: 48px; }
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 22px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid var(--orange-light);
+    }
+    .section-num {
+      font-size: 0.72rem;
+      font-weight: 800;
+      color: #fff;
+      background: var(--orange);
+      padding: 4px 12px;
+      border-radius: 12px;
+      letter-spacing: 0.05em;
+    }
+    h2 { font-size: 1.25rem; font-weight: 700; color: var(--orange-dark); }
+    h3 { font-size: 1rem; font-weight: 700; color: var(--orange-dark); margin: 24px 0 12px; }
+    p { color: var(--black); margin-bottom: 12px; font-size: 0.92rem; }
+
+    .callout {
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin: 18px 0;
+      font-size: 0.88rem;
+    }
+    .callout strong { color: var(--black); }
+    .callout.orange { background: var(--orange-bg); border-left: 4px solid var(--orange); color: var(--black); }
+    .callout.green { background: var(--green-bg); border-left: 4px solid var(--green); color: var(--black); }
+    .callout.red { background: var(--red-bg); border-left: 4px solid var(--red); color: var(--black); }
+    .callout.blue { background: var(--blue-bg); border-left: 4px solid var(--blue); color: var(--black); }
+
+    .table-wrap { overflow-x: auto; margin: 14px 0; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    th {
+      background: var(--orange);
+      color: #fff;
+      font-weight: 700;
+      text-align: left;
+      padding: 10px 14px;
+      border-bottom: 2px solid var(--orange-dark);
+    }
+    td {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      color: var(--black);
+      vertical-align: top;
+    }
+    tr:hover td { background: var(--surface2); }
+    td strong { color: var(--orange-dark); }
+    td code {
+      font-family: 'Fira Code', monospace;
+      font-size: 0.8rem;
+      background: var(--tag-bg);
+      border: 1px solid var(--border);
+      color: var(--orange-dark);
+      padding: 1px 6px;
+      border-radius: 4px;
+    }
+
+    .answer-block {
+      background: var(--surface);
+      border: 2px solid var(--orange-light);
+      border-radius: 10px;
+      padding: 20px;
+      margin: 14px 0;
+    }
+    .answer-block .q-label {
+      display: inline-block;
+      font-size: 0.68rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      background: var(--orange);
+      color: #fff;
+      padding: 3px 10px;
+      border-radius: 10px;
+      margin-bottom: 10px;
+    }
+    .answer-block .question {
+      font-weight: 700;
+      color: var(--muted);
+      font-size: 0.85rem;
+      margin-bottom: 10px;
+      font-style: italic;
+    }
+    .answer-block p { margin-bottom: 8px; }
+    .answer-block p:last-child { margin-bottom: 0; }
+
+    .diagram {
+      background: var(--surface);
+      border: 2px solid var(--border);
+      border-radius: 10px;
+      padding: 24px;
+      font-family: 'Fira Code', monospace;
+      font-size: 0.76rem;
+      color: var(--orange-dark);
+      overflow-x: auto;
+      line-height: 1.7;
+      white-space: pre;
+    }
+
+    .dual-mode {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin: 18px 0;
+    }
+    .mode-card {
+      background: var(--surface);
+      border: 2px solid var(--orange-light);
+      border-radius: 10px;
+      padding: 18px;
+    }
+    .mode-card h4 {
+      font-size: 0.95rem;
+      font-weight: 800;
+      color: var(--orange-dark);
+      margin-bottom: 8px;
+    }
+    .mode-card p { font-size: 0.84rem; margin-bottom: 6px; }
+    .mode-card .analogy {
+      font-size: 0.78rem;
+      color: var(--muted);
+      font-style: italic;
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid var(--border);
+    }
+
+    .status { display: inline-flex; align-items: center; gap: 5px; font-size: 0.78rem; font-weight: 700; padding: 3px 10px; border-radius: 12px; }
+    .status.ok { background: var(--green-bg); color: var(--green); }
+    .status.warn { background: var(--orange-bg); color: var(--orange-dark); }
+    .status.fail { background: var(--red-bg); color: var(--red); }
+
+    footer {
+      text-align: center;
+      border-top: 3px solid var(--orange);
+      padding: 28px 24px;
+      color: var(--muted);
+      font-size: 0.78rem;
+    }
+    footer strong { color: var(--orange-dark); }
+
+    @media (max-width: 600px) {
+      .dual-mode { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<main>
+
+  <div class="hero">
+    <div class="tag">DANI-HERMES-002 &middot; v1.0 &middot; 2026-03-07</div>
+    <h1>Respuesta a JEI-SEC-001</h1>
+    <p class="subtitle">8 respuestas + Dual-Mode Architecture &mdash; Para Bruja (CISO-IA) y Clan JEI</p>
+    <div class="hero-meta">
+      <span><strong>De:</strong> Daniel Reyes &middot; Protocol Architect</span>
+      <span><strong>Para:</strong> Bruja (CISO) &middot; Jeimmy Gomez (Soberana)</span>
+      <span><strong>Ref:</strong> JEI-SEC-001 &rarr; DANI-HERMES-002</span>
+    </div>
+  </div>
+
+  <!-- ALINEACION -->
+  <section>
+    <div class="section-header">
+      <span class="section-num">00</span>
+      <h2>Alineacion confirmada</h2>
+    </div>
+    <p>Bruja, excelente documento. Tu analisis de seguridad es riguroso y las conclusiones coinciden casi punto por punto con nuestro analisis independiente. Confirmamos:</p>
+    <div class="callout green">
+      <strong>Repo publico para relay = inaceptable.</strong> Coincidimos. Incluso con encriptacion, la metadata (quien habla con quien, cuando, frecuencia) queda expuesta. Tu referencia a ISO 27001 A.13.2.1 es correcta.
+    </div>
+    <div class="callout green">
+      <strong>Tu plan de 4 fases es casi identico al nuestro.</strong> Lo construimos independientemente, lo cual valida que es el camino correcto. Abajo doy las 8 respuestas y agrego un concepto nuevo que enriquece la Fase 4.
+    </div>
+  </section>
+
+  <!-- 8 RESPUESTAS -->
+  <section>
+    <div class="section-header">
+      <span class="section-num">01</span>
+      <h2>Las 8 respuestas</h2>
+    </div>
+
+    <div class="answer-block">
+      <div class="q-label">Pregunta 1 &mdash; Repositorio del relay</div>
+      <div class="question">Donde va el relay? jeipgg/nymyka-hermes-relay, repo nuevo, o dereyesm/hermes?</div>
+      <p><strong>Repo nuevo privado: <code>dereyesm/hermes-relay</code></strong></p>
+      <p>No <code>dereyesm/hermes</code> (publico, nunca datos de relay). No el existente <code>jeipgg/nymyka-hermes-relay</code> por governance: si DANI es maintainer del protocolo, el relay vive bajo el mismo org para consistencia. Jeimmy como <strong>collaborator con write access</strong>.</p>
+      <p>Esto es temporal &mdash; el relay via repo es un bridge hacia Gateway-to-Gateway directo (ver Seccion 02).</p>
+    </div>
+
+    <div class="answer-block">
+      <div class="q-label">Pregunta 2 &mdash; Control de acceso</div>
+      <div class="question">Quien tiene acceso? Quien aprueba nuevos clanes? Registry authority?</div>
+      <p><strong>Bilateral por consenso. No hay registry authority unica.</strong></p>
+      <p>Ambos clanes aprueban acceso de nuevos clanes. Centralizar poder en uno solo rompe la soberania. Cuando haya &gt;5 clanes, migrar a governance del Agora (ARC-3022 s15) con votacion de clanes existentes.</p>
+      <p><strong>Revocacion:</strong> cualquier clan puede blacklistear a otro en su <code>gateway.json</code> &mdash; es soberano. Pero debe notificar al otro con 48h de antelacion salvo emergencia de seguridad.</p>
+    </div>
+
+    <div class="answer-block">
+      <div class="q-label">Pregunta 3 &mdash; Estructura de archivos</div>
+      <div class="question">Aceptas relay/{clan_id}_outbox.jsonl como estandar?</div>
+      <p><strong>Aceptado.</strong> Estructura exacta:</p>
+      <div class="diagram">relay/
+  jei_outbox.jsonl        &larr; JEI escribe, DANI lee
+  dani_outbox.jsonl       &larr; DANI escribe, JEI lee
+  manifests/              &larr; Archivos referenciados (ecosystem_manifests, quest proposals)
+  manifest.json           &larr; Metadata de clanes activos + endpoints
+  README.md               &larr; Reglas del relay</div>
+      <p>Cada clan escribe <strong>solo</strong> en su archivo. Zero conflictos.</p>
+    </div>
+
+    <div class="answer-block">
+      <div class="q-label">Pregunta 4 &mdash; Encriptacion antes de Fase 2</div>
+      <div class="question">Implementamos AES-256 ahora o esperamos? Como intercambiamos la llave?</div>
+      <p><strong>Si, AES-256-GCM ahora. Defense in depth: repo privado + payload cifrado.</strong></p>
+      <p>Intercambio de PSK (pre-shared key) via <strong>Signal o en persona</strong> &mdash; nunca por canal digital no cifrado. La PSK se rota cada 30 dias.</p>
+      <p>Cuando ARC-8446 este listo (Phase 2, May-Jun 2026), migramos a <strong>Ed25519 key exchange</strong> y eliminamos la PSK. El spec ya define el path: CRYSTALS-Kyber para key encapsulation (quantum-safe).</p>
+    </div>
+
+    <div class="answer-block">
+      <div class="q-label">Pregunta 5 &mdash; Estado de Heraldo</div>
+      <div class="question">Heraldo esta operativo? Mecanismo de recepcion?</div>
+      <p><strong>Heraldo esta operativo.</strong> Mecanismo actual:</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Canal</th><th>Estado</th><th>Direccion</th></tr></thead>
+          <tbody>
+            <tr><td>Gmail scan (momoshod-gmail)</td><td><span class="status ok">Operativo</span></td><td>Solo lectura</td></tr>
+            <tr><td>Telegram bridge (Render)</td><td><span class="status ok">Operativo</span></td><td>Bidireccional (relay a Daniel)</td></tr>
+            <tr><td>GitHub polling (relay)</td><td><span class="status fail">Pendiente reconexion</span></td><td>Pull del repo relay</td></tr>
+            <tr><td>HTTP endpoint (GW-to-GW)</td><td><span class="status warn">No implementado aun</span></td><td>Proximo sprint</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>El endpoint HTTP directo es el <strong>proximo sprint</strong> &mdash; cuando este listo, el relay via repo se vuelve fallback, no canal principal.</p>
+    </div>
+
+    <div class="answer-block">
+      <div class="q-label">Pregunta 6 &mdash; Diagnostico del relay caido</div>
+      <div class="question">El problema esta en tu lado? Heraldo puede push/pull al repo?</div>
+      <p><strong>Necesito diagnosticar desde mi lado.</strong> Si el daemon JEI esta corriendo y su token da HTTP 200, el problema esta probablemente en mi script de polling o en permisos del collaborator en el repo.</p>
+      <p><strong>Propuesta:</strong> sesion de debug conjunta de 15 min. Yo verifico auth + pull, ustedes verifican push. Lo resolvemos en vivo.</p>
+    </div>
+
+    <div class="answer-block">
+      <div class="q-label">Pregunta 7 &mdash; Formato de payloads extendidos</div>
+      <div class="question">120 chars no alcanza para manifests. Referencia a archivo o extension?</div>
+      <p><strong>Ya resuelto en el spec.</strong> ARC-5322 Section 7 define 3 modos de encoding:</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Modo</th><th>Uso</th><th>Ejemplo</th></tr></thead>
+          <tbody>
+            <tr><td><code>raw</code></td><td>Texto plano &le;120 chars</td><td><code>"msg": "hello from dani"</code></td></tr>
+            <tr><td><code>cbor</code></td><td>Binario comprimido</td><td><code>"msg": "a264..."</code> (hex-encoded CBOR)</td></tr>
+            <tr><td><code>ref</code></td><td>Referencia a archivo</td><td><code>"msg": "relay/manifests/jei_ecosystem_v1.json"</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Para ecosystem_manifests y quest proposals: usar <code>"encoding": "ref"</code>. El archivo referenciado vive en el directorio <code>manifests/</code> del repo relay.</p>
+    </div>
+
+    <div class="answer-block">
+      <div class="q-label">Pregunta 8 &mdash; Onboarding de nuevos clanes</div>
+      <div class="question">Proceso de vetting? Quien aprueba? Requisitos? Revocacion?</div>
+      <p><strong>Definido en ARC-3022 Section 15 (Multi-Clan Bootstrap Protocol):</strong></p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Paso</th><th>Accion</th><th>Quien</th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td>Nuevo clan publica profile en Agora (capabilities, clave publica, gateway endpoint)</td><td>Clan nuevo</td></tr>
+            <tr><td>2</td><td>Clanes existentes revisan y aprueban peer request</td><td>Bilateral (consenso)</td></tr>
+            <tr><td>3</td><td>Intercambio de <code>hello/hello_ack</code> via gateway</td><td>Ambos gateways</td></tr>
+            <tr><td>4</td><td>Intercambio de ecosystem_manifests</td><td>Ambos Dojos</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p><strong>Requisitos minimos:</strong> implementar gateway HERMES, publicar profile, tener human-in-the-loop.</p>
+      <p><strong>Revocacion:</strong> cualquier clan puede blacklistear a otro en su <code>gateway.json</code>. Es un acto soberano &mdash; no necesita permiso de nadie. Pero debe documentar la razon.</p>
+    </div>
+  </section>
+
+  <!-- DUAL MODE -->
+  <section>
+    <div class="section-header">
+      <span class="section-num">02</span>
+      <h2>Concepto nuevo: Dual-Mode Transport</h2>
+    </div>
+    <p>Esto enriquece tu Fase 4 (escalabilidad a N clanes). HERMES no tiene un solo modo de transporte &mdash; tiene dos:</p>
+
+    <div class="dual-mode">
+      <div class="mode-card">
+        <h4>SOVEREIGN</h4>
+        <p><strong>Descentralizado.</strong> Cada clan corre su propio Gateway. Se hablan directo via HTTPS con E2E encryption.</p>
+        <p>Zero dependencia de terceros. Tu controlas tu infra. Tu datos nunca tocan un servidor ajeno.</p>
+        <p><strong>Para:</strong> personas, researchers, early adopters, clanes que valoran soberania.</p>
+        <div class="analogy">Analogia: self-hosted email (SMTP propio)</div>
+      </div>
+      <div class="mode-card">
+        <h4>HOSTED</h4>
+        <p><strong>Centralizado.</strong> Un Hub operado por tercero rutea, almacena y garantiza entrega.</p>
+        <p>SLAs, compliance, audit logs, encryption at rest. No necesitas mantener infra.</p>
+        <p><strong>Para:</strong> empresas, equipos grandes, compliance-driven.</p>
+        <div class="analogy">Analogia: Gmail (Google hostea tu email)</div>
+      </div>
+    </div>
+
+    <div class="callout orange">
+      <strong>Wire format identico en ambos modos</strong> (ARC-5322). Un clan Sovereign habla con un clan Hosted sin adaptador. HERMES es el unico protocolo de comunicacion inter-agente que ofrece ambos modos. A2A (Google) es solo cloud. ANP es solo descentralizado. MCP es vertical.
+    </div>
+
+    <p><strong>Lo que estamos construyendo ahora (relay privado + PSK) es Sovereign mode.</strong> El file-based no es una fase temporal &mdash; es el Sovereign mode permanente. Cuando haya demanda, el Hub emerge naturalmente.</p>
+
+    <div class="diagram">                      Agora (discovery)
+                    Git repo publico + API futura
+                    Publica: perfiles, claves, endpoints
+                              |
+             ┌────────────────┼────────────────┐
+             v                v                v
+     SOVEREIGN          SOVEREIGN          HOSTED
+     Clan DANI          Clan JEI           Hub (futuro)
+     heraldo-gw         huitaca-gw         SLA+audit
+     (self-host)        (self-host)        (managed)
+          |                 |                  |
+          &lt;──── HTTPS ────&gt;                   |
+          |   (direct peer)                    |
+          &lt;──────────── HTTPS ────────────────&gt;</div>
+  </section>
+
+  <!-- RUTA PRACTICA -->
+  <section>
+    <div class="section-header">
+      <span class="section-num">03</span>
+      <h2>Ruta practica &mdash; Tu plan + nuestro plan fusionados</h2>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Fase</th><th>Que</th><th>Cuando</th><th>Seguridad</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>0.5</strong></td>
+            <td>Repo privado <code>dereyesm/hermes-relay</code> + estructura acordada</td>
+            <td>Esta semana</td>
+            <td>GitHub ACL (repo privado)</td>
+          </tr>
+          <tr>
+            <td><strong>1</strong></td>
+            <td>AES-256-GCM sobre payloads + PSK via Signal</td>
+            <td>Post-setup repo</td>
+            <td>Repo privado + payload cifrado</td>
+          </tr>
+          <tr>
+            <td><strong>2</strong></td>
+            <td>Gateway-to-Gateway HTTPS directo (heraldo-gw &harr; huitaca-gw)</td>
+            <td>Proximo sprint</td>
+            <td>TLS 1.3 + AES-256-GCM + PSK</td>
+          </tr>
+          <tr>
+            <td><strong>3</strong></td>
+            <td>ARC-8446: Ed25519 + PQC (Kyber). Elimina PSK.</td>
+            <td>May-Jun 2026</td>
+            <td>Zero-trust completo, quantum-safe</td>
+          </tr>
+          <tr>
+            <td><strong>4</strong></td>
+            <td>Dual-mode: Sovereign + Hosted Hub para N clanes</td>
+            <td>Sep-Oct 2026</td>
+            <td>E2E + Hub con SLA + Agora federada</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- GOBERNANZA -->
+  <section>
+    <div class="section-header">
+      <span class="section-num">04</span>
+      <h2>Sobre la gobernanza JEI</h2>
+    </div>
+    <p>Las reglas que comparten (ADRs, spec-first, health dashboard) son compatibles con nuestro modelo. Algunas notas:</p>
+    <div class="callout blue">
+      <strong>ADRs obligatorios:</strong> HERMES ya usa plan mode para toda spec. Podemos adoptar un formato ADR compartido para decisiones bilaterales &mdash; propongo un directorio <code>relay/adrs/</code> en el repo relay.
+    </div>
+    <div class="callout blue">
+      <strong>Spec-first:</strong> Alineado. Nada se implementa sin spec. El spec vive en <code>dereyesm/hermes</code> (publico); la implementacion bilateral en el relay (privado).
+    </div>
+    <div class="callout blue">
+      <strong>Confirmacion bilateral escrita:</strong> Aceptado como norma. Este documento es confirmacion escrita de la posicion de Clan DANI.
+    </div>
+  </section>
+
+  <!-- PROXIMA SESION -->
+  <section>
+    <div class="section-header">
+      <span class="section-num">05</span>
+      <h2>Proxima sesion conjunta</h2>
+    </div>
+    <p>Acepto la propuesta de sesion de 30-45 min. Agenda propuesta:</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Min</th><th>Tema</th><th>Output</th></tr></thead>
+        <tbody>
+          <tr><td>0-10</td><td>Crear repo <code>dereyesm/hermes-relay</code> + dar acceso a Jeimmy</td><td>Repo listo</td></tr>
+          <tr><td>10-20</td><td>Debug relay: verificar auth + push/pull bilateral</td><td>Canal restaurado</td></tr>
+          <tr><td>20-30</td><td>Primer mensaje real via relay restaurado</td><td><code>hello/hello_ack</code></td></tr>
+          <tr><td>30-40</td><td>Acordar PSK para AES-256 (via Signal)</td><td>Encryption activa</td></tr>
+          <tr><td>40-45</td><td>Intercambio de ecosystem_manifests</td><td>Mapa cross-clan v1</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Quedo atento a coordinar fecha y hora.</p>
+  </section>
+
+</main>
+
+<footer>
+  <strong>Daniel Reyes</strong> &middot; Protocol Architect &middot; Clan Momosho D<br/>
+  En respuesta a <strong>Bruja (CISO-IA) &middot; JEI-SEC-001</strong><br/>
+  <span style="margin-top:6px;display:block;">DANI-HERMES-002 &middot; v1.0 &middot; 2026-03-07 &middot; Confidencial &middot; Bilateral</span>
+</footer>
+
+</body>
+</html>

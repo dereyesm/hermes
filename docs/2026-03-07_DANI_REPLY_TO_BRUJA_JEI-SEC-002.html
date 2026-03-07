@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DANI-HERMES-002 — Respuesta a JEI-SEC-001 v2</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Space Grotesk', sans-serif;
+    background: #FFFFFF;
+    color: #1a1a1a;
+    line-height: 1.6;
+    padding: 40px 20px;
+  }
+
+  .container {
+    max-width: 780px;
+    margin: 0 auto;
+  }
+
+  /* Header */
+  .header {
+    border-bottom: 4px solid #FF6600;
+    padding-bottom: 24px;
+    margin-bottom: 32px;
+  }
+
+  .header-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #FF6600;
+    margin-bottom: 8px;
+  }
+
+  .header h1 {
+    font-size: 28px;
+    font-weight: 700;
+    color: #1a1a1a;
+    margin-bottom: 4px;
+  }
+
+  .header h1 span { color: #FF6600; }
+
+  .header-meta {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: #666;
+    margin-top: 12px;
+  }
+
+  .header-meta span { color: #FF6600; font-weight: 600; }
+
+  /* Correction notice */
+  .correction {
+    background: #FFF3E6;
+    border-left: 4px solid #FF6600;
+    padding: 16px 20px;
+    margin-bottom: 32px;
+    font-size: 14px;
+  }
+
+  .correction strong { color: #FF6600; }
+
+  /* Section */
+  .section {
+    margin-bottom: 36px;
+  }
+
+  .section-number {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: #FF6600;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+
+  .section h2 {
+    font-size: 20px;
+    font-weight: 700;
+    color: #1a1a1a;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #f0f0f0;
+  }
+
+  .section p {
+    margin-bottom: 12px;
+    font-size: 15px;
+    color: #333;
+  }
+
+  /* Question-Answer blocks */
+  .qa {
+    background: #FAFAFA;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    overflow: hidden;
+  }
+
+  .qa-question {
+    background: #1a1a1a;
+    color: #FF6600;
+    padding: 12px 20px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .qa-answer {
+    padding: 16px 20px;
+    font-size: 14px;
+    color: #333;
+  }
+
+  .qa-answer p { margin-bottom: 10px; }
+  .qa-answer p:last-child { margin-bottom: 0; }
+
+  /* Tables */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0;
+    font-size: 13px;
+  }
+
+  thead th {
+    background: #1a1a1a;
+    color: #FF6600;
+    padding: 10px 14px;
+    text-align: left;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+
+  tbody td {
+    padding: 10px 14px;
+    border-bottom: 1px solid #e8e8e8;
+    color: #333;
+  }
+
+  tbody tr:nth-child(even) { background: #F9F9F9; }
+  tbody tr:hover { background: #FFF3E6; }
+
+  /* Code blocks */
+  .code-block {
+    background: #1a1a1a;
+    color: #e0e0e0;
+    padding: 20px;
+    border-radius: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    line-height: 1.7;
+    overflow-x: auto;
+    margin: 16px 0;
+    border-left: 4px solid #FF6600;
+  }
+
+  .code-block .comment { color: #666; }
+  .code-block .key { color: #FF6600; }
+  .code-block .value { color: #7ec876; }
+  .code-block .highlight { color: #FF6600; font-weight: 600; }
+
+  /* Inline code */
+  code {
+    font-family: 'JetBrains Mono', monospace;
+    background: #f0f0f0;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 13px;
+    color: #FF6600;
+  }
+
+  /* Phase roadmap */
+  .phase-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 16px 0;
+    border-bottom: 1px solid #eee;
+  }
+
+  .phase-card:last-child { border-bottom: none; }
+
+  .phase-number {
+    background: #FF6600;
+    color: white;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+
+  .phase-number.active {
+    background: #FF6600;
+    box-shadow: 0 0 0 3px #FFF3E6;
+  }
+
+  .phase-number.future {
+    background: #ccc;
+  }
+
+  .phase-content h3 {
+    font-size: 15px;
+    font-weight: 700;
+    color: #1a1a1a;
+    margin-bottom: 4px;
+  }
+
+  .phase-content p {
+    font-size: 13px;
+    color: #666;
+  }
+
+  .phase-content .tag {
+    display: inline-block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 3px;
+    margin-right: 4px;
+    font-weight: 600;
+  }
+
+  .tag-now { background: #FF6600; color: white; }
+  .tag-ready { background: #e8f5e9; color: #2e7d32; }
+  .tag-planned { background: #f0f0f0; color: #666; }
+
+  /* Diagram */
+  .diagram {
+    background: #1a1a1a;
+    color: #e0e0e0;
+    padding: 24px;
+    border-radius: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    line-height: 1.6;
+    overflow-x: auto;
+    margin: 16px 0;
+    text-align: center;
+  }
+
+  .diagram .orange { color: #FF6600; font-weight: 600; }
+  .diagram .green { color: #7ec876; }
+  .diagram .dim { color: #666; }
+
+  /* Callout */
+  .callout {
+    background: #FFF3E6;
+    border: 2px solid #FF6600;
+    border-radius: 8px;
+    padding: 20px;
+    margin: 20px 0;
+  }
+
+  .callout-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: #FF6600;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+  }
+
+  .callout p {
+    font-size: 14px;
+    color: #333;
+  }
+
+  /* Footer */
+  .footer {
+    margin-top: 48px;
+    padding-top: 24px;
+    border-top: 4px solid #FF6600;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: #999;
+  }
+
+  .footer .sig {
+    color: #1a1a1a;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+
+  .footer .sig span { color: #FF6600; }
+
+  /* List styles */
+  ul, ol {
+    margin: 8px 0 12px 24px;
+    font-size: 14px;
+    color: #333;
+  }
+
+  li { margin-bottom: 6px; }
+
+  strong { color: #1a1a1a; }
+  em { color: #FF6600; font-style: normal; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-label">Clan DANI &middot; Protocol Architect &middot; Respuesta Bilateral</div>
+    <h1><span>DANI-HERMES-002</span> &mdash; Respuesta a JEI-SEC-001 v2</h1>
+    <div class="header-meta">
+      <span>2026-03-07</span> &middot; Ref: JEI-SEC-001 v2 (corrige v1) &middot; Confidencial &middot; Bilateral<br>
+      <span>De:</span> Daniel Reyes, Protocol Architect &middot; Clan DANI (Momosho D)<br>
+      <span>Para:</span> Bruja (CISO-IA), Jeimmy Gomez (CSO/PMO) &middot; Clan JEI (La Triada)
+    </div>
+  </div>
+
+  <!-- CORRECTION NOTICE -->
+  <div class="correction">
+    <strong>Acuse de correcci&oacute;n:</strong> Recibido JEI-SEC-001 v2 que corrige v1. Entendido &mdash; centralizamos en el ecosistema <code>dereyesm/hermes</code>. Este documento reemplaza mi respuesta anterior (DANI-HERMES-001) con una contrapropuesta t&eacute;cnica mejorada.
+  </div>
+
+  <!-- CONTRAPROPUESTA -->
+  <div class="section">
+    <div class="section-number">00</div>
+    <h2>Contrapropuesta: Ed25519 + X25519 desde el d&iacute;a uno</h2>
+
+    <p>JEI propone AES-256 como soluci&oacute;n transitoria y Ed25519 para Phase 2 (mayo-junio). <strong>Mi contrapropuesta: arrancar directamente con Ed25519 + X25519 + AES-256-GCM como stack completo.</strong> No es m&aacute;s complejo y elimina una migraci&oacute;n.</p>
+
+    <div class="callout">
+      <div class="callout-title">La intuici&oacute;n clave</div>
+      <p>AES-256 (sim&eacute;trica) y Ed25519 (asim&eacute;trica) <strong>no son alternativas &mdash; son complementarias</strong>. AES encripta. Ed25519 firma. Para tener confidencialidad + autenticidad necesitas ambas. La &uacute;nica pregunta es c&oacute;mo generas la llave AES: &iquest;manualmente (copiar PSK por Signal) o matem&aacute;ticamente (Diffie-Hellman)?</p>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Propiedad</th>
+          <th>Solo AES-256 (propuesta JEI)</th>
+          <th>Ed25519 + X25519 + AES-256-GCM (contrapropuesta)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Confidencialidad</strong></td>
+          <td>S&iacute; (encripta msg)</td>
+          <td>S&iacute; (misma encripci&oacute;n, llave derivada por DH)</td>
+        </tr>
+        <tr>
+          <td><strong>Autenticidad</strong></td>
+          <td>No &mdash; no prueba qui&eacute;n escribi&oacute; el mensaje</td>
+          <td>S&iacute; &mdash; firma Ed25519 en cada mensaje</td>
+        </tr>
+        <tr>
+          <td><strong>Integridad</strong></td>
+          <td>Parcial (GCM tag)</td>
+          <td>Completa (firma + GCM tag)</td>
+        </tr>
+        <tr>
+          <td><strong>Key exchange</strong></td>
+          <td>Manual: copiar PSK por Signal</td>
+          <td>Matem&aacute;tico: X25519 DH, solo compartir pubkey</td>
+        </tr>
+        <tr>
+          <td><strong>Escala a N clanes</strong></td>
+          <td>N*(N-1)/2 llaves manuales</td>
+          <td>N pubkeys (lineal)</td>
+        </tr>
+        <tr>
+          <td><strong>Migraci&oacute;n Phase 2</strong></td>
+          <td>Hay que migrar a Ed25519 despu&eacute;s</td>
+          <td><strong>Ya est&aacute;s en Phase 2</strong> &mdash; te saltas un paso</td>
+        </tr>
+        <tr>
+          <td><strong>L&iacute;neas de c&oacute;digo</strong></td>
+          <td>~30 (encrypt/decrypt)</td>
+          <td>~60 (keygen + sign + verify + DH + encrypt/decrypt)</td>
+        </tr>
+        <tr>
+          <td><strong>Dependencia Python</strong></td>
+          <td><code>cryptography</code></td>
+          <td><code>cryptography</code> (misma librer&iacute;a)</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p><strong>Lo que NO cambia</strong>: el formato ARC-5322, la estructura del relay, los gateways Heraldo/Huitaca, el human-in-the-loop. Solo cambia c&oacute;mo se protege el contenido en tr&aacute;nsito.</p>
+  </div>
+
+  <!-- CRYPTO FLOW -->
+  <div class="section">
+    <div class="section-number">00.1</div>
+    <h2>Flujo criptogr&aacute;fico propuesto</h2>
+
+    <div class="diagram">
+      <span class="dim">--- Setup (una sola vez) ---</span><br><br>
+      <span class="orange">Clan DANI</span>: genera keypair Ed25519 (sign) + X25519 (DH)<br>
+      <span class="orange">Clan JEI</span>&nbsp;: genera keypair Ed25519 (sign) + X25519 (DH)<br>
+      <span class="dim">Intercambio de pubkeys via Signal (out-of-band)</span><br><br>
+      <span class="dim">--- Enviar mensaje ---</span><br><br>
+      1. Heraldo toma el msg a enviar<br>
+      2. <span class="green">X25519_DH</span>(dani_privkey, jei_pubkey) &rarr; shared_secret<br>
+      3. <span class="green">AES-256-GCM</span>(shared_secret, msg) &rarr; ciphertext<br>
+      4. <span class="green">Ed25519_sign</span>(dani_signkey, ciphertext) &rarr; signature<br>
+      5. Escribe al relay: <span class="orange">{ciphertext + signature + dani_pubkey_id}</span><br><br>
+      <span class="dim">--- Recibir mensaje ---</span><br><br>
+      1. Huitaca lee del relay<br>
+      2. <span class="green">Ed25519_verify</span>(dani_pubkey, signature) &rarr; <span class="orange">autenticidad confirmada</span><br>
+      3. <span class="green">X25519_DH</span>(jei_privkey, dani_pubkey) &rarr; shared_secret<br>
+      4. <span class="green">AES-256-GCM_decrypt</span>(shared_secret, ciphertext) &rarr; msg<br>
+      5. Entrega al Dojo de JEI
+    </div>
+
+    <p>Es el mismo patr&oacute;n que <strong>TLS 1.3</strong> (RFC 8446) y <strong>Signal Protocol</strong>. La librer&iacute;a <code>cryptography</code> de Python lo soporta nativamente. Puedo incluir la referencia de implementaci&oacute;n en el repo.</p>
+  </div>
+
+  <!-- 7 RESPUESTAS -->
+  <div class="section">
+    <div class="section-number">01-07</div>
+    <h2>Respuestas a las 7 preguntas</h2>
+
+    <!-- P1 -->
+    <div class="qa">
+      <div class="qa-question">P1 &mdash; Repositorio del relay</div>
+      <div class="qa-answer">
+        <p>Creo <code>dereyesm/hermes-relay</code> como <strong>repositorio privado</strong> en GitHub. El repo p&uacute;blico (<code>dereyesm/hermes</code>) es solo para specs, c&oacute;digo de referencia y documentaci&oacute;n &mdash; nunca para tr&aacute;fico de relay.</p>
+        <p>Estructura:</p>
+        <div class="code-block">
+<span class="highlight">dereyesm/hermes-relay</span> <span class="comment">(privado)</span><br>
+<span class="key">&boxvr;&boxh;&boxh;</span> relay/<br>
+<span class="key">&boxv;</span>&nbsp;&nbsp; <span class="key">&boxvr;&boxh;&boxh;</span> jei_outbox.jsonl&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment"># JEI escribe, DANI lee</span><br>
+<span class="key">&boxv;</span>&nbsp;&nbsp; <span class="key">&boxvr;&boxh;&boxh;</span> dani_outbox.jsonl&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment"># DANI escribe, JEI lee</span><br>
+<span class="key">&boxv;</span>&nbsp;&nbsp; <span class="key">&boxur;&boxh;&boxh;</span> {clan_id}_outbox.jsonl&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment"># escala a N clanes</span><br>
+<span class="key">&boxvr;&boxh;&boxh;</span> keys/<br>
+<span class="key">&boxv;</span>&nbsp;&nbsp; <span class="key">&boxvr;&boxh;&boxh;</span> dani.pub&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment"># Ed25519 pubkey DANI</span><br>
+<span class="key">&boxv;</span>&nbsp;&nbsp; <span class="key">&boxur;&boxh;&boxh;</span> jei.pub&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment"># Ed25519 pubkey JEI</span><br>
+<span class="key">&boxur;&boxh;&boxh;</span> README.md
+        </div>
+        <p><strong>Largo plazo</strong>: el relay Git es transitorio. La arquitectura HERMES soporta <em>dual-mode</em>: Sovereign (GW-to-GW HTTPS directo, como self-hosted SMTP) o Hosted (Hub gestionado, como Gmail). Mismo protocolo en ambos modos. El relay Git es el camino m&aacute;s r&aacute;pido para arrancar hoy.</p>
+      </div>
+    </div>
+
+    <!-- P2 -->
+    <div class="qa">
+      <div class="qa-question">P2 &mdash; Control de acceso</div>
+      <div class="qa-answer">
+        <p><strong>Phase 1 (2 clanes)</strong>: bilateral. Ambos soberanos (Daniel + Jeimmy) aprueban acceso.</p>
+        <p><strong>Phase N clanes</strong>: Agora registration (ARC-2606 profile) + <code>hello/hello_ack</code> handshake (ARC-3022) + aprobaci&oacute;n de peers existentes. El acceso al repo requiere invitaci&oacute;n expl&iacute;cita como collaborator.</p>
+        <p><strong>Revocaci&oacute;n</strong>: remover de <code>gateway.json</code> + revocar acceso GitHub + rotar keypair X25519. El clan revocado ya no puede derivar shared secrets nuevos.</p>
+      </div>
+    </div>
+
+    <!-- P3 -->
+    <div class="qa">
+      <div class="qa-question">P3 &mdash; Encriptaci&oacute;n</div>
+      <div class="qa-answer">
+        <p><strong>Contrapropuesta</strong>: arrancar directamente con el stack completo Ed25519 + X25519 + AES-256-GCM (ver secci&oacute;n 00 arriba). No es m&aacute;s complejo que AES solo, escala mejor, y nos saltamos la migraci&oacute;n de Phase 2.</p>
+        <p><strong>Key exchange</strong>: cada clan genera un keypair. Compartimos pubkeys via Signal (out-of-band, verificado). No hay PSK manual &mdash; el Diffie-Hellman (X25519) deriva la llave sim&eacute;trica autom&aacute;ticamente.</p>
+        <p><strong>El trabajo de AES que JEI plane&oacute; no se pierde</strong>: el DH produce exactamente la llave que alimenta AES-256-GCM. La &uacute;nica diferencia es c&oacute;mo se genera.</p>
+        <p>Incluir&eacute; una <strong>referencia de implementaci&oacute;n</strong> en Python en <code>dereyesm/hermes</code> (reference/python/hermes/crypto.py) para que ambos lados usen el mismo c&oacute;digo.</p>
+      </div>
+    </div>
+
+    <!-- P4 -->
+    <div class="qa">
+      <div class="qa-question">P4 &mdash; Estado de Heraldo</div>
+      <div class="qa-answer">
+        <p><strong>Operativo</strong> para:</p>
+        <ul>
+          <li>Email scanning (momoshod-gmail, read-only) &rarr; clasificaci&oacute;n &rarr; bus dispatch</li>
+          <li>Telegram bridge &rarr; notificaciones a Daniel</li>
+          <li>Bus HERMES interno (bus.jsonl, read/write)</li>
+        </ul>
+        <p><strong>No operativo a&uacute;n</strong>: Gateway inter-clan (hermes-gw). Requiere el repo privado + crypto stack. Es lo que vamos a construir juntos.</p>
+        <p><strong>Mecanismo de recepci&oacute;n</strong>: polling GitHub (read del relay repo). Inicialmente manual (por sesi&oacute;n), despu&eacute;s cron (cada 60 min), despu&eacute;s daemon.</p>
+      </div>
+    </div>
+
+    <!-- P5 -->
+    <div class="qa">
+      <div class="qa-question">P5 &mdash; Diagn&oacute;stico relay ca&iacute;do</div>
+      <div class="qa-answer">
+        <p>El relay ca&iacute;do era <code>jeipgg/nymyka-hermes-relay</code> (repo de JEI). Dado que v2 corrige la propuesta y centralizamos en mi ecosistema, <strong>ese repo queda obsoleto</strong>.</p>
+        <p>El nuevo relay ser&aacute; <code>dereyesm/hermes-relay</code> (privado). Heraldo puede push/pull a GitHub &mdash; no hay problema de acceso de mi lado. Creo el repo y a&ntilde;ado a Jeimmy como collaborator en cuanto aprobemos este plan.</p>
+      </div>
+    </div>
+
+    <!-- P6 -->
+    <div class="qa">
+      <div class="qa-question">P6 &mdash; Payloads extendidos (&gt;120 chars)</div>
+      <div class="qa-answer">
+        <p>ARC-5322 Section 7 ya resuelve esto con tres modos de encoding:</p>
+        <table>
+          <thead>
+            <tr><th>Modo</th><th>Campo <code>encoding</code></th><th>Uso</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><strong>raw</strong></td><td><code>"raw"</code> (default)</td><td>Mensajes cortos (&le;120 chars). El caso com&uacute;n.</td></tr>
+            <tr><td><strong>cbor</strong></td><td><code>"cbor"</code></td><td>Binary encoding (RFC 8949). Para datos estructurados comprimidos.</td></tr>
+            <tr><td><strong>ref</strong></td><td><code>"ref"</code></td><td><strong>Referencia a archivo</strong>. <code>msg</code> contiene la ruta/URL al payload completo.</td></tr>
+          </tbody>
+        </table>
+        <p>Para <code>ecosystem_manifest</code> y <code>quest_proposal</code>, usamos <strong><code>encoding: "ref"</code></strong>:</p>
+        <div class="code-block">
+<span class="comment">// El mensaje en el relay apunta al archivo</span><br>
+{<br>
+&nbsp;&nbsp;<span class="key">"ts"</span>: <span class="value">"2026-03-08"</span>,<br>
+&nbsp;&nbsp;<span class="key">"src"</span>: <span class="value">"jei"</span>,<br>
+&nbsp;&nbsp;<span class="key">"dst"</span>: <span class="value">"momoshod"</span>,<br>
+&nbsp;&nbsp;<span class="key">"type"</span>: <span class="value">"data_cross"</span>,<br>
+&nbsp;&nbsp;<span class="key">"encoding"</span>: <span class="highlight">"ref"</span>,<br>
+&nbsp;&nbsp;<span class="key">"msg"</span>: <span class="value">"relay/payloads/jei_ecosystem_manifest_v1.json"</span>,<br>
+&nbsp;&nbsp;<span class="key">"ttl"</span>: 7,<br>
+&nbsp;&nbsp;<span class="key">"ack"</span>: []<br>
+}
+        </div>
+        <p>Los archivos referenciados tambi&eacute;n van encriptados (mismo stack Ed25519+AES-256-GCM). Agregar&eacute; un directorio <code>relay/payloads/</code> al repo privado.</p>
+      </div>
+    </div>
+
+    <!-- P7 -->
+    <div class="qa">
+      <div class="qa-question">P7 &mdash; Onboarding de nuevos clanes</div>
+      <div class="qa-answer">
+        <p>Proceso propuesto:</p>
+        <ol>
+          <li><strong>Perfil</strong>: el nuevo clan genera su perfil ARC-2606 (capabilities, gateway ID)</li>
+          <li><strong>Keypair</strong>: genera Ed25519 + X25519 keypair</li>
+          <li><strong>Pubkey exchange</strong>: comparte pubkey via canal seguro (Signal, presencial, etc.)</li>
+          <li><strong>Aprobaci&oacute;n bilateral</strong>: los clanes existentes aprueban (cada soberano decide)</li>
+          <li><strong>Acceso repo</strong>: invitar como collaborator a <code>dereyesm/hermes-relay</code></li>
+          <li><strong>Handshake</strong>: <code>hello/hello_ack</code> por el relay (ARC-3022)</li>
+          <li><strong>Operativo</strong>: ya puede enviar/recibir mensajes</li>
+        </ol>
+        <p><strong>Requisitos m&iacute;nimos t&eacute;cnicos</strong>: GitHub account + capacidad de leer/escribir JSONL + implementar el crypto stack (referencia Python disponible). No se requiere infraestructura.</p>
+        <p><strong>Vetting</strong>: para los primeros 5 clanes, aprobaci&oacute;n un&aacute;nime de todos los clanes existentes. Despu&eacute;s: definir quorum en la gobernanza del Agora.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- PLAN DE FASES -->
+  <div class="section">
+    <div class="section-number">08</div>
+    <h2>Plan de fases actualizado (sustituye fases de JEI-SEC-001 v2)</h2>
+
+    <div class="phase-card">
+      <div class="phase-number active">1</div>
+      <div class="phase-content">
+        <h3>Inmediata &mdash; Repo + Crypto + First Message</h3>
+        <p><span class="tag tag-now">AHORA</span> Crear <code>dereyesm/hermes-relay</code> (privado). Generar keypairs Ed25519+X25519 ambos lados. Intercambiar pubkeys via Signal. Implementar <code>crypto.py</code> (referencia compartida). Primer mensaje encriptado+firmado por el relay.</p>
+      </div>
+    </div>
+
+    <div class="phase-card">
+      <div class="phase-number active">2</div>
+      <div class="phase-content">
+        <h3>Corto plazo &mdash; Gateway operativo</h3>
+        <p><span class="tag tag-ready">LISTO PARA ARRANCAR</span> Heraldo + Huitaca leen/escriben al relay con polling. Cron cada 60 min. Quest proposals fluyen. Ecosystem manifests intercambiados via <code>encoding: "ref"</code>.</p>
+      </div>
+    </div>
+
+    <div class="phase-card">
+      <div class="phase-number future">3</div>
+      <div class="phase-content">
+        <h3>Mayo-Junio 2026 &mdash; Gateway HTTPS (Sovereign mode)</h3>
+        <p><span class="tag tag-planned">PLANIFICADO</span> Migrar de polling Git a GW-to-GW HTTPS directo. Cada clan despliega su gateway. El relay Git queda como fallback. ARC-8446 formalizado como spec.</p>
+      </div>
+    </div>
+
+    <div class="phase-card">
+      <div class="phase-number future">4</div>
+      <div class="phase-content">
+        <h3>Largo plazo &mdash; N clanes + Hosted mode</h3>
+        <p><span class="tag tag-planned">PLANIFICADO</span> Hub gestionado (Hosted mode) para clanes que no quieran self-host. Dual-mode: Sovereign (self-hosted) + Hosted (Hub). PQC (Kyber/Dilithium) cuando madure.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ACCION INMEDIATA -->
+  <div class="section">
+    <div class="section-number">09</div>
+    <h2>Acci&oacute;n inmediata requerida de JEI</h2>
+
+    <div class="callout">
+      <div class="callout-title">Para arrancar solo necesitamos</div>
+      <p>
+        <strong>1.</strong> Confirmaci&oacute;n de que aceptan la contrapropuesta Ed25519+X25519+AES-256-GCM (en vez de AES solo).<br>
+        <strong>2.</strong> Username de GitHub de Jeimmy (para invitarla como collaborator al repo privado).<br>
+        <strong>3.</strong> Sesi&oacute;n de 30 min (presencial o videollamada) para generar keypairs y verificar pubkeys face-to-face.
+      </p>
+    </div>
+
+    <p>Con esos tres puntos, podemos tener el primer mensaje encriptado+firmado fluyendo por el relay en la misma sesi&oacute;n.</p>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <div class="sig"><span>Daniel Reyes</span> &middot; Protocol Architect &middot; Clan DANI (Momosho D)</div>
+    <p>Ref: DANI-HERMES-002 &middot; 2026-03-07 &middot; Respuesta a JEI-SEC-001 v2</p>
+    <p>Specs referenciados: ARC-5322 (Message Format), ARC-3022 (Gateway Protocol), ARC-2606 (Agent Profile), ARC-8446 (Encrypted Bus, planned)</p>
+    <p style="margin-top: 12px; color: #ccc;">Este correo es confidencial y bilateral. No reenviar sin autorizaci&oacute;n de ambos soberanos.</p>
+  </div>
+
+</div>
+</body>
+</html>
