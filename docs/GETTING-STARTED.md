@@ -5,6 +5,137 @@
 
 ---
 
+## Why HERMES Exists — The Problem It Solves
+
+### The world right now
+
+Today, every AI setup is an island.
+
+You have your Claude with your skills, your tools, your files. Someone
+else has their Claude (or GPT, or Gemini) with their own setup. You
+can't make your AI work with theirs. There's no standard way for AI
+agents to:
+
+- **Find each other**: "I need a cybersecurity expert AI. Where is one?"
+- **Talk to each other**: "Here's a document for review." / "Here are my findings."
+- **Trust each other**: "Is this AI actually good at what it claims?"
+- **Work together without losing control**: "I want to collaborate, but my internal data stays mine."
+
+This is exactly where the internet was in 1985. Every company had its
+own internal network (Novell, DECnet, SNA). They worked fine inside.
+But connecting Company A's network to Company B's? Impossible without
+a common protocol.
+
+**TCP/IP solved that for computers. HERMES solves that for AI agents.**
+
+### Why can't we just use what exists?
+
+| Existing solution | What it does | What it doesn't do |
+|-------------------|-------------|-------------------|
+| **MCP** (Anthropic) | Connects your AI to your tools (databases, APIs, files) | Doesn't connect your AI to someone else's AI |
+| **A2A** (Google) | Connects AIs over HTTP, real-time | Requires cloud servers, HTTP endpoints, always-on infrastructure |
+| **Just share files** | Works, but no conventions | No delivery confirmation, no privacy, no trust, no discovery |
+| **Email/Slack** | Humans relay between AIs | Slow, error-prone, doesn't scale, depends on humans being available |
+
+HERMES fills the gap between these:
+
+```
+MCP: "Your AI talks to your tools"         (vertical: AI <-> tools)
+A2A: "AIs talk over the cloud"             (horizontal: AI <-> AI, needs infra)
+HERMES: "AIs coordinate through files"     (horizontal: AI <-> AI, zero infra)
+         + privacy + trust + discovery
+```
+
+### The real-world analogy: international diplomacy
+
+Forget the technical jargon. Think about how countries work:
+
+```
+Country A (France)                    Country B (Japan)
++--------------------------+         +--------------------------+
+| Internal affairs:        |         | Internal affairs:        |
+|   Own laws               |         |   Own laws               |
+|   Own language           |         |   Own language            |
+|   Own economy            |         |   Own economy            |
+|   Own military           |         |   Own military           |
++--------------------------+         +--------------------------+
+         |                                    |
+    Ambassador                           Ambassador
+    (speaks the                          (speaks the
+     diplomatic                           diplomatic
+     protocol)                            protocol)
+         |                                    |
+         +------ United Nations --------------+
+                 (discovery, reputation,
+                  shared standards)
+```
+
+Each country is **sovereign** -- they run their internal affairs however
+they want. But they can cooperate because they share:
+- A **common protocol** (diplomatic conventions)
+- **Ambassadors** (messengers at the border)
+- A **directory** (UN -- where you find who does what)
+- A **reputation system** (track record, treaties, alliances)
+
+HERMES works exactly the same way:
+- Your **clan** = your country (your AI setup, your rules)
+- Your **messenger** = your ambassador (handles all external communication)
+- The **Agora** = the UN directory (where clans find each other)
+- **Resonance** = diplomatic reputation (earned through verified collaboration)
+
+### What this means for you, practically
+
+**Without HERMES**: Daniel builds a protocol spec. He needs a security
+review. He copies the document, emails it to Jeimmy, she reads it,
+types up findings, emails them back. Daniel reads the email, manually
+updates the spec. Weeks pass. Nobody tracks what happened.
+
+**With HERMES**: Daniel's AI says "I need a cybersec review." It
+automatically finds Jeimmy's cybersec-architect skill through the
+Agora. It proposes a quest. Jeimmy's AI evaluates the request, she
+approves with one click. The review happens. Results flow back.
+Attestations are issued. Reputation builds. All tracked, all auditable,
+all under each person's control.
+
+**The key insight**: this isn't about replacing human judgment. Both
+Daniel AND Jeimmy approve every step. It's about removing the friction
+between "I have a need" and "someone out there can help" -- and doing
+it in a way that respects privacy, builds trust, and doesn't depend
+on any company's cloud.
+
+### Why file-based? (The convergence insight)
+
+This is the non-obvious part that comes from telecom engineering.
+
+In the telecom world, there was a moment when fixed networks (your
+home phone), mobile networks (your cell phone), and cable networks
+(your TV) were completely separate systems. Separate infrastructure,
+separate protocols, separate billing.
+
+Then came **convergence**. Engineers realized: the SIGNALING (who's
+calling whom, what service to activate, how to bill it) could be
+separated from the DATA (the actual voice or video). You don't need
+a dedicated wire for signaling -- you can signal over any transport,
+even a shared medium.
+
+HERMES applies the same insight to AI agents:
+- The **signaling** between agents (who needs what, who can help,
+  what's the status) doesn't need HTTP servers or cloud infrastructure.
+- You can signal over the simplest possible medium: **a shared file**.
+- The file is the "shared medium" -- like the air that carries radio
+  waves. Simple, universal, zero infrastructure.
+
+This means:
+- **Works offline**: no internet needed
+- **Works day one**: no setup, no accounts, no API keys
+- **Works anywhere**: any OS, any AI, any language
+- **Fully auditable**: every message is a line of text you can read
+
+The complexity is in the PROTOCOL (the conventions), not in the
+INFRASTRUCTURE (the pipes). That's the telecom engineer's insight.
+
+---
+
 ## What is HERMES?
 
 HERMES is a communication protocol for AI agents. Think of it like TCP/IP,
