@@ -4,12 +4,23 @@
 
 ## Los Dos Clanes
 
+### Jeimmy — Perfil
+
+- **Cybersecurity MSc** (UNIR, Espana)
+- **PMP certified**, 10+ anos de experiencia en gestion de proyectos
+- Potencial co-arquitecta de HERMES, especialmente:
+  - **Phase 2 (Security & Identity)**: ARC-8446 (Ed25519/PQC), DID-lite, JWT gateways
+  - **Governance**: Disenar el framework multi-clan con rigor de PMP
+  - **Phase 5**: Co-autora del paper academico (arXiv)
+
 ```
 Clan Momosho D. (Daniel)              Clan Huitaca (Jeimmy)
 +-------------------------------+     +-------------------------------+
 | 28 skills, 6 dimensiones     |     | Skills de Jeimmy             |
 | Heraldo (mensajero)          |     | Huitaca (mensajera)          |
 | Dojo (controlador)           |     | Su propio Dojo               |
+| Focus: Protocol design,      |     | Focus: Cybersecurity,        |
+|   telecom, architecture      |     |   project mgmt, governance   |
 +-------------+-----------------+     +-------------+-----------------+
               |                                     |
          [Gateway]                             [Gateway]
@@ -143,6 +154,25 @@ python -m hermes inbox --dir ~/daniel-clan
 - Que dimensiones necesita?
 - Como quiere que se llame su Dojo?
 - Primera mision BR cross-clan?
+
+**12. Skills sugeridos para Clan Huitaca (basados en perfil de Jeimmy)**
+
+| Skill sugerido | Rol | Razon |
+|---------------|-----|-------|
+| **Huitaca** (Heraldo) | Mensajera inter-clan | Ya definida |
+| **Cybersec Architect** | Diseno de seguridad, crypto, threat modeling | MSc Cybersecurity UNIR |
+| **Project Commander** | Gobernanza, planning, KPIs, milestones | PMP 10+ anos |
+| **Audit Sentinel** | Revision de specs, compliance, risk assessment | Combo cybersec + PMP |
+
+Jeimmy define los nombres finales. Estos son roles sugeridos basados en su perfil.
+
+**13. Contribucion directa a HERMES (repo publico)**
+
+Jeimmy puede ser la primera contribuidora externa de HERMES:
+- **ARC-8446** (Message Signing): Liderar el diseno de crypto identity (Ed25519, PQC)
+- **Governance spec**: Nuevo ARC para gobernanza multi-clan (su experiencia PMP)
+- **Security review**: Auditar ARC-3022 gateway, ARC-1918 firewall, inbound validation
+- **Phase 5 paper**: Co-autora del arXiv paper (perspectiva cybersec + governance)
 
 ## Que NO hacer este fin de semana
 
