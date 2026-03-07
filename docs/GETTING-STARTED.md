@@ -83,34 +83,98 @@ HERMES works exactly the same way:
 - The **Agora** = the UN directory (where clans find each other)
 - **Resonance** = diplomatic reputation (earned through verified collaboration)
 
-### What this means for you, practically
+### The Skill Gateway — Where Real Work Happens
 
-**Without HERMES**: Daniel builds a protocol spec. He needs a security
-review. He copies the document, emails it to Jeimmy, she reads it,
-types up findings, emails them back. Daniel reads the email, manually
-updates the spec. Weeks pass. Nobody tracks what happened.
+Here's the part that matters most: **the Gateway is where businesses
+connect to solve real problems together.**
 
-**With HERMES**: Daniel's AI says "I need a cybersec review." It
-automatically finds Jeimmy's cybersec-architect skill through the
-Agora. It proposes a quest. Jeimmy's AI evaluates the request, she
-approves with one click. The review happens. Results flow back.
-Attestations are issued. Reputation builds. All tracked, all auditable,
-all under each person's control.
+```
++------------------+     +------------------+     +------------------+
+|  Company A       |     |  Company B       |     |  Freelancer C    |
+|  (startup,       |     |  (cybersec       |     |  (designer,      |
+|   product dev)   |     |   consultancy)   |     |   branding)      |
+|                  |     |                  |     |                  |
+|  Their AI clan:  |     |  Their AI clan:  |     |  Their AI clan:  |
+|  - dev skills    |     |  - audit skills  |     |  - design skills |
+|  - sprint mgmt   |     |  - compliance    |     |  - copywriting   |
+|  - product strat  |     |  - threat model  |     |  - UX research   |
++--------+---------+     +--------+---------+     +--------+---------+
+         |                        |                        |
+         |    connect their       |                        |
+         |    clan to the         |                        |
+         v        Gateway         v                        v
++==================================================================+
+|                                                                  |
+|              HERMES SKILL GATEWAY                                |
+|              (the meeting point)                                 |
+|                                                                  |
+|  - Discovery: "I need a security audit" -> finds Company B      |
+|  - Quest: formal work proposal with scope and deadline           |
+|  - Exchange: deliverables flow between clans                     |
+|  - Attestation: "They did great work" -> builds reputation       |
+|  - Reputation: verifiable track record, not self-declared        |
+|                                                                  |
++==================================================================+
+```
 
-**The key insight**: this isn't about replacing human judgment. Both
-Daniel AND Jeimmy approve every step. It's about removing the friction
-between "I have a need" and "someone out there can help" -- and doing
-it in a way that respects privacy, builds trust, and doesn't depend
-on any company's cloud.
+Think of it like this:
 
-### Why file-based? (The convergence insight)
+| Analogy | What it is | HERMES equivalent |
+|---------|-----------|-------------------|
+| **LinkedIn** | People find professionals | Agora: clans find skills |
+| **Upwork** | People post jobs, freelancers bid | Quests: clans propose work |
+| **GitHub** | Developers share code, build reputation | Gateway: skills share work, earn Resonance |
+| **The internet itself** | Networks connect through routers | Clans connect through Gateways |
 
-This is the non-obvious part that comes from telecom engineering.
+But unlike all of those, HERMES is:
+- **Decentralized**: no single company controls the gateway
+- **Sovereign**: your internal data, skills, and processes stay YOURS
+- **AI-native**: your AI agents do the coordination, not you manually
+- **Auditable**: every interaction is traceable and verifiable
+- **Open**: MIT license, anyone can implement it
 
-In the telecom world, there was a moment when fixed networks (your
-home phone), mobile networks (your cell phone), and cable networks
-(your TV) were completely separate systems. Separate infrastructure,
-separate protocols, separate billing.
+### Real-world scenarios
+
+**Scenario 1: Startup needs security audit**
+
+A startup's AI clan knows how to build products but not how to audit
+them. Through the Gateway, they find a cybersec consultancy's clan.
+They propose a quest: "Audit our authentication system." The cybersec
+clan's AI reviews it, the human approves, the audit happens. Results
+flow back. Both sides attest to the quality. The startup gets a
+security audit. The consultancy builds verifiable reputation.
+
+**Scenario 2: Law firm needs technical analysis**
+
+A law firm's AI clan handles contracts and compliance. They need a
+technical expert to analyze a patent dispute. Through the Gateway,
+they find an engineering clan. The engineering clan's skills analyze
+the technical claims, produce a report. The law firm's skills
+incorporate it into their legal brief. Both clans get attestations.
+
+**Scenario 3: Solo developer joins the ecosystem**
+
+A freelance developer sets up a one-person clan with 3 skills
+(frontend, backend, devops). They publish to the Agora. Bigger clans
+discover them, propose quests. The developer builds Resonance over
+time. Eventually their reputation score opens doors to higher-value
+work -- all verified, not self-declared.
+
+**In every scenario**:
+- Each clan keeps its internal operations private
+- Humans approve every cross-clan interaction
+- Reputation is earned through verified work, not marketing
+- The AI handles the coordination friction (discovery, proposal,
+  tracking, attestation) -- humans make the decisions
+
+### The convergence insight (for the curious)
+
+Why does this work with files instead of cloud servers?
+
+In telecom, there was a moment when fixed networks (your home phone),
+mobile networks (your cell phone), and cable networks (your TV) were
+completely separate systems. Separate infrastructure, separate
+protocols, separate billing.
 
 Then came **convergence**. Engineers realized: the SIGNALING (who's
 calling whom, what service to activate, how to bill it) could be
@@ -121,18 +185,18 @@ even a shared medium.
 HERMES applies the same insight to AI agents:
 - The **signaling** between agents (who needs what, who can help,
   what's the status) doesn't need HTTP servers or cloud infrastructure.
-- You can signal over the simplest possible medium: **a shared file**.
-- The file is the "shared medium" -- like the air that carries radio
-  waves. Simple, universal, zero infrastructure.
+- Internally, each clan signals through a shared file (`bus.jsonl`)
+  -- simple, auditable, zero infrastructure.
+- Externally, clans connect through the **Gateway** -- which CAN run
+  over any transport (files, HTTP, WebSocket, whatever works).
 
-This means:
-- **Works offline**: no internet needed
-- **Works day one**: no setup, no accounts, no API keys
-- **Works anywhere**: any OS, any AI, any language
-- **Fully auditable**: every message is a line of text you can read
+The point is: **the protocol is the value, not the pipe**. Whether
+your Gateway talks to another Gateway over a shared folder, over
+HTTP, or over a carrier pigeon -- the protocol (message format,
+quest lifecycle, attestation, reputation) stays the same.
 
-The complexity is in the PROTOCOL (the conventions), not in the
-INFRASTRUCTURE (the pipes). That's the telecom engineer's insight.
+That's what makes it future-proof. The transport can change. The
+protocol endures.
 
 ---
 
