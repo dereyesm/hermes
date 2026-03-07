@@ -3,7 +3,7 @@
 [![Tests](https://github.com/dereyesm/hermes/actions/workflows/ci.yml/badge.svg)](https://github.com/dereyesm/hermes/actions/workflows/ci.yml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Specs: 11](https://img.shields.io/badge/specs-11%20implemented-orange.svg)](spec/INDEX.md)
+[![Specs: 14](https://img.shields.io/badge/specs-14%20standards-orange.svg)](spec/INDEX.md)
 
 **A lightweight, file-based communication protocol for multi-agent AI systems.**
 
@@ -51,7 +51,7 @@ See [docs/POSITIONING.md](docs/POSITIONING.md) for the full technical positionin
 
 - **Zero infrastructure** -- works with `cat >> bus.jsonl`. No servers, no Docker, no cloud, no internet required.
 - **File-based = auditable** -- every message is a line of JSON. Git-versionable, grep-searchable, human-inspectable.
-- **Telecom engineering rigor** -- three-track standards system (ARC/ATR/AES) modeled after IETF, ITU-T, and IEEE. Shannon-constrained payloads. CUPS separation of control and user planes.
+- **Telecom engineering rigor** -- three-track standards system (ARC/ATR/AES) modeled after IETF, ITU-T, and IEEE. Shannon-constrained payloads. Triple-plane CUPS architecture (ARC-2314): Control Plane (Messengers), Orchestration Plane (Dojos), User Plane (Skills).
 - **Privacy-first** -- ARC-1918 firewalls enforce namespace isolation. The gateway (ARC-3022) acts as NAT: internal identity is never exposed to external networks.
 - **Dual trust metrics** -- Bounty (internal reputation, visible only inside your clan) + Resonance (external reputation, earned through cross-clan attestations). Never conflated.
 - **Sovereignty without isolation** -- clans connect via the Agora public directory without surrendering control over their internal topology, agents, or data.
@@ -133,6 +133,8 @@ A complete HERMES message has exactly 7 fields per [ARC-5322](spec/ARC-5322.md):
 | `ttl` | Time-to-live in days |
 | `ack` | Array of namespaces that have acknowledged this message |
 
+**New to HERMES?** Start here: **[Getting Started Guide](docs/GETTING-STARTED.md)** -- step-by-step setup, call flows explained visually, and how to connect your clan to the network.
+
 Deploy your own HERMES instance: **[Quickstart Guide](docs/QUICKSTART.md)**
 
 ---
@@ -174,6 +176,21 @@ Deploy your own HERMES instance: **[Quickstart Guide](docs/QUICKSTART.md)**
             └─────────────┘
 ```
 
+The **Skill Gateway** ([ARC-2314](spec/ARC-2314.md)) separates operations into three planes:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  CONTROL PLANE     Messengers route messages between    │
+│                    clans. Like a postal service.         │
+├─────────────────────────────────────────────────────────┤
+│  ORCHESTRATION     Dojos assign quests to skills.       │
+│  PLANE             Like a project manager.              │
+├─────────────────────────────────────────────────────────┤
+│  USER PLANE        Skills do the actual work.           │
+│                    Like the engineers.                   │
+└─────────────────────────────────────────────────────────┘
+```
+
 - **Namespaces** are isolated workspaces with their own agents, configuration, and credentials
 - **The bus** carries coordination messages (signaling, not bulk data)
 - **The controller** has read access to all namespaces but cannot execute in any
@@ -211,7 +228,7 @@ HERMES uses a formal, RFC-like standards process with three tracks, each tracing
 | **ATR** | ITU-T Rec. | Architecture, reference models, telecom-inspired patterns | ATR-X.200: Reference Model |
 | **AES** | IEEE Std | Implementation standards: interoperability, isolation, QoS | AES-802.1Q: Namespace Isolation |
 
-### Implemented Standards (11 specs)
+### Implemented Standards (14 specs)
 
 | Standard | Title | Tier | IETF/ITU-T Lineage |
 |----------|-------|------|---------------------|
@@ -220,6 +237,7 @@ HERMES uses a formal, RFC-like standards process with three tracks, each tracing
 | [ARC-0791](spec/ARC-0791.md) | Addressing & Routing | Core | RFC 791 (IP) |
 | [ARC-0793](spec/ARC-0793.md) | Reliable Transport | Core | RFC 793 (TCP) |
 | [ARC-1918](spec/ARC-1918.md) | Private Spaces & Firewall | Core | RFC 1918 (Private Addressing) |
+| [ARC-2314](spec/ARC-2314.md) | Skill Gateway Plane Architecture | Core | 3GPP TS 23.214 (CUPS) |
 | [ARC-2606](spec/ARC-2606.md) | Agent Profile & Discovery | Extension | RFC 2606 (Reserved Domains) |
 | [ARC-3022](spec/ARC-3022.md) | Agent Gateway Protocol | Extension | RFC 3022 (NAT) |
 | [ARC-5322](spec/ARC-5322.md) | Message Format | Core | RFC 5322 (Internet Message Format) |
@@ -233,7 +251,7 @@ Full index with 30 planned standards: **[spec/INDEX.md](spec/INDEX.md)**
 
 ## Reference Implementation
 
-A Python reference implementation is included for validation and experimentation (**214 tests passing**):
+A Python reference implementation is included for validation and experimentation (**347 tests passing**):
 
 ```bash
 cd reference/python
@@ -246,6 +264,10 @@ Modules:
 - `bus.py` -- read, write, filter, archive, correlation per ARC-0793 and ARC-0768
 - `sync.py` -- SYN/FIN lifecycle management
 - `gateway.py` -- identity translation, outbound filtering, attestation per ARC-3022
+- `dojo.py` -- orchestration plane: quest dispatch, skill matching, XP tracking per ARC-2314
+- `config.py` -- clan configuration and peer management
+- `agora.py` -- Agora directory client for clan discovery
+- `cli.py` -- command-line interface for clan operations
 
 See [reference/python/](reference/python/) for details.
 
@@ -295,13 +317,14 @@ Full plan: **[docs/EVOLUTION-PLAN.md](docs/EVOLUTION-PLAN.md)**
 
 ```
 hermes/
-├── spec/              # Formal standards (11 implemented, 30 planned)
+├── spec/              # Formal standards (14 specs, 30 planned)
 │   ├── ARC-0001.md    #   Architecture (meta-standard)
 │   ├── ARC-0768.md    #   Datagram & Reliable Message Semantics
 │   ├── ARC-0791.md    #   Addressing & Routing
 │   ├── ARC-0793.md    #   Reliable Transport
 │   ├── ARC-1918.md    #   Private Spaces & Firewall
 │   ├── ARC-2119.md    #   Requirement Level Keywords
+│   ├── ARC-2314.md    #   Skill Gateway Plane Architecture
 │   ├── ARC-2606.md    #   Agent Profile & Discovery
 │   ├── ARC-3022.md    #   Agent Gateway Protocol
 │   ├── ARC-5322.md    #   Message Format
@@ -313,10 +336,11 @@ hermes/
 │   ├── EVOLUTION-PLAN.md
 │   ├── MANIFESTO.md
 │   ├── POSITIONING.md
+│   ├── GETTING-STARTED.md
 │   ├── QUICKSTART.md
 │   ├── RESEARCH-AGENDA.md
 │   └── USE-CASES.md
-├── reference/python/  # Reference implementation (214 tests)
+├── reference/python/  # Reference implementation (347 tests)
 ├── examples/          # Sample bus, routes, configs
 ├── CHANGELOG.md
 ├── CONTRIBUTING.md
