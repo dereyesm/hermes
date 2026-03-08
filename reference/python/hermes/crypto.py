@@ -155,27 +155,30 @@ def derive_shared_secret(
     return hashlib.sha256(raw_shared).digest()
 
 
-def encrypt_message(shared_secret: bytes, plaintext: str) -> dict:
+def encrypt_message(shared_secret: bytes, plaintext: str, aad: bytes | None = None) -> dict:
     """Encrypt a message using AES-256-GCM.
 
     Returns dict with 'nonce' and 'ciphertext' as hex strings.
+    Optional aad (Associated Authenticated Data) binds metadata to ciphertext.
     """
     nonce = os.urandom(12)
     aesgcm = AESGCM(shared_secret)
-    ciphertext = aesgcm.encrypt(nonce, plaintext.encode("utf-8"), None)
+    ciphertext = aesgcm.encrypt(nonce, plaintext.encode("utf-8"), aad)
     return {
         "nonce": nonce.hex(),
         "ciphertext": ciphertext.hex(),
     }
 
 
-def decrypt_message(shared_secret: bytes, nonce_hex: str, ciphertext_hex: str) -> str:
+def decrypt_message(
+    shared_secret: bytes, nonce_hex: str, ciphertext_hex: str, aad: bytes | None = None
+) -> str:
     """Decrypt an AES-256-GCM encrypted message."""
     aesgcm = AESGCM(shared_secret)
     plaintext = aesgcm.decrypt(
         bytes.fromhex(nonce_hex),
         bytes.fromhex(ciphertext_hex),
-        None,
+        aad,
     )
     return plaintext.decode("utf-8")
 
@@ -194,28 +197,33 @@ def verify_signature(sign_public: Ed25519PublicKey, data: bytes, signature_hex: 
         return False
 
 
+def _build_aad(envelope_meta: dict | None) -> bytes | None:
+    """Build canonical AAD bytes from envelope metadata."""
+    if envelope_meta is None:
+        return None
+    return json.dumps(envelope_meta, sort_keys=True, separators=(",", ":")).encode("utf-8")
+
+
 def seal_bus_message(
     my_keys: ClanKeyPair,
     peer_dh_public: X25519PublicKey,
     msg: str,
+    envelope_meta: dict | None = None,
 ) -> dict:
     """Encrypt + sign a bus message for relay transmission.
 
-    Returns a dict ready to be written as the 'secure' field in a relay message:
-    {
-        "ciphertext": "...",
-        "nonce": "...",
-        "signature": "...",
-        "sender_sign_pub": "...",
-    }
+    Returns a dict ready to be written as the 'secure' field in a relay message.
+    If envelope_meta is provided, it is used as AAD to cryptographically bind
+    the envelope headers (src, dst, type, ts) to the ciphertext.
     """
+    aad = _build_aad(envelope_meta)
     shared_secret = derive_shared_secret(my_keys.dh_private, peer_dh_public)
-    encrypted = encrypt_message(shared_secret, msg)
+    encrypted = encrypt_message(shared_secret, msg, aad=aad)
 
     ciphertext_bytes = bytes.fromhex(encrypted["ciphertext"])
     signature = sign_message(my_keys.sign_private, ciphertext_bytes)
 
-    return {
+    result = {
         "ciphertext": encrypted["ciphertext"],
         "nonce": encrypted["nonce"],
         "signature": signature,
@@ -223,6 +231,9 @@ def seal_bus_message(
             Encoding.Raw, PublicFormat.Raw
         ).hex(),
     }
+    if aad is not None:
+        result["aad"] = aad.hex()
+    return result
 
 
 def open_bus_message(
@@ -230,14 +241,35 @@ def open_bus_message(
     peer_sign_public: Ed25519PublicKey,
     peer_dh_public: X25519PublicKey,
     sealed: dict,
+    envelope_meta: dict | None = None,
 ) -> str | None:
     """Verify signature + decrypt a sealed bus message.
 
     Returns the plaintext message, or None if verification fails.
+    If envelope_meta is provided, it is used as AAD for decryption.
+    If the sealed message contains an 'aad' field, it must match the
+    constructed AAD — otherwise decryption is rejected.
     """
     ciphertext_bytes = bytes.fromhex(sealed["ciphertext"])
     if not verify_signature(peer_sign_public, ciphertext_bytes, sealed["signature"]):
         return None
 
+    aad = _build_aad(envelope_meta)
+
+    # AAD consistency check: if sealed has aad field, verify it matches
+    if "aad" in sealed and aad is not None:
+        if sealed["aad"] != aad.hex():
+            return None
+    elif "aad" in sealed and aad is None:
+        # Message was sealed with AAD but caller didn't provide envelope_meta
+        # Reconstruct from the stored AAD for decryption
+        aad = bytes.fromhex(sealed["aad"])
+    elif "aad" not in sealed and aad is not None:
+        # Old message without AAD — decrypt without AAD for backward compat
+        aad = None
+
     shared_secret = derive_shared_secret(my_keys.dh_private, peer_dh_public)
-    return decrypt_message(shared_secret, sealed["nonce"], sealed["ciphertext"])
+    try:
+        return decrypt_message(shared_secret, sealed["nonce"], sealed["ciphertext"], aad=aad)
+    except Exception:
+        return None
