@@ -299,3 +299,71 @@ class TestFullFlow:
             ack = seal_bus_message(jei, dani_dh_pub, "HELLO_ACK:jei:ready")
             plaintext_ack = open_bus_message(dani, jei_sign_pub, jei_dh_pub, ack)
             assert plaintext_ack == "HELLO_ACK:jei:ready"
+
+
+class TestAAD:
+    """Tests for Associated Authenticated Data (AAD) in AES-256-GCM."""
+
+    def test_encrypt_decrypt_with_aad(self):
+        """AAD roundtrip works when both sides use same AAD."""
+        secret = os.urandom(32)
+        aad = b'{"dst":"jei","src":"momoshod","ts":"2026-03-08","type":"quest"}'
+        encrypted = encrypt_message(secret, "test with aad", aad=aad)
+        decrypted = decrypt_message(secret, encrypted["nonce"], encrypted["ciphertext"], aad=aad)
+        assert decrypted == "test with aad"
+
+    def test_wrong_aad_fails_decrypt(self):
+        """Decryption fails when AAD doesn't match."""
+        secret = os.urandom(32)
+        aad1 = b'{"dst":"jei","src":"momoshod"}'
+        aad2 = b'{"dst":"evil","src":"momoshod"}'
+        encrypted = encrypt_message(secret, "test", aad=aad1)
+        with pytest.raises(Exception):
+            decrypt_message(secret, encrypted["nonce"], encrypted["ciphertext"], aad=aad2)
+
+    def test_aad_none_backward_compatible(self):
+        """Messages encrypted without AAD can still be decrypted without AAD."""
+        secret = os.urandom(32)
+        encrypted = encrypt_message(secret, "no aad")
+        decrypted = decrypt_message(secret, encrypted["nonce"], encrypted["ciphertext"])
+        assert decrypted == "no aad"
+
+    def test_seal_open_with_envelope_meta(self):
+        """seal/open with envelope_meta binds headers to ciphertext."""
+        dani = ClanKeyPair.generate()
+        jei = ClanKeyPair.generate()
+        meta = {"src": "momoshod", "dst": "jei", "type": "quest", "ts": "2026-03-08"}
+        sealed = seal_bus_message(dani, jei.dh_public, "quest payload", envelope_meta=meta)
+        assert "aad" in sealed
+        plaintext = open_bus_message(jei, dani.sign_public, dani.dh_public, sealed, envelope_meta=meta)
+        assert plaintext == "quest payload"
+
+    def test_seal_open_mismatched_meta_fails(self):
+        """Opening with different envelope_meta than sealing fails."""
+        dani = ClanKeyPair.generate()
+        jei = ClanKeyPair.generate()
+        meta1 = {"src": "momoshod", "dst": "jei", "type": "quest", "ts": "2026-03-08"}
+        meta2 = {"src": "momoshod", "dst": "evil", "type": "quest", "ts": "2026-03-08"}
+        sealed = seal_bus_message(dani, jei.dh_public, "quest payload", envelope_meta=meta1)
+        result = open_bus_message(jei, dani.sign_public, dani.dh_public, sealed, envelope_meta=meta2)
+        assert result is None
+
+    def test_seal_without_meta_backward_compatible(self):
+        """seal/open without envelope_meta still works (backward compat)."""
+        dani = ClanKeyPair.generate()
+        jei = ClanKeyPair.generate()
+        sealed = seal_bus_message(dani, jei.dh_public, "no meta")
+        assert "aad" not in sealed
+        plaintext = open_bus_message(jei, dani.sign_public, dani.dh_public, sealed)
+        assert plaintext == "no meta"
+
+    def test_old_message_without_aad_opens_even_with_meta(self):
+        """Backward compat: old messages (no AAD) open even when caller passes meta."""
+        dani = ClanKeyPair.generate()
+        jei = ClanKeyPair.generate()
+        # Seal WITHOUT meta (old-style)
+        sealed = seal_bus_message(dani, jei.dh_public, "old message")
+        # Open WITH meta — should still work (backward compat)
+        meta = {"src": "momoshod", "dst": "jei", "type": "hello", "ts": "2026-03-08"}
+        plaintext = open_bus_message(jei, dani.sign_public, dani.dh_public, sealed, envelope_meta=meta)
+        assert plaintext == "old message"
