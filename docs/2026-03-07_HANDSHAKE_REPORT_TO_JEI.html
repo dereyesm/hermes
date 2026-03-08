@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<style>
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff; color: #1a1a1a; margin: 0; padding: 20px; line-height: 1.6; }
+  .container { max-width: 680px; margin: 0 auto; }
+  .header { background: #1a1a1a; color: #ff6600; padding: 24px 30px; border-radius: 8px 8px 0 0; }
+  .header h1 { margin: 0; font-size: 22px; }
+  .header .subtitle { color: #ffaa66; font-size: 13px; margin-top: 4px; }
+  .body-content { border: 2px solid #1a1a1a; border-top: none; border-radius: 0 0 8px 8px; padding: 28px 30px; }
+  h2 { color: #ff6600; font-size: 17px; margin: 24px 0 12px 0; border-bottom: 2px solid #ff6600; padding-bottom: 6px; }
+  h2:first-child { margin-top: 0; }
+  .status-box { background: #fff3e6; border-left: 4px solid #ff6600; padding: 14px 18px; margin: 16px 0; border-radius: 0 6px 6px 0; }
+  .status-box .label { font-weight: 700; color: #1a1a1a; }
+  .status-box .value { color: #ff6600; font-weight: 700; }
+  table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 14px; }
+  th { background: #1a1a1a; color: #ff6600; padding: 10px 14px; text-align: left; font-weight: 600; }
+  td { padding: 10px 14px; border-bottom: 1px solid #e0e0e0; }
+  tr:nth-child(even) td { background: #fafafa; }
+  .check { color: #22c55e; font-weight: 700; }
+  .warn { color: #ff6600; font-weight: 700; }
+  .fail { color: #dc2626; font-weight: 700; }
+  code { background: #f5f5f5; border: 1px solid #ddd; padding: 2px 6px; border-radius: 3px; font-family: 'SF Mono', 'Consolas', monospace; font-size: 13px; color: #1a1a1a; }
+  .fingerprint { font-family: 'SF Mono', 'Consolas', monospace; font-size: 13px; background: #fff3e6; padding: 8px 12px; border-radius: 4px; margin: 6px 0; display: block; letter-spacing: 1px; }
+  .action-item { background: #1a1a1a; color: #fff; padding: 14px 18px; border-radius: 6px; margin: 10px 0; }
+  .action-item .number { color: #ff6600; font-weight: 700; margin-right: 8px; }
+  .footer { margin-top: 28px; padding-top: 16px; border-top: 2px solid #e0e0e0; color: #888; font-size: 12px; }
+  .footer a { color: #ff6600; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<div class="header">
+  <h1>DANI-HERMES-003 — Handshake Report</h1>
+  <div class="subtitle">Clan DANI (MomoshoD) → Clan JEI (La Triada) | 7 Marzo 2026</div>
+</div>
+
+<div class="body-content">
+
+<div class="status-box">
+  <span class="label">Estado del canal:</span> <span class="value">PRIMER HANDSHAKE ENCRIPTADO COMPLETADO</span><br>
+  <span style="font-size:13px; color:#555;">El mensaje de JEI fue recibido y descifrado exitosamente por DANI.</span>
+</div>
+
+<h2>Mensaje Descifrado de JEI</h2>
+
+<div class="status-box" style="background: #f0fdf4; border-left-color: #22c55e;">
+  <span style="font-size: 15px; font-style: italic; color: #1a1a1a;">"hello from JEI — canal cifrado establecido — La Triada operativa"</span>
+</div>
+
+<h2>Estado de Cada Capa</h2>
+
+<table>
+  <tr>
+    <th>Capa</th>
+    <th>Algoritmo</th>
+    <th>Estado</th>
+    <th>Nota</th>
+  </tr>
+  <tr>
+    <td><strong>Encriptacion</strong></td>
+    <td>AES-256-GCM</td>
+    <td><span class="check">OK</span></td>
+    <td>Bidireccional DANI↔JEI</td>
+  </tr>
+  <tr>
+    <td><strong>Key Agreement</strong></td>
+    <td>X25519 + SHA256</td>
+    <td><span class="check">OK</span></td>
+    <td>KDF alineado: SHA256(raw_DH)</td>
+  </tr>
+  <tr>
+    <td><strong>Firma Digital</strong></td>
+    <td>Ed25519</td>
+    <td><span class="warn">SCOPE MISMATCH</span></td>
+    <td>Ver seccion abajo</td>
+  </tr>
+</table>
+
+<h2>Detalle: Firma Ed25519 — Scope Mismatch</h2>
+
+<p>La encriptacion funciona perfecto. La firma falla en verificacion porque cada clan firma <strong>datos diferentes</strong>:</p>
+
+<table>
+  <tr>
+    <th>Clan</th>
+    <th>Dato Firmado</th>
+  </tr>
+  <tr>
+    <td>DANI</td>
+    <td><code>sign(ciphertext_bytes)</code></td>
+  </tr>
+  <tr>
+    <td>JEI</td>
+    <td><code>sign(plaintext)</code> o <code>sign(otro_dato)</code></td>
+  </tr>
+</table>
+
+<p>Esto NO afecta la confidencialidad (AES-256-GCM ya garantiza integridad via GCM tag). Pero necesitamos alinear <strong>que dato exacto se firma</strong> para que la verificacion cruzada funcione.</p>
+
+<div class="action-item">
+  <span class="number">PROPUESTA:</span> Ambos clanes firmen el <strong>ciphertext</strong> (bytes del mensaje ya encriptado). Razon: firmar el ciphertext es el patron estandar en TLS 1.3 — el receptor puede verificar la firma <em>antes</em> de descifrar, lo cual es mas seguro (no procesas datos de fuente no verificada).
+</div>
+
+<h2>Fingerprints Verificados</h2>
+
+<p><strong>DANI (MomoshoD):</strong></p>
+<span class="fingerprint">sign: 2a37:fb25:a054:93ee:a608:41fc:4ad9:687e</span>
+<span class="fingerprint">dh: &nbsp; 44da:1a4f:72bf:ea03:754d:e7aa:81b5:8c75</span>
+
+<p><strong>JEI (La Triada):</strong></p>
+<span class="fingerprint">sign: [verificado en persona]</span>
+<span class="fingerprint">dh: &nbsp; [verificado en persona]</span>
+
+<p style="font-size:13px; color:#555;">Fingerprints verificados presencialmente el 7 de marzo 2026. Formato alineado: un fingerprint por clave (sign + dh separados).</p>
+
+<h2>Infraestructura Operativa</h2>
+
+<table>
+  <tr>
+    <th>Componente</th>
+    <th>Estado</th>
+    <th>Ubicacion</th>
+  </tr>
+  <tr>
+    <td>Relay privado</td>
+    <td><span class="check">OPERATIVO</span></td>
+    <td><code>dereyesm/hermes-relay</code> (GitHub private)</td>
+  </tr>
+  <tr>
+    <td>Clave publica DANI</td>
+    <td><span class="check">SUBIDA</span></td>
+    <td><code>keys/momoshod.pub</code></td>
+  </tr>
+  <tr>
+    <td>Clave publica JEI</td>
+    <td><span class="check">SUBIDA</span></td>
+    <td><code>keys/jei.pub</code></td>
+  </tr>
+  <tr>
+    <td>Outbox DANI</td>
+    <td><span class="check">1 msg (hello)</span></td>
+    <td><code>relay/dani_outbox.jsonl</code></td>
+  </tr>
+  <tr>
+    <td>Outbox JEI</td>
+    <td><span class="check">1 msg (hello_ack)</span></td>
+    <td><code>relay/jei_outbox.jsonl</code></td>
+  </tr>
+  <tr>
+    <td>crypto.py</td>
+    <td><span class="check">29 tests passing</span></td>
+    <td><code>hermes/reference/python/</code></td>
+  </tr>
+</table>
+
+<h2>Siguiente Paso</h2>
+
+<div class="action-item">
+  <span class="number">1.</span> <strong>Alinear scope de firma</strong> — definir que ambos firman <code>ciphertext_bytes</code>. Bruja puede confirmar si JEI esta de acuerdo.
+</div>
+<div class="action-item">
+  <span class="number">2.</span> Una vez alineado, el canal esta <strong>100% operativo</strong> para mensajes encriptados + autenticados entre los dos clanes.
+</div>
+<div class="action-item">
+  <span class="number">3.</span> Formalizar en <strong>ARC-8446</strong> (Encrypted Bus Protocol) el formato exacto: que se firma, que se encripta, orden de operaciones.
+</div>
+
+<div class="footer">
+  <strong>HERMES Protocol</strong> — Inter-Agent Communication Standard<br>
+  Clan DANI (MomoshoD) · Daniel Reyes · <a href="https://github.com/dereyesm/hermes">github.com/dereyesm/hermes</a><br>
+  Ed25519 + X25519 + AES-256-GCM · 376 tests passing
+</div>
+
+</div>
+</div>
+</body>
+</html>

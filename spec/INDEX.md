@@ -37,7 +37,7 @@ Core protocol standards governing message formats, transport, addressing, and se
 | [ARC-7231](ARC-7231.md) | Agent Semantics — Bridge Protocol Mapping | RFC 7231 (HTTP Semantics) | BBF TR-369 CRUD+Operate+Notify; FIPA ACL performatives; A2A/MCP bridge mapping | DRAFT | Extension |
 | ARC-7519 | Message Authentication | RFC 7519 (JWT) | IETF draft-goswami-agentic-jwt; 3GPP TS 29.510 (NRF) OAuth 2.0 model | PLANNED | Security |
 | ARC-7540 | Multiplexed Bus Channels | RFC 7540 (HTTP/2) | A2A multiplexed task streams; 3GPP TS 23.501 PDU sessions | PLANNED | Extension |
-| ARC-8446 | Encrypted Bus Protocol | RFC 8446 (TLS 1.3) | ECMA-434 (NLIP) security levels; IETF SLIM (MLS); NIST FIPS 203-205 (PQC) | PLANNED | Security |
+| [ARC-8446](ARC-8446.md) | Encrypted Bus Protocol | RFC 8446 (TLS 1.3) | ECMA-434 (NLIP) security levels; IETF SLIM (MLS); NIST FIPS 203-205 (PQC) | IMPLEMENTED | Security |
 
 ## ATR -- Agent Telecom Recommendations (ITU-T Lineage)
 
