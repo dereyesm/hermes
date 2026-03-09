@@ -3,7 +3,8 @@
 [![Tests](https://github.com/dereyesm/hermes/actions/workflows/ci.yml/badge.svg)](https://github.com/dereyesm/hermes/actions/workflows/ci.yml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Specs: 14](https://img.shields.io/badge/specs-14%20standards-orange.svg)](spec/INDEX.md)
+[![Specs: 15](https://img.shields.io/badge/specs-15%20implemented-orange.svg)](spec/INDEX.md)
+[![Tests: 419](https://img.shields.io/badge/tests-419%20passing-brightgreen.svg)](reference/python/tests/)
 
 **A lightweight, file-based communication protocol for multi-agent AI systems.**
 

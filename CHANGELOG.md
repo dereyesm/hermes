@@ -9,6 +9,73 @@ This project follows a versioning scheme where:
 
 ---
 
+## [Unreleased] — Phase 1 Hardening (2026-03-02 → 2026-03-08)
+
+### Security, Crypto & Inter-Clan Communication
+
+This release completes Phase 1 with end-to-end encryption, the first inter-clan handshake, bridge protocol mapping for A2A/MCP interop, and the Skill Gateway architecture.
+
+### Added
+
+- **ARC-8446: Encrypted Bus Protocol** (IMPLEMENTED)
+  - Ed25519 (signatures) + X25519 (DH key agreement) + AES-256-GCM (authenticated encryption)
+  - Key generation, storage (0600 perms), fingerprinting (8x4 hex groups)
+  - Verify-before-decrypt pattern (TLS 1.3 aligned)
+  - AAD binding: canonical JSON `{dst,src,ts,type}` per Section 6.1.1
+  - Key revocation protocol (Section 9.6), replay protection (Section 9.5)
+  - Security hardened after Clan JEI review (QUEST-001)
+  - Reference: `crypto.py` (276 lines), 36 tests
+
+- **ARC-7231: Agent Semantics — Bridge Protocol Mapping** (IMPLEMENTED)
+  - Bidirectional translation: A2A v0.3.0 JSON-RPC ↔ HERMES JSONL
+  - Bidirectional translation: MCP JSON-RPC ↔ HERMES JSONL
+  - Agent Card ↔ HERMES Profile mapping (Sections 3.2.1, 3.2.2)
+  - Task state mapping: submitted/working/completed/failed/canceled/input-required
+  - MCP Tool/Resource mapping (Sections 4.2, 4.3)
+  - Error translation table (Section 8.1)
+  - Reference: `bridge.py` (380 lines), 36 tests
+
+- **ARC-2314: Skill Gateway Plane Architecture** (IMPLEMENTED)
+  - Triple-plane CUPS model: Control Plane, Operations Plane, User Plane
+  - Quest dispatch + skill orchestration
+  - Reference: `dojo.py` (364 lines), 63 tests
+
+- **Multi-clan infrastructure**:
+  - `agora.py` — Agora client + profile discovery (145 lines, 29 tests)
+  - `cli.py` — Command-line interface (412 lines, 33 tests)
+  - `config.py` — Configuration management (197 lines, 18 tests)
+  - ARC-3022 extended with Sections 15-16 (multi-clan, CLI)
+
+- **Inter-clan communication with Clan JEI** (first external clan):
+  - Encrypted handshake completed (fingerprints verified in person)
+  - QUEST-001 (ARC-8446 security review): COMPLETE
+  - QUEST-002 (AAD bilateral adoption): PROPOSED
+  - Private relay: `dereyesm/hermes-relay`
+
+- **Documentation**:
+  - `docs/POSITIONING.md` v2.0 — Sovereign + Hosted dual-mode architecture
+  - `docs/GETTING-STARTED.md` — Onboarding guide with Skill Gateway
+  - `docs/EVOLUTION-PLAN.md` — 5-phase roadmap (Mar-Dec 2026)
+  - `docs/MULTI-CLAN.md` — Inter-clan guide
+  - `docs/CLAN-DANI-ALIGNMENT.md` — DANI-JEI formal alignment
+  - `docs/QUEST-002-AAD-BILATERAL.md` — Bilateral AAD quest proposal
+
+### Changed
+
+- **spec/INDEX.md** — 15 specs IMPLEMENTED (was 11), 0 DRAFT (was 1)
+- **README.md** — Updated positioning, ecosystem comparison table
+- **spec/ARC-7231.md** — Updated with A2A v0.3.0 (gRPC, signed Agent Cards, contextId)
+
+### Stats
+
+- Specs: 11 → 15 IMPLEMENTED (+4), 1 → 0 DRAFT
+- Tests: 214 → 419 (+205)
+- Python modules: 6 → 11 (+5: crypto, bridge, dojo, agora, cli, config)
+- Commits: 8 → 23 (+15)
+- Lines of spec: ~5,800 → 9,132
+
+---
+
 ## [v0.3.0-alpha] — 2026-03-02
 
 ### Transport Semantics & Phase 1 Infra
