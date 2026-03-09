@@ -14,6 +14,7 @@ import hashlib
 import json
 import os
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PrivateKey,
@@ -23,7 +24,9 @@ from cryptography.hazmat.primitives.asymmetric.x25519 import (
     X25519PrivateKey,
     X25519PublicKey,
 )
+from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives.serialization import (
     Encoding,
     NoEncryption,
@@ -137,22 +140,33 @@ def load_peer_public(directory: str, clan_id: str) -> tuple[Ed25519PublicKey, X2
     public_path = os.path.join(directory, f"{clan_id}.pub")
     with open(public_path) as f:
         data = json.load(f)
-    sign_pub = Ed25519PublicKey.from_public_bytes(bytes.fromhex(data["sign_public"]))
-    dh_pub = X25519PublicKey.from_public_bytes(bytes.fromhex(data["dh_public"]))
+    sign_hex = data.get("sign_public") or data.get("ed25519_pub")
+    dh_hex = data.get("dh_public") or data.get("x25519_pub")
+    if not sign_hex or not dh_hex:
+        raise KeyError("Public key file must contain sign_public/ed25519_pub and dh_public/x25519_pub")
+    sign_pub = Ed25519PublicKey.from_public_bytes(bytes.fromhex(sign_hex))
+    dh_pub = X25519PublicKey.from_public_bytes(bytes.fromhex(dh_hex))
     return sign_pub, dh_pub
 
 
 def derive_shared_secret(
     my_dh_private: X25519PrivateKey, peer_dh_public: X25519PublicKey
 ) -> bytes:
-    """Derive a shared secret using X25519 Diffie-Hellman + SHA256.
+    """Derive a shared secret using X25519 Diffie-Hellman + HKDF-SHA256.
 
-    The raw DH output is hashed with SHA256 to produce a
-    uniformly distributed 256-bit key suitable for AES-256-GCM.
-    Aligned with Clan JEI implementation for interoperability.
+    The raw DH output is processed through HKDF-SHA256 with domain-specific
+    info parameter to produce a uniformly distributed 256-bit key suitable
+    for AES-256-GCM. The info parameter provides domain separation per
+    ARC-8446 §5.1.
     """
     raw_shared = my_dh_private.exchange(peer_dh_public)
-    return hashlib.sha256(raw_shared).digest()
+    hkdf = HKDF(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=None,
+        info=b"HERMES-ARC8446-v1",
+    )
+    return hkdf.derive(raw_shared)
 
 
 def encrypt_message(shared_secret: bytes, plaintext: str, aad: bytes | None = None) -> dict:
@@ -242,6 +256,7 @@ def open_bus_message(
     peer_dh_public: X25519PublicKey,
     sealed: dict,
     envelope_meta: dict | None = None,
+    nonce_tracker: "NonceTracker | None" = None,
 ) -> str | None:
     """Verify signature + decrypt a sealed bus message.
 
@@ -249,10 +264,23 @@ def open_bus_message(
     If envelope_meta is provided, it is used as AAD for decryption.
     If the sealed message contains an 'aad' field, it must match the
     constructed AAD — otherwise decryption is rejected.
+    If nonce_tracker is provided, checks the nonce for replay before
+    decryption and rejects replayed messages (ARC-8446 §9.5).
     """
     ciphertext_bytes = bytes.fromhex(sealed["ciphertext"])
     if not verify_signature(peer_sign_public, ciphertext_bytes, sealed["signature"]):
         return None
+
+    # Replay protection: check nonce before decryption
+    if nonce_tracker is not None:
+        sender = ""
+        if envelope_meta and "src" in envelope_meta:
+            sender = envelope_meta["src"]
+        timestamp = ""
+        if envelope_meta and "ts" in envelope_meta:
+            timestamp = envelope_meta["ts"]
+        if not nonce_tracker.check_and_record(sender, sealed["nonce"], timestamp):
+            return None
 
     aad = _build_aad(envelope_meta)
 
@@ -273,3 +301,83 @@ def open_bus_message(
         return decrypt_message(shared_secret, sealed["nonce"], sealed["ciphertext"], aad=aad)
     except Exception:
         return None
+
+
+class NonceTracker:
+    """Tracks received nonces to prevent replay attacks (ARC-8446 §9.5).
+
+    Maintains a per-sender nonce set bounded by TTL window.
+    Persists across sessions via JSON file.
+    """
+
+    def __init__(self, persistence_path: str | None = None):
+        self._seen: dict[str, dict[str, str]] = {}  # {sender: {nonce_hex: timestamp_iso}}
+        self._persistence_path = persistence_path
+        if persistence_path and os.path.exists(persistence_path):
+            self.load()
+
+    def check_and_record(
+        self, sender: str, nonce_hex: str, timestamp: str, ttl_days: int = 7
+    ) -> bool:
+        """Check if nonce was seen before. Record it if new.
+
+        Returns True if OK (not replayed), False if replay detected.
+        """
+        self._evict_expired(sender, ttl_days)
+
+        if sender not in self._seen:
+            self._seen[sender] = {}
+
+        if nonce_hex in self._seen[sender]:
+            return False
+
+        # Use provided timestamp, or current time if empty
+        ts = timestamp if timestamp else datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        self._seen[sender][nonce_hex] = ts
+
+        if self._persistence_path:
+            self.save()
+
+        return True
+
+    def _evict_expired(self, sender: str, ttl_days: int) -> None:
+        """Remove nonces older than TTL."""
+        if sender not in self._seen:
+            return
+
+        now = datetime.now(timezone.utc)
+        cutoff = now - timedelta(days=ttl_days)
+        to_remove = []
+
+        for nonce_hex, ts_str in self._seen[sender].items():
+            try:
+                # Support both date-only and datetime formats
+                if "T" in ts_str:
+                    ts = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+                else:
+                    ts = datetime.strptime(ts_str, "%Y-%m-%d").replace(
+                        tzinfo=timezone.utc
+                    )
+                if ts < cutoff:
+                    to_remove.append(nonce_hex)
+            except (ValueError, TypeError):
+                # If timestamp can't be parsed, keep the nonce (safe default)
+                pass
+
+        for nonce_hex in to_remove:
+            del self._seen[sender][nonce_hex]
+
+    def save(self) -> None:
+        """Persist nonce-set to JSON file."""
+        if not self._persistence_path:
+            return
+        os.makedirs(os.path.dirname(self._persistence_path) or ".", exist_ok=True)
+        with open(self._persistence_path, "w") as f:
+            json.dump(self._seen, f, indent=2)
+
+    def load(self) -> None:
+        """Load nonce-set from JSON file."""
+        if not self._persistence_path or not os.path.exists(self._persistence_path):
+            return
+        with open(self._persistence_path) as f:
+            self._seen = json.load(f)

@@ -8,6 +8,7 @@ import pytest
 
 from hermes.crypto import (
     ClanKeyPair,
+    NonceTracker,
     decrypt_message,
     derive_shared_secret,
     encrypt_message,
@@ -367,3 +368,102 @@ class TestAAD:
         meta = {"src": "momoshod", "dst": "jei", "type": "hello", "ts": "2026-03-08"}
         plaintext = open_bus_message(jei, dani.sign_public, dani.dh_public, sealed, envelope_meta=meta)
         assert plaintext == "old message"
+
+
+class TestNonceTracker:
+    """Tests for NonceTracker replay protection (ARC-8446 §9.5)."""
+
+    def test_new_nonce_returns_true(self):
+        """A new nonce should be accepted."""
+        tracker = NonceTracker()
+        assert tracker.check_and_record("clan_a", "aabbccdd", "2026-03-08") is True
+
+    def test_same_nonce_returns_false(self):
+        """A replayed nonce should be rejected."""
+        tracker = NonceTracker()
+        assert tracker.check_and_record("clan_a", "aabbccdd", "2026-03-08") is True
+        assert tracker.check_and_record("clan_a", "aabbccdd", "2026-03-08") is False
+
+    def test_per_sender_isolation(self):
+        """Same nonce from different senders should both be accepted."""
+        tracker = NonceTracker()
+        assert tracker.check_and_record("clan_a", "aabbccdd", "2026-03-08") is True
+        assert tracker.check_and_record("clan_b", "aabbccdd", "2026-03-08") is True
+
+    def test_ttl_eviction(self):
+        """Nonces older than TTL should be evicted, allowing reuse."""
+        tracker = NonceTracker()
+        # Record a nonce with an old timestamp
+        old_ts = "2020-01-01"
+        assert tracker.check_and_record("clan_a", "old_nonce", old_ts, ttl_days=1) is True
+        # The nonce is recorded with old timestamp. Next check_and_record
+        # for a different nonce will evict it during _evict_expired.
+        # Then the old nonce should be accepted again.
+        assert tracker.check_and_record("clan_a", "new_nonce", "2026-03-08", ttl_days=1) is True
+        # Now old_nonce should have been evicted
+        assert tracker.check_and_record("clan_a", "old_nonce", "2026-03-08", ttl_days=1) is True
+
+    def test_persistence_save_load(self):
+        """NonceTracker persists across sessions via JSON file."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "nonces.json")
+
+            # Session 1: record a nonce
+            tracker1 = NonceTracker(persistence_path=path)
+            assert tracker1.check_and_record("clan_a", "nonce_1", "2026-03-08") is True
+
+            # Session 2: load from file, same nonce should be rejected
+            tracker2 = NonceTracker(persistence_path=path)
+            assert tracker2.check_and_record("clan_a", "nonce_1", "2026-03-08") is False
+            # But a new nonce should be accepted
+            assert tracker2.check_and_record("clan_a", "nonce_2", "2026-03-08") is True
+
+    def test_persistence_file_created(self):
+        """save() creates the JSON file."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "subdir", "nonces.json")
+            tracker = NonceTracker(persistence_path=path)
+            tracker.check_and_record("clan_a", "abc123", "2026-03-08")
+            assert os.path.exists(path)
+            with open(path) as f:
+                data = json.load(f)
+            assert "clan_a" in data
+            assert "abc123" in data["clan_a"]
+
+
+class TestNonceTrackerIntegration:
+    """Tests for open_bus_message with nonce_tracker parameter."""
+
+    def test_open_rejects_replay(self):
+        """open_bus_message rejects a replayed message when nonce_tracker is provided."""
+        dani = ClanKeyPair.generate()
+        jei = ClanKeyPair.generate()
+        meta = {"src": "momoshod", "dst": "jei", "type": "quest", "ts": "2026-03-08"}
+
+        sealed = seal_bus_message(dani, jei.dh_public, "quest payload", envelope_meta=meta)
+        tracker = NonceTracker()
+
+        # First open: should succeed
+        result1 = open_bus_message(
+            jei, dani.sign_public, dani.dh_public, sealed,
+            envelope_meta=meta, nonce_tracker=tracker,
+        )
+        assert result1 == "quest payload"
+
+        # Second open with same sealed message: replay detected
+        result2 = open_bus_message(
+            jei, dani.sign_public, dani.dh_public, sealed,
+            envelope_meta=meta, nonce_tracker=tracker,
+        )
+        assert result2 is None
+
+    def test_open_without_tracker_allows_replay(self):
+        """Without nonce_tracker, replayed messages are still accepted (backward compat)."""
+        dani = ClanKeyPair.generate()
+        jei = ClanKeyPair.generate()
+
+        sealed = seal_bus_message(dani, jei.dh_public, "msg")
+        result1 = open_bus_message(jei, dani.sign_public, dani.dh_public, sealed)
+        result2 = open_bus_message(jei, dani.sign_public, dani.dh_public, sealed)
+        assert result1 == "msg"
+        assert result2 == "msg"
