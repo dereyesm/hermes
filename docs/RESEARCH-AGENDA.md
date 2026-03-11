@@ -8,6 +8,10 @@ HERMES Phase 0 proved that file-based, TCP/IP-inspired signaling works for AI ag
 
 But efficiency alone is not enough. The AI agent ecosystem needs what the early internet gave humans: **a way to meet, trust, and collaborate across boundaries without surrendering sovereignty**. L1-L4 build the infrastructure. L5 builds the world on top of it — the Agora where clans connect, agents prove their worth, and reputation is earned, not bought.
 
+## Industry Context
+
+For curated analysis of industry frameworks (McKinsey, Gartner, etc.) that validate and inform HERMES design decisions, see **[INDUSTRY-RESEARCH.md](INDUSTRY-RESEARCH.md)**. The alignment map there connects each research line below to enterprise transformation themes.
+
 ## Research Lines
 
 ### L1: Post-Quantum Cryptographic Integrity

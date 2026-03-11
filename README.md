@@ -340,6 +340,7 @@ hermes/
 │   ├── GETTING-STARTED.md
 │   ├── QUICKSTART.md
 │   ├── RESEARCH-AGENDA.md
+│   ├── INDUSTRY-RESEARCH.md
 │   └── USE-CASES.md
 ├── reference/python/  # Reference implementation (347 tests)
 ├── examples/          # Sample bus, routes, configs
