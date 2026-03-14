@@ -1,0 +1,606 @@
+"""Tests for HERMES Agent Node — ARC-4601 Reference Implementation."""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import os
+import signal
+import tempfile
+import time
+from datetime import date, timedelta
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from hermes.agent import (
+    Action,
+    AgentNode,
+    AgentNodeConfig,
+    BusObserver,
+    DispatchResult,
+    DispatchSlot,
+    Dispatcher,
+    GatewayLink,
+    MessageEvaluator,
+    NodeState,
+    StateManager,
+    load_agent_config,
+)
+from hermes.message import Message, create_message
+
+
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def tmp_clan(tmp_path):
+    """Create a temporary clan directory with bus.jsonl."""
+    bus = tmp_path / "bus.jsonl"
+    bus.touch()
+    return tmp_path
+
+
+@pytest.fixture
+def sample_config(tmp_clan):
+    """Create a basic AgentNodeConfig for testing."""
+    return AgentNodeConfig(
+        bus_path=tmp_clan / "bus.jsonl",
+        gateway_url="http://localhost:8000",
+        namespace="test-node",
+        clan_dir=tmp_clan,
+        evaluation_interval=1.0,
+        heartbeat_interval=1.0,
+        poll_interval=0.1,
+    )
+
+
+@pytest.fixture
+def gateway_json(tmp_clan):
+    """Create a gateway.json with agent_node section."""
+    config = {
+        "clan_id": "test-clan",
+        "display_name": "Test Clan",
+        "agent_node": {
+            "enabled": True,
+            "namespace": "test-node",
+            "bus_path": "bus.jsonl",
+            "gateway_url": "http://localhost:8000",
+            "heartbeat_interval": 5,
+            "evaluation_interval": 10,
+            "max_dispatch_slots": 3,
+        },
+    }
+    path = tmp_clan / "gateway.json"
+    path.write_text(json.dumps(config, indent=2))
+    return path
+
+
+def _write_bus_message(bus_path: Path, **kwargs) -> Message:
+    """Helper to write a message to the bus."""
+    defaults = {
+        "src": "source",
+        "dst": "test-node",
+        "type": "event",
+        "msg": "test message",
+        "ttl": 7,
+    }
+    defaults.update(kwargs)
+    msg = create_message(**defaults)
+    with open(bus_path, "a", encoding="utf-8") as f:
+        f.write(msg.to_jsonl() + "\n")
+    return msg
+
+
+# ---------------------------------------------------------------------------
+# AgentNodeConfig Tests
+# ---------------------------------------------------------------------------
+
+class TestAgentNodeConfig:
+    def test_load_from_gateway_json(self, gateway_json, tmp_clan):
+        config = load_agent_config(gateway_json)
+        assert config.namespace == "test-node"
+        assert config.gateway_url == "http://localhost:8000"
+        assert config.max_dispatch_slots == 3
+        assert config.bus_path == tmp_clan / "bus.jsonl"
+
+    def test_load_missing_file(self, tmp_clan):
+        with pytest.raises(FileNotFoundError):
+            load_agent_config(tmp_clan / "nonexistent.json")
+
+    def test_load_missing_section(self, tmp_clan):
+        path = tmp_clan / "gateway.json"
+        path.write_text(json.dumps({"clan_id": "x", "display_name": "X"}))
+        with pytest.raises(ValueError, match="No 'agent_node'"):
+            load_agent_config(path)
+
+    def test_load_disabled(self, tmp_clan):
+        path = tmp_clan / "gateway.json"
+        path.write_text(json.dumps({
+            "clan_id": "x",
+            "display_name": "X",
+            "agent_node": {"enabled": False},
+        }))
+        with pytest.raises(ValueError, match="disabled"):
+            load_agent_config(path)
+
+    def test_defaults(self, gateway_json):
+        config = load_agent_config(gateway_json)
+        assert config.dispatch_timeout == 300.0
+        assert config.dispatch_command == "claude"
+        assert config.poll_interval == 2.0
+        assert config.escalation_threshold_hours == 4
+        assert config.forward_types == ["alert", "dispatch", "event"]
+
+
+# ---------------------------------------------------------------------------
+# NodeState Tests
+# ---------------------------------------------------------------------------
+
+class TestNodeState:
+    def test_roundtrip(self):
+        state = NodeState(
+            pid=123,
+            started_at="2026-03-14T10:00:00",
+            last_heartbeat="2026-03-14T11:00:00",
+            bus_offset=4567,
+            active_dispatches=[
+                DispatchSlot(pid=456, cid="task-1", started_at=1000.0),
+            ],
+            last_evaluation="2026-03-14T10:30:00",
+        )
+        data = state.to_dict()
+        restored = NodeState.from_dict(data)
+        assert restored.pid == 123
+        assert restored.bus_offset == 4567
+        assert len(restored.active_dispatches) == 1
+        assert restored.active_dispatches[0].cid == "task-1"
+
+    def test_from_dict_minimal(self):
+        state = NodeState.from_dict({"pid": 1, "started_at": "now"})
+        assert state.bus_offset == 0
+        assert state.active_dispatches == []
+
+
+# ---------------------------------------------------------------------------
+# StateManager Tests
+# ---------------------------------------------------------------------------
+
+class TestStateManager:
+    def test_acquire_lock_success(self, tmp_clan):
+        sm = StateManager(tmp_clan)
+        assert sm.acquire_lock() is True
+        assert (tmp_clan / "agent-node.lock" / "pid").exists()
+        pid = int((tmp_clan / "agent-node.lock" / "pid").read_text())
+        assert pid == os.getpid()
+        sm.release_lock()
+
+    def test_acquire_lock_fails_when_held(self, tmp_clan):
+        sm = StateManager(tmp_clan)
+        assert sm.acquire_lock() is True
+        # Second attempt should fail (same PID is alive)
+        sm2 = StateManager(tmp_clan)
+        assert sm2.acquire_lock() is False
+        sm.release_lock()
+
+    def test_acquire_lock_reclaims_stale(self, tmp_clan):
+        sm = StateManager(tmp_clan)
+        # Create a fake lock with a dead PID
+        lock_dir = tmp_clan / "agent-node.lock"
+        lock_dir.mkdir()
+        (lock_dir / "pid").write_text("99999999")  # Unlikely to be alive
+        # Should reclaim
+        assert sm.acquire_lock() is True
+        sm.release_lock()
+
+    def test_release_lock(self, tmp_clan):
+        sm = StateManager(tmp_clan)
+        sm.acquire_lock()
+        sm.release_lock()
+        assert not (tmp_clan / "agent-node.lock").exists()
+
+    def test_save_and_load(self, tmp_clan):
+        sm = StateManager(tmp_clan)
+        state = NodeState(pid=42, started_at="2026-03-14T10:00:00", bus_offset=100)
+        sm.save(state)
+        loaded = sm.load()
+        assert loaded is not None
+        assert loaded.pid == 42
+        assert loaded.bus_offset == 100
+
+    def test_load_nonexistent(self, tmp_clan):
+        sm = StateManager(tmp_clan)
+        assert sm.load() is None
+
+    def test_load_corrupt(self, tmp_clan):
+        sm = StateManager(tmp_clan)
+        (tmp_clan / "agent-node.state.json").write_text("not json")
+        assert sm.load() is None
+
+    def test_recover_dead_pid(self, tmp_clan):
+        sm = StateManager(tmp_clan)
+        state = NodeState(pid=99999999, started_at="old", bus_offset=500)
+        sm.save(state)
+        recovered = sm.recover()
+        assert recovered is not None
+        assert recovered.bus_offset == 500
+        assert recovered.pid == os.getpid()
+
+    def test_recover_alive_pid(self, tmp_clan):
+        sm = StateManager(tmp_clan)
+        # Use our own PID — it's alive
+        state = NodeState(pid=os.getpid(), started_at="now", bus_offset=100)
+        sm.save(state)
+        recovered = sm.recover()
+        assert recovered is None  # Can't recover — PID is alive
+
+    def test_get_lock_pid(self, tmp_clan):
+        sm = StateManager(tmp_clan)
+        assert sm.get_lock_pid() is None
+        sm.acquire_lock()
+        assert sm.get_lock_pid() == os.getpid()
+        sm.release_lock()
+
+
+# ---------------------------------------------------------------------------
+# BusObserver Tests
+# ---------------------------------------------------------------------------
+
+class TestBusObserver:
+    def test_read_empty_bus(self, tmp_clan):
+        obs = BusObserver(tmp_clan / "bus.jsonl", "test-node")
+        assert obs.read_new_lines() == []
+
+    def test_read_new_lines_from_zero(self, tmp_clan):
+        bus = tmp_clan / "bus.jsonl"
+        _write_bus_message(bus, msg="first message")
+        _write_bus_message(bus, msg="second message")
+        obs = BusObserver(bus, "test-node")
+        messages = obs.read_new_lines()
+        assert len(messages) == 2
+        assert messages[0].msg == "first message"
+        assert messages[1].msg == "second message"
+
+    def test_offset_advances(self, tmp_clan):
+        bus = tmp_clan / "bus.jsonl"
+        _write_bus_message(bus, msg="first")
+        obs = BusObserver(bus, "test-node")
+        obs.read_new_lines()
+        assert obs.offset > 0
+
+        # Write more
+        _write_bus_message(bus, msg="second")
+        messages = obs.read_new_lines()
+        assert len(messages) == 1
+        assert messages[0].msg == "second"
+
+    def test_no_new_lines(self, tmp_clan):
+        bus = tmp_clan / "bus.jsonl"
+        _write_bus_message(bus, msg="only one")
+        obs = BusObserver(bus, "test-node")
+        obs.read_new_lines()
+        # No new data
+        assert obs.read_new_lines() == []
+
+    def test_truncation_resets_offset(self, tmp_clan):
+        bus = tmp_clan / "bus.jsonl"
+        _write_bus_message(bus, msg="a" * 50)
+        obs = BusObserver(bus, "test-node")
+        obs.read_new_lines()
+        old_offset = obs.offset
+
+        # Truncate (simulate archive rewrite)
+        bus.write_text("")
+        _write_bus_message(bus, msg="after truncate")
+        messages = obs.read_new_lines()
+        assert len(messages) == 1
+        assert messages[0].msg == "after truncate"
+        assert obs.offset < old_offset
+
+    def test_malformed_lines_skipped(self, tmp_clan):
+        bus = tmp_clan / "bus.jsonl"
+        _write_bus_message(bus, msg="valid message")
+        with open(bus, "a") as f:
+            f.write("not json at all\n")
+        _write_bus_message(bus, msg="also valid")
+
+        obs = BusObserver(bus, "test-node")
+        messages = obs.read_new_lines()
+        assert len(messages) == 2
+
+    def test_nonexistent_bus(self, tmp_clan):
+        obs = BusObserver(tmp_clan / "nope.jsonl", "test-node")
+        assert obs.read_new_lines() == []
+
+    def test_read_from_offset(self, tmp_clan):
+        bus = tmp_clan / "bus.jsonl"
+        _write_bus_message(bus, msg="first")
+        first_size = bus.stat().st_size
+        _write_bus_message(bus, msg="second")
+
+        obs = BusObserver(bus, "test-node", offset=first_size)
+        messages = obs.read_new_lines()
+        assert len(messages) == 1
+        assert messages[0].msg == "second"
+
+
+# ---------------------------------------------------------------------------
+# GatewayLink Tests
+# ---------------------------------------------------------------------------
+
+class TestGatewayLink:
+    def test_headers_with_gateway_key(self, sample_config):
+        sample_config.gateway_key = "secret123"
+        gw = GatewayLink(sample_config)
+        headers = gw._push_headers()
+        assert headers["X-Gateway-Key"] == "secret123"
+
+    def test_headers_without_token(self, sample_config):
+        gw = GatewayLink(sample_config)
+        headers = gw._push_headers()
+        assert "X-Gateway-Key" not in headers
+
+    def test_post_message_failure(self, sample_config):
+        sample_config.gateway_url = "http://localhost:99999"
+        gw = GatewayLink(sample_config)
+        msg = create_message(src="a", dst="b", type="event", msg="test")
+        # Should not raise, returns False
+        assert gw.post_message(msg) is False
+
+    def test_heartbeat_failure(self, sample_config):
+        sample_config.gateway_url = "http://localhost:99999"
+        gw = GatewayLink(sample_config)
+        state = NodeState(pid=1, started_at="now")
+        assert gw.send_heartbeat(state, 60.0) is False
+
+    def test_parse_sse_event_data(self):
+        text = 'data: {"type": "event", "msg": "hello"}'
+        result = GatewayLink._parse_sse_event(text)
+        assert result == {"type": "event", "msg": "hello"}
+
+    def test_parse_sse_event_comment(self):
+        result = GatewayLink._parse_sse_event(":heartbeat")
+        assert result is None
+
+    def test_parse_sse_event_multiline(self):
+        text = 'data: {"a":\ndata: 1}'
+        result = GatewayLink._parse_sse_event(text)
+        assert result == {"a": 1}
+
+    def test_parse_sse_event_invalid_json(self):
+        result = GatewayLink._parse_sse_event("data: not json")
+        assert result is None
+
+
+# ---------------------------------------------------------------------------
+# MessageEvaluator Tests
+# ---------------------------------------------------------------------------
+
+class TestMessageEvaluator:
+    def test_dispatch_addressed_to_us(self, sample_config):
+        ev = MessageEvaluator(sample_config)
+        msg = create_message(src="dojo", dst="test-node", type="dispatch", msg="run task")
+        assert ev.evaluate(msg) == Action.DISPATCH
+
+    def test_request_escalates(self, sample_config):
+        ev = MessageEvaluator(sample_config)
+        msg = create_message(src="user", dst="test-node", type="request", msg="need help")
+        assert ev.evaluate(msg) == Action.ESCALATE
+
+    def test_old_alert_escalates(self, sample_config):
+        sample_config.escalation_threshold_hours = 4
+        ev = MessageEvaluator(sample_config)
+        msg = create_message(
+            src="source", dst="test-node", type="alert", msg="old alert",
+            ts=date.today() - timedelta(days=1),
+        )
+        assert ev.evaluate(msg) == Action.ESCALATE
+
+    def test_fresh_alert_forwards(self, sample_config):
+        ev = MessageEvaluator(sample_config)
+        msg = create_message(src="source", dst="test-node", type="alert", msg="fresh")
+        assert ev.evaluate(msg) == Action.FORWARD
+
+    def test_event_forwards(self, sample_config):
+        ev = MessageEvaluator(sample_config)
+        msg = create_message(src="source", dst="test-node", type="event", msg="happened")
+        assert ev.evaluate(msg) == Action.FORWARD
+
+    def test_state_ignored(self, sample_config):
+        ev = MessageEvaluator(sample_config)
+        msg = create_message(src="source", dst="test-node", type="state", msg="status update")
+        assert ev.evaluate(msg) == Action.IGNORE
+
+    def test_dojo_event_ignored(self, sample_config):
+        ev = MessageEvaluator(sample_config)
+        msg = create_message(
+            src="dojo", dst="test-node", type="dojo_event", msg="levelup:x"
+        )
+        assert ev.evaluate(msg) == Action.IGNORE
+
+    def test_already_acked_ignored(self, sample_config):
+        ev = MessageEvaluator(sample_config)
+        msg = Message(
+            ts=date.today(), src="source", dst="test-node",
+            type="dispatch", msg="do something", ttl=7,
+            ack=["test-node"],
+        )
+        assert ev.evaluate(msg) == Action.IGNORE
+
+    def test_broadcast_dispatch(self, sample_config):
+        ev = MessageEvaluator(sample_config)
+        msg = create_message(src="dojo", dst="*", type="dispatch", msg="run for all")
+        assert ev.evaluate(msg) == Action.DISPATCH
+
+    def test_data_cross_escalates(self, sample_config):
+        ev = MessageEvaluator(sample_config)
+        msg = create_message(
+            src="finance", dst="test-node", type="data_cross", msg="expense data"
+        )
+        assert ev.evaluate(msg) == Action.ESCALATE
+
+    def test_unaddressed_event_with_forward_type(self, sample_config):
+        ev = MessageEvaluator(sample_config)
+        msg = create_message(src="source", dst="other-ns", type="event", msg="for others")
+        assert ev.evaluate(msg) == Action.FORWARD
+
+    def test_unaddressed_state_ignored(self, sample_config):
+        ev = MessageEvaluator(sample_config)
+        msg = create_message(src="source", dst="other-ns", type="state", msg="not for us")
+        assert ev.evaluate(msg) == Action.IGNORE
+
+
+# ---------------------------------------------------------------------------
+# Dispatcher Tests
+# ---------------------------------------------------------------------------
+
+class TestDispatcher:
+    def test_available_slots(self, sample_config):
+        d = Dispatcher(sample_config)
+        assert d.available_slots == sample_config.max_dispatch_slots
+
+    def test_build_command_basic(self, sample_config):
+        d = Dispatcher(sample_config)
+        msg = create_message(src="a", dst="test-node", type="dispatch", msg="do thing")
+        cmd = d.build_command(msg)
+        assert cmd[0] == "claude"
+        assert "-p" in cmd
+        assert "do thing" in cmd
+        assert "--max-turns" in cmd
+        assert "--output-format" in cmd
+
+    def test_build_command_with_tools(self, sample_config):
+        sample_config.dispatch_allowed_tools = ["Read", "Write"]
+        d = Dispatcher(sample_config)
+        msg = create_message(src="a", dst="test-node", type="dispatch", msg="task")
+        cmd = d.build_command(msg)
+        assert "--allowedTools" in cmd
+        assert "Read,Write" in cmd
+
+    def test_build_command_no_tools(self, sample_config):
+        d = Dispatcher(sample_config)
+        msg = create_message(src="a", dst="test-node", type="dispatch", msg="task")
+        cmd = d.build_command(msg)
+        assert "--allowedTools" not in cmd
+
+    def test_dispatch_creates_slot(self, sample_config):
+        sample_config.dispatch_command = "echo"
+        d = Dispatcher(sample_config)
+        msg = create_message(src="a", dst="test-node", type="dispatch", msg="hello")
+        loop = asyncio.new_event_loop()
+        try:
+            slot = loop.run_until_complete(d.dispatch(msg, "test-cid"))
+            assert slot.cid == "test-cid"
+            assert slot.pid > 0
+            assert d.available_slots == sample_config.max_dispatch_slots - 1
+            loop.run_until_complete(d.cancel_slot(slot))
+        finally:
+            loop.close()
+
+    def test_dispatch_no_slots(self, sample_config):
+        sample_config.max_dispatch_slots = 0
+        d = Dispatcher(sample_config)
+        msg = create_message(src="a", dst="test-node", type="dispatch", msg="task")
+        loop = asyncio.new_event_loop()
+        try:
+            with pytest.raises(RuntimeError, match="No dispatch slots"):
+                loop.run_until_complete(d.dispatch(msg, "cid"))
+        finally:
+            loop.close()
+
+    def test_remove_slot(self, sample_config):
+        d = Dispatcher(sample_config)
+        slot = DispatchSlot(pid=123, cid="x", started_at=time.time())
+        d.active.append(slot)
+        d._remove_slot(slot)
+        assert len(d.active) == 0
+
+
+# ---------------------------------------------------------------------------
+# Integration Tests
+# ---------------------------------------------------------------------------
+
+class TestAgentNodeLifecycle:
+    def test_state_manager_full_cycle(self, tmp_clan):
+        sm = StateManager(tmp_clan)
+
+        # Acquire
+        assert sm.acquire_lock()
+        assert sm.get_lock_pid() == os.getpid()
+
+        # Save state
+        state = NodeState(pid=os.getpid(), started_at="now", bus_offset=42)
+        sm.save(state)
+
+        # Load state
+        loaded = sm.load()
+        assert loaded.bus_offset == 42
+
+        # Release
+        sm.release_lock()
+        assert sm.get_lock_pid() is None
+
+    def test_bus_observer_incremental(self, tmp_clan):
+        bus = tmp_clan / "bus.jsonl"
+        obs = BusObserver(bus, "test-node")
+
+        # Empty
+        assert obs.read_new_lines() == []
+
+        # First message
+        _write_bus_message(bus, msg="msg one")
+        msgs = obs.read_new_lines()
+        assert len(msgs) == 1
+
+        # Second message
+        _write_bus_message(bus, msg="msg two")
+        msgs = obs.read_new_lines()
+        assert len(msgs) == 1
+        assert msgs[0].msg == "msg two"
+
+    def test_evaluator_with_real_messages(self, sample_config):
+        ev = MessageEvaluator(sample_config)
+
+        # A dispatch for us
+        m1 = create_message(src="dojo", dst="test-node", type="dispatch", msg="task a")
+        assert ev.evaluate(m1) == Action.DISPATCH
+
+        # A state update — ignore
+        m2 = create_message(src="palas", dst="test-node", type="state", msg="sync done")
+        assert ev.evaluate(m2) == Action.IGNORE
+
+        # An old alert — escalate
+        m3 = create_message(
+            src="system", dst="test-node", type="alert", msg="disk full",
+            ts=date.today() - timedelta(days=2),
+        )
+        assert ev.evaluate(m3) == Action.ESCALATE
+
+
+# ---------------------------------------------------------------------------
+# CLI Command Tests
+# ---------------------------------------------------------------------------
+
+class TestCLICommands:
+    def test_daemon_status_not_running(self, tmp_clan, capsys):
+        from hermes.agent import cmd_daemon_status
+        ret = cmd_daemon_status(tmp_clan)
+        assert ret == 0
+        captured = capsys.readouterr()
+        assert "not running" in captured.out
+
+    def test_daemon_stop_not_running(self, tmp_clan, capsys):
+        from hermes.agent import cmd_daemon_stop
+        ret = cmd_daemon_stop(tmp_clan)
+        assert ret == 1
+        captured = capsys.readouterr()
+        assert "No agent node" in captured.out
+
+    def test_daemon_start_no_config(self, tmp_clan, capsys):
+        from hermes.agent import cmd_daemon_start
+        ret = cmd_daemon_start(tmp_clan)
+        assert ret == 1
+        captured = capsys.readouterr()
+        assert "Error" in captured.err
