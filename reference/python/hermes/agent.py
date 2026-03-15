@@ -753,11 +753,14 @@ class Dispatcher:
         cmd = self.build_command(message)
         logger.info("Dispatching [%s]: %s", cid, " ".join(cmd[:3]))
 
-        proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+        except (FileNotFoundError, OSError) as e:
+            raise RuntimeError(f"Dispatch command not found: {cmd[0]!r}: {e}") from e
 
         slot = DispatchSlot(
             pid=proc.pid,
