@@ -179,15 +179,15 @@ The first two clans on the HERMES network:
 
 ```
 Clan Momosho D. (Daniel)              Clan JEI (Jeimmy)
-+-------------------------------+     +-------------------------------+
-| bus.jsonl | routes.md         |     | bus.jsonl | routes.md         |
-| registry.json (28 skills)    |     | registry.json (N skills)     |
-| Dojo (SDN Controller)       |     | Dojo (Controller)            |
-| Heraldo (Messenger)         |     | Huitaca (Messenger)          |
-| 6 dimensions:               |     | Dimensions:                  |
-|   global, nymyka, momoshod,  |     |   (defined by Jeimmy)        |
-|   momofinance, zima26, hermes|     |                              |
-+-------------+----------------+     +-------------+----------------+
++-------------------------------+     +------------------------------+
+| bus.jsonl | routes.md         |     | bus.jsonl | routes.md        |
+| registry.json (28 skills)     |     | registry.json (N skills)     |
+| Dojo (SDN Controller)         |     | Dojo (Controller)            |
+| Heraldo (Messenger)           |     | Huitaca (Messenger)          |
+| 6 dimensions:                 |     | Dimensions:                  |
+|   global, nymyka, momoshod,   |     |   (defined by Jeimmy)        |
+|   momofinance, zima26, hermes |     |                              |
++-------------+-----------------+     +-------------+----------------+
               |                                     |
          [Gateway NAT]                         [Gateway NAT]
          clan: momosho-d                       clan: huitaca

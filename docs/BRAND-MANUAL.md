@@ -126,7 +126,7 @@ The HERMES logo represents **a messenger crossing boundaries** — two domains c
 
 ```
 ╔═══════════════════════════════════════╗
-║  H E R M E S    P R O T O C O L      ║
+║  H E R M E S    P R O T O C O L       ║
 ║  ─────────────────────────────────    ║
 ║  Open Inter-Agent Communication       ║
 ╚═══════════════════════════════════════╝

@@ -1,0 +1,124 @@
+# HERMES Cross-Clan Communication — ARC-3022
+# Flat layout, light theme, short labels
+
+direction: down
+
+eng: engineering {
+  shape: person
+  style.font-size: 28
+  style.fill: "#1A1A2E"
+  style.font-color: "#00D4AA"
+  style.stroke: "#00D4AA"
+  style.stroke-width: 3
+}
+
+bus-a: bus.jsonl {
+  shape: cylinder
+  style.font-size: 28
+  style.fill: "#1A1A2E"
+  style.font-color: "#27AE60"
+  style.stroke: "#27AE60"
+  style.stroke-width: 3
+}
+
+gw-a: Gateway Alpha {
+  shape: hexagon
+  style.font-size: 28
+  style.fill: "#F5A623"
+  style.font-color: "#1A1A2E"
+  style.stroke: "#F5A623"
+  style.stroke-width: 2
+}
+
+agora: Agora {
+  shape: cloud
+  style.font-size: 28
+  style.fill: "#27AE60"
+  style.font-color: "#1A1A2E"
+  style.stroke: "#27AE60"
+}
+
+gw-b: Gateway Beta {
+  shape: hexagon
+  style.font-size: 28
+  style.fill: "#F5A623"
+  style.font-color: "#1A1A2E"
+  style.stroke: "#F5A623"
+  style.stroke-width: 2
+}
+
+bus-b: bus.jsonl {
+  shape: cylinder
+  style.font-size: 28
+  style.fill: "#1A1A2E"
+  style.font-color: "#27AE60"
+  style.stroke: "#27AE60"
+  style.stroke-width: 3
+}
+
+cyber: cybersec {
+  shape: person
+  style.font-size: 28
+  style.fill: "#1A1A2E"
+  style.font-color: "#E74C3C"
+  style.stroke: "#E74C3C"
+  style.stroke-width: 3
+}
+
+# Main flow
+
+eng -> bus-a: write {
+  style.stroke: "#00D4AA"
+  style.stroke-width: 4
+  style.animated: true
+  style.font-size: 20
+  style.bold: true
+}
+
+bus-a -> gw-a: outbound filter {
+  style.stroke: "#F5A623"
+  style.stroke-width: 4
+  style.animated: true
+  style.font-size: 20
+  style.bold: true
+}
+
+gw-a -> gw-b: HTTPS + NAT {
+  style.stroke: "#00D4AA"
+  style.stroke-width: 5
+  style.animated: true
+  style.font-size: 22
+  style.bold: true
+}
+
+gw-b -> bus-b: inbound validate {
+  style.stroke: "#F5A623"
+  style.stroke-width: 4
+  style.animated: true
+  style.font-size: 20
+  style.bold: true
+}
+
+bus-b -> cyber: deliver {
+  style.stroke: "#E74C3C"
+  style.stroke-width: 4
+  style.animated: true
+  style.font-size: 20
+  style.bold: true
+}
+
+# Discovery (secondary)
+
+gw-a -> agora: publish profile {
+  style.stroke: "#27AE60"
+  style.stroke-width: 2
+  style.stroke-dash: 5
+  style.font-size: 16
+}
+
+gw-b -> agora: publish profile {
+  style.stroke: "#27AE60"
+  style.stroke-width: 2
+  style.stroke-dash: 5
+  style.font-size: 16
+}

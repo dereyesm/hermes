@@ -309,11 +309,20 @@ Inspired by ITU-T X.509 + W3C DIDs + IETF draft-goswami-agentic-jwt:
 - [ ] Publish L3 efficiency paper to arXiv (reproducible, with open datasets)
 - [ ] Engage with AAIF: propose HERMES gateway bridge as interop layer for MCP/A2A
 
-### 5.3 Visual Agora Prototype (AES-2040)
+### 5.3 Agent Visualization Standard (AES-2040)
 
-- [ ] Static site reading clan profiles from Git directory → card-based directory
-- [ ] Attestation visualization: who attested whom, Resonance scores
-- [ ] Open-source, zero-server deployment (Hugo/Astro + GitHub Pages)
+AES-2040 defines a 5-layer visualization stack and the Protocol Explorer:
+
+- [x] **Layer 1** (ASCII art): Inline spec examples — active since Phase 0
+- [x] **Layer 2** (Mermaid): 13 diagrams in `docs/diagrams/` — implemented Phase 1
+- [ ] **Layer 3** (D2): Animated protocol flow diagrams for presentations and desktop app
+- [ ] **Layer 4** (Excalidraw): Community collaboration templates
+- [ ] **Layer 5** (Protocol Explorer): Interactive browser-based agent trace tool
+  - 6 visualization modes: Message Flow, Session Timeline, Cross-Clan Path, Crypto Envelope, Dispatch Tree, Bus Health
+  - Connects to Agent Node (ARC-4601) via SSE or reads bus.jsonl directly
+  - Zero-server SPA (Svelte + D3.js), deployable on GitHub Pages
+  - No equivalent exists for agent-to-agent protocols (gap in the market)
+- [ ] Visual Agora: static site reading clan profiles → card-based directory with Resonance scores
 
 ### 5.4 HERMES v1.0 Release
 
