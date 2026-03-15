@@ -9,6 +9,9 @@ Usage:
     python -m hermes.cli send <target-clan> <message> [--dir PATH]
     python -m hermes.cli inbox [--dir PATH]
     python -m hermes.cli discover <capability> [--dir PATH]
+    python -m hermes.cli daemon start [--dir PATH] [--foreground]
+    python -m hermes.cli daemon stop [--dir PATH]
+    python -m hermes.cli daemon status [--dir PATH]
 """
 
 from __future__ import annotations
@@ -374,6 +377,23 @@ def build_parser() -> argparse.ArgumentParser:
     p_discover.add_argument("capability", help="Capability path to search")
     _add_dir_arg(p_discover)
 
+    # daemon (ARC-4601)
+    p_daemon = sub.add_parser("daemon", help="Manage Agent Node daemon")
+    daemon_sub = p_daemon.add_subparsers(dest="daemon_command")
+
+    p_daemon_start = daemon_sub.add_parser("start", help="Start agent node")
+    p_daemon_start.add_argument(
+        "--foreground", action="store_true",
+        help="Run in foreground (for process managers)",
+    )
+    _add_dir_arg(p_daemon_start)
+
+    p_daemon_stop = daemon_sub.add_parser("stop", help="Stop agent node")
+    _add_dir_arg(p_daemon_stop)
+
+    p_daemon_status = daemon_sub.add_parser("status", help="Show agent node status")
+    _add_dir_arg(p_daemon_status)
+
     return parser
 
 
@@ -404,6 +424,22 @@ def main(argv: list[str] | None = None) -> int:
             parser.parse_args(["peer", "--help"])
             return 0
         return peer_commands[args.peer_command](args)
+
+    if args.command == "daemon":
+        from .agent import cmd_daemon_start, cmd_daemon_status, cmd_daemon_stop
+
+        clan_dir = _resolve_clan_dir(args)
+        daemon_commands = {
+            "start": lambda: cmd_daemon_start(
+                clan_dir, foreground=getattr(args, "foreground", True)
+            ),
+            "stop": lambda: cmd_daemon_stop(clan_dir),
+            "status": lambda: cmd_daemon_status(clan_dir),
+        }
+        if args.daemon_command is None:
+            parser.parse_args(["daemon", "--help"])
+            return 0
+        return daemon_commands[args.daemon_command]()
 
     return commands[args.command](args)
 

@@ -3,8 +3,8 @@
 [![Tests](https://github.com/dereyesm/hermes/actions/workflows/ci.yml/badge.svg)](https://github.com/dereyesm/hermes/actions/workflows/ci.yml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Specs: 15](https://img.shields.io/badge/specs-15%20implemented-orange.svg)](spec/INDEX.md)
-[![Tests: 419](https://img.shields.io/badge/tests-419%20passing-brightgreen.svg)](reference/python/tests/)
+[![Specs: 17](https://img.shields.io/badge/specs-17%20(16%20IMPL%20%2B%201%20DRAFT)-orange.svg)](spec/INDEX.md)
+[![Tests: 441](https://img.shields.io/badge/tests-441%20passing-brightgreen.svg)](reference/python/tests/)
 
 **A lightweight, file-based communication protocol for multi-agent AI systems.**
 
@@ -164,16 +164,16 @@ Deploy your own HERMES instance: **[Quickstart Guide](docs/QUICKSTART.md)**
                      │
           ┌──────────┼──────────┐
           │          │          │
-    ┌─────┴──┐ ┌────┴───┐ ┌───┴─────┐
-    │ eng    │ │ ops    │ │ finance │   Namespaces
-    │        │ │        │ │         │   (isolated)
-    └───┬────┘ └───┬────┘ └────┬────┘
-        │          │           │
-        └──────────┴───────────┘
-                   │
-            ┌──────┴──────┐
-            │  bus.jsonl   │  The shared bus
-            │  (JSONL)     │  (signaling only)
+    ┌─────┴──┐  ┌────┴───┐  ┌───┴─────┐
+    │ eng    │  │ ops    │  │ finance │   Namespaces
+    │        │  │        │  │         │   (isolated)
+    └───┬────┘  └───┬────┘  └────┬────┘
+        │           │            │
+        └───────────┴────────────┘
+                    │
+            ┌───────┴─────┐
+            │  bus.jsonl  │  The shared bus
+            │  (JSONL)    │  (signaling only)
             └─────────────┘
 ```
 
@@ -219,6 +219,18 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full architecture docum
 
 ---
 
+## Visual Documentation
+
+Protocol flows explained with diagrams -- sequence diagrams (message-by-message), use case flows (customer journeys), and architecture views. All rendered natively by GitHub using [Mermaid](https://mermaid.js.org/).
+
+**[Browse all diagrams](docs/diagrams/README.md)**
+
+Highlights:
+- **[Message Lifecycle](docs/diagrams/seq-5322-message-lifecycle.md)** -- how a message is created, validated, written, consumed, and archived
+- **[Sovereign Clan Setup](docs/diagrams/uc-01-sovereign-clan-setup.md)** -- step-by-step setup with zero infrastructure
+
+---
+
 ## The Standards System
 
 HERMES uses a formal, RFC-like standards process with three tracks, each tracing its lineage to a real-world standards body:
@@ -229,7 +241,7 @@ HERMES uses a formal, RFC-like standards process with three tracks, each tracing
 | **ATR** | ITU-T Rec. | Architecture, reference models, telecom-inspired patterns | ATR-X.200: Reference Model |
 | **AES** | IEEE Std | Implementation standards: interoperability, isolation, QoS | AES-802.1Q: Namespace Isolation |
 
-### Implemented Standards (14 specs)
+### Implemented Standards (16 specs + 1 DRAFT)
 
 | Standard | Title | Tier | IETF/ITU-T Lineage |
 |----------|-------|------|---------------------|
@@ -241,10 +253,14 @@ HERMES uses a formal, RFC-like standards process with three tracks, each tracing
 | [ARC-2314](spec/ARC-2314.md) | Skill Gateway Plane Architecture | Core | 3GPP TS 23.214 (CUPS) |
 | [ARC-2606](spec/ARC-2606.md) | Agent Profile & Discovery | Extension | RFC 2606 (Reserved Domains) |
 | [ARC-3022](spec/ARC-3022.md) | Agent Gateway Protocol | Extension | RFC 3022 (NAT) |
+| [ARC-4601](spec/ARC-4601.md) | Agent Node Protocol | Extension | RFC 4601 (PIM-SM) |
 | [ARC-5322](spec/ARC-5322.md) | Message Format | Core | RFC 5322 (Internet Message Format) |
+| [ARC-7231](spec/ARC-7231.md) | Agent Semantics — Bridge Protocol | Extension | RFC 7231 (HTTP Semantics) |
+| [ARC-8446](spec/ARC-8446.md) | Encrypted Bus Protocol | Security | RFC 8446 (TLS 1.3) |
 | [ARC-2119](spec/ARC-2119.md) | Requirement Level Keywords | Meta | RFC 2119 (MUST/SHOULD/MAY) |
 | [ATR-X.200](spec/ATR-X200.md) | Reference Model | Core | ITU-T X.200 (OSI Reference Model) |
 | [ATR-Q.700](spec/ATR-Q700.md) | Out-of-Band Signaling | Philosophy | ITU-T Q.700 (SS7) |
+| [AES-2040](spec/AES-2040.md) | Agent Visualization Standard | Extension | Original (DRAFT) |
 
 Full index with 30 planned standards: **[spec/INDEX.md](spec/INDEX.md)**
 
@@ -252,7 +268,7 @@ Full index with 30 planned standards: **[spec/INDEX.md](spec/INDEX.md)**
 
 ## Reference Implementation
 
-A Python reference implementation is included for validation and experimentation (**347 tests passing**):
+A Python reference implementation is included for validation and experimentation (**441 tests passing**):
 
 ```bash
 cd reference/python
@@ -265,6 +281,9 @@ Modules:
 - `bus.py` -- read, write, filter, archive, correlation per ARC-0793 and ARC-0768
 - `sync.py` -- SYN/FIN lifecycle management
 - `gateway.py` -- identity translation, outbound filtering, attestation per ARC-3022
+- `bridge.py` -- A2A/MCP bidirectional translation per ARC-7231
+- `crypto.py` -- Ed25519 + X25519 + AES-256-GCM encryption per ARC-8446
+- `agent.py` -- persistent Agent Node daemon per ARC-4601
 - `dojo.py` -- orchestration plane: quest dispatch, skill matching, XP tracking per ARC-2314
 - `config.py` -- clan configuration and peer management
 - `agora.py` -- Agora directory client for clan discovery
@@ -318,7 +337,7 @@ Full plan: **[docs/EVOLUTION-PLAN.md](docs/EVOLUTION-PLAN.md)**
 
 ```
 hermes/
-├── spec/              # Formal standards (14 specs, 30 planned)
+├── spec/              # Formal standards (17 specs, 30 planned)
 │   ├── ARC-0001.md    #   Architecture (meta-standard)
 │   ├── ARC-0768.md    #   Datagram & Reliable Message Semantics
 │   ├── ARC-0791.md    #   Addressing & Routing
@@ -330,19 +349,21 @@ hermes/
 │   ├── ARC-3022.md    #   Agent Gateway Protocol
 │   ├── ARC-5322.md    #   Message Format
 │   ├── ATR-Q700.md    #   Out-of-Band Signaling
+│   ├── ARC-4601.md    #   Agent Node Protocol
+│   ├── ARC-7231.md    #   Agent Semantics — Bridge Protocol
+│   ├── ARC-8446.md    #   Encrypted Bus Protocol
+│   ├── AES-2040.md    #   Agent Visualization Standard (DRAFT)
+│   ├── ATR-Q700.md    #   Out-of-Band Signaling
 │   ├── ATR-X200.md    #   Reference Model
 │   └── INDEX.md       #   Full standards index
 ├── docs/              # Guides and documentation
 │   ├── ARCHITECTURE.md
 │   ├── EVOLUTION-PLAN.md
-│   ├── MANIFESTO.md
-│   ├── POSITIONING.md
 │   ├── GETTING-STARTED.md
-│   ├── QUICKSTART.md
-│   ├── RESEARCH-AGENDA.md
-│   ├── INDUSTRY-RESEARCH.md
-│   └── USE-CASES.md
-├── reference/python/  # Reference implementation (347 tests)
+│   ├── POSITIONING.md
+│   ├── USE-CASES.md
+│   └── diagrams/      #   Visual documentation (13 Mermaid + 4 D2)
+├── reference/python/  # Reference implementation (441 tests)
 ├── examples/          # Sample bus, routes, configs
 ├── CHANGELOG.md
 ├── CONTRIBUTING.md

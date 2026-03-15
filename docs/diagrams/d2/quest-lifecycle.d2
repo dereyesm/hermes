@@ -1,0 +1,105 @@
+# HERMES Quest Lifecycle — ARC-2314
+# Flat layout, light theme, three planes as colors
+
+direction: down
+
+# Control Plane
+
+messenger: Messenger {
+  shape: hexagon
+  style.font-size: 28
+  style.fill: "#1A1A2E"
+  style.font-color: "#00D4AA"
+  style.stroke: "#00D4AA"
+  style.stroke-width: 3
+}
+
+# Orchestration Plane
+
+dojo: Dojo {
+  shape: hexagon
+  style.font-size: 28
+  style.fill: "#1A1A2E"
+  style.font-color: "#a855f7"
+  style.stroke: "#a855f7"
+  style.stroke-width: 3
+}
+
+# User Plane
+
+skill: Skill {
+  shape: person
+  style.font-size: 28
+  style.fill: "#1A1A2E"
+  style.font-color: "#27AE60"
+  style.stroke: "#27AE60"
+  style.stroke-width: 3
+}
+
+# Reputation
+
+bounty: Bounty {
+  shape: stored_data
+  style.font-size: 24
+  style.fill: "#00D4AA"
+  style.font-color: "#1A1A2E"
+  style.stroke: "#00D4AA"
+}
+
+resonance: Resonance {
+  shape: stored_data
+  style.font-size: 24
+  style.fill: "#27AE60"
+  style.font-color: "#1A1A2E"
+  style.stroke: "#27AE60"
+}
+
+# Main flow
+
+messenger -> dojo: 1. deliver quest {
+  style.stroke: "#00D4AA"
+  style.stroke-width: 5
+  style.animated: true
+  style.font-size: 20
+  style.bold: true
+}
+
+dojo -> skill: 2. dispatch {
+  style.stroke: "#a855f7"
+  style.stroke-width: 5
+  style.animated: true
+  style.font-size: 20
+  style.bold: true
+}
+
+skill -> dojo: 3. result {
+  style.stroke: "#27AE60"
+  style.stroke-width: 4
+  style.animated: true
+  style.font-size: 20
+  style.bold: true
+}
+
+dojo -> messenger: 4. response {
+  style.stroke: "#a855f7"
+  style.stroke-width: 4
+  style.animated: true
+  style.font-size: 20
+  style.bold: true
+}
+
+# Reputation flows
+
+dojo -> bounty: award XP {
+  style.stroke: "#00D4AA"
+  style.stroke-width: 2
+  style.stroke-dash: 5
+  style.font-size: 16
+}
+
+messenger -> resonance: attestation {
+  style.stroke: "#27AE60"
+  style.stroke-width: 2
+  style.stroke-dash: 5
+  style.font-size: 16
+}

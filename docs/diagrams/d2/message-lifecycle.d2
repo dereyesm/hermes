@@ -1,0 +1,90 @@
+# HERMES Message Lifecycle — ARC-5322
+# Design: direction down, flat layout, short labels, big shapes
+# Brand: #1A1A2E #00D4AA #F5A623 #27AE60 #E74C3C #7F8C8D
+
+direction: down
+
+agent-a: Agent A {
+  shape: person
+  style.font-size: 28
+  style.fill: "#1A1A2E"
+  style.font-color: "#00D4AA"
+  style.stroke: "#00D4AA"
+  style.stroke-width: 3
+}
+
+validator: Validator {
+  shape: hexagon
+  style.font-size: 28
+  style.fill: "#F5A623"
+  style.font-color: "#1A1A2E"
+  style.stroke: "#F5A623"
+  style.stroke-width: 2
+}
+
+bus: bus.jsonl {
+  shape: cylinder
+  style.font-size: 28
+  style.fill: "#1A1A2E"
+  style.font-color: "#27AE60"
+  style.stroke: "#27AE60"
+  style.stroke-width: 3
+}
+
+agent-b: Agent B {
+  shape: person
+  style.font-size: 28
+  style.fill: "#1A1A2E"
+  style.font-color: "#E74C3C"
+  style.stroke: "#E74C3C"
+  style.stroke-width: 3
+}
+
+archive: Archive {
+  shape: cylinder
+  style.font-size: 28
+  style.fill: "#7F8C8D"
+  style.font-color: "#fff"
+  style.stroke: "#7F8C8D"
+}
+
+# Flows — short labels, big strokes
+
+agent-a -> validator: create_message() {
+  style.stroke: "#00D4AA"
+  style.stroke-width: 4
+  style.animated: true
+  style.font-size: 20
+  style.bold: true
+}
+
+validator -> bus: append {
+  style.stroke: "#27AE60"
+  style.stroke-width: 4
+  style.animated: true
+  style.font-size: 20
+  style.bold: true
+}
+
+bus -> agent-b: read + filter {
+  style.stroke: "#E74C3C"
+  style.stroke-width: 4
+  style.animated: true
+  style.font-size: 20
+  style.bold: true
+}
+
+agent-b -> bus: ACK {
+  style.stroke: "#E74C3C"
+  style.stroke-width: 2
+  style.stroke-dash: 5
+  style.font-size: 20
+}
+
+bus -> archive: expire {
+  style.stroke: "#7F8C8D"
+  style.stroke-width: 2
+  style.stroke-dash: 5
+  style.animated: true
+  style.font-size: 20
+}

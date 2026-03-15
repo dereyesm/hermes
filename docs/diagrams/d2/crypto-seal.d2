@@ -1,0 +1,140 @@
+# HERMES Crypto Seal & Open — ARC-8446
+# Flat layout, light theme, short labels
+
+direction: down
+
+# SEAL side
+
+dh: 1. Key Agreement {
+  shape: step
+  style.font-size: 24
+  style.fill: "#1A1A2E"
+  style.font-color: "#00D4AA"
+  style.stroke: "#00D4AA"
+  style.stroke-width: 2
+}
+
+hkdf: 2. HKDF Derive {
+  shape: step
+  style.font-size: 24
+  style.fill: "#1A1A2E"
+  style.font-color: "#00D4AA"
+  style.stroke: "#00D4AA"
+  style.stroke-width: 2
+}
+
+encrypt: 3. AES-256-GCM {
+  shape: step
+  style.font-size: 24
+  style.fill: "#27AE60"
+  style.font-color: "#fff"
+  style.stroke: "#27AE60"
+  style.stroke-width: 2
+}
+
+sign: 4. Ed25519 Sign {
+  shape: step
+  style.font-size: 24
+  style.fill: "#E74C3C"
+  style.font-color: "#fff"
+  style.stroke: "#E74C3C"
+  style.stroke-width: 2
+}
+
+relay: Relay {
+  shape: cylinder
+  style.font-size: 28
+  style.fill: "#7F8C8D"
+  style.font-color: "#fff"
+  style.stroke: "#7F8C8D"
+}
+
+verify: 5. Verify First {
+  shape: step
+  style.font-size: 24
+  style.fill: "#F5A623"
+  style.font-color: "#1A1A2E"
+  style.stroke: "#F5A623"
+  style.stroke-width: 3
+}
+
+derive: 6. Derive Key {
+  shape: step
+  style.font-size: 24
+  style.fill: "#1A1A2E"
+  style.font-color: "#00D4AA"
+  style.stroke: "#00D4AA"
+  style.stroke-width: 2
+}
+
+decrypt: 7. Decrypt {
+  shape: step
+  style.font-size: 24
+  style.fill: "#27AE60"
+  style.font-color: "#fff"
+  style.stroke: "#27AE60"
+  style.stroke-width: 2
+}
+
+plaintext: Plaintext {
+  shape: document
+  style.font-size: 28
+  style.fill: "#27AE60"
+  style.font-color: "#1A1A2E"
+  style.stroke: "#27AE60"
+  style.stroke-width: 3
+}
+
+# Flow
+
+dh -> hkdf {
+  style.stroke: "#00D4AA"
+  style.stroke-width: 3
+  style.animated: true
+}
+
+hkdf -> encrypt {
+  style.stroke: "#00D4AA"
+  style.stroke-width: 3
+  style.animated: true
+}
+
+encrypt -> sign {
+  style.stroke: "#27AE60"
+  style.stroke-width: 3
+  style.animated: true
+}
+
+sign -> relay: sealed envelope {
+  style.stroke: "#7F8C8D"
+  style.stroke-width: 4
+  style.animated: true
+  style.font-size: 20
+  style.bold: true
+}
+
+relay -> verify: read envelope {
+  style.stroke: "#7F8C8D"
+  style.stroke-width: 4
+  style.animated: true
+  style.font-size: 20
+  style.bold: true
+}
+
+verify -> derive {
+  style.stroke: "#F5A623"
+  style.stroke-width: 3
+  style.animated: true
+}
+
+derive -> decrypt {
+  style.stroke: "#00D4AA"
+  style.stroke-width: 3
+  style.animated: true
+}
+
+decrypt -> plaintext {
+  style.stroke: "#27AE60"
+  style.stroke-width: 4
+  style.animated: true
+}

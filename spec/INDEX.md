@@ -34,6 +34,7 @@ Core protocol standards governing message formats, transport, addressing, and se
 | [ARC-2606](ARC-2606.md) | Agent Profile & Discovery | RFC 2606 (Reserved Domains) | A2A Agent Cards; ANP capability files; ECMA-432 (NLIP) agent discovery | IMPLEMENTED | Extension |
 | [ARC-2314](ARC-2314.md) | Skill Gateway Plane Architecture | -- (3GPP TS 23.214 CUPS) | 3GPP TS 23.501 (SBA); TS 23.502 (SMF); TS 29.244 (PFCP); TS 29.510 (NRF) | IMPLEMENTED | Core |
 | [ARC-3022](ARC-3022.md) | Agent Gateway Protocol | RFC 3022 (NAT) | 3GPP TS 23.214 (CUPS); BBF TR-369 gateway; 3GPP inter-PLMN roaming | IMPLEMENTED | Extension |
+| [ARC-4601](ARC-4601.md) | Agent Node Protocol | RFC 4601 (PIM-SM) | 3GPP TS 23.501 NF lifecycle; PIM-SM rendezvous point; persistent forwarding state | IMPLEMENTED | Extension |
 | [ARC-7231](ARC-7231.md) | Agent Semantics — Bridge Protocol Mapping | RFC 7231 (HTTP Semantics) | BBF TR-369 CRUD+Operate+Notify; FIPA ACL performatives; A2A v0.3/MCP bridge mapping | IMPLEMENTED | Extension |
 | ARC-7519 | Message Authentication | RFC 7519 (JWT) | IETF draft-goswami-agentic-jwt; 3GPP TS 29.510 (NRF) OAuth 2.0 model | PLANNED | Security |
 | ARC-7540 | Multiplexed Bus Channels | RFC 7540 (HTTP/2) | A2A multiplexed task streams; 3GPP TS 23.501 PDU sessions | PLANNED | Extension |
@@ -66,7 +67,7 @@ Implementation standards for interoperability, isolation, and quality of service
 | AES-802.11 | Wireless/Ephemeral Agents | 802.11 (WiFi) | A2A ephemeral agent tasks; serverless function patterns | PLANNED | Extension |
 | AES-1588 | Bus Timestamp Precision | 1588 (PTP) | 3GPP TS 23.501 time sync; NTP (RFC 5905) | PLANNED | Extension |
 | AES-2030 | Ethical Agent Communication | 2030 (Ethical AI) | IEEE 7000 series (ethical AI); EU AI Act compliance | PLANNED | Philosophy |
-| AES-2040 | Agent Visualization Standard | -- (Original) | Agora visual directory; A2A Agent Card rendering | PLANNED | Extension |
+| [AES-2040](AES-2040.md) | Agent Visualization Standard | -- (Original) | 5-layer viz stack; Protocol Explorer; Agora visual directory | DRAFT | Extension |
 | AES-2045 | Agent Cognitive Profile | -- (Original) | FIPA ACL cognitive models; computational psychology | PLANNED | Extension |
 
 ---
