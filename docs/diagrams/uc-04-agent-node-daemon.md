@@ -4,6 +4,17 @@
 
 The Agent Node is the persistent counterpart to ephemeral sessions — it keeps your clan alive between human interactions.
 
+## Actors
+
+| Actor | Role |
+|-------|------|
+| **Human** | Clan sovereign — configures and starts the node; receives escalations |
+| **Agent Node** | Persistent local daemon — observes bus, links to gateway, dispatches sub-agents |
+| **BusObserver** | Watches `bus.jsonl` for new messages via kqueue/inotify/polling |
+| **GatewayLink** | Maintains SSE inbound + HTTP POST outbound connection to remote gateway |
+| **Dispatcher** | Spawns sub-agent processes within configured guardrails |
+| **Remote Gateway** | Cloud-side relay — receives heartbeats, forwards inbound messages via SSE |
+
 ## Use Case Flow
 
 ```mermaid

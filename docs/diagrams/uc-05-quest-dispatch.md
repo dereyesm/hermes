@@ -4,6 +4,17 @@
 
 Quests are how work gets done in HERMES — whether internal or cross-clan.
 
+## Actors
+
+| Actor | Role |
+|-------|------|
+| **Requester** | The clan or skill that identifies a need and initiates the quest |
+| **Dojo** | SDN controller — matches quests to available skills, manages the dispatch plane |
+| **Skill** | The executing agent — accepts the quest, produces a result, earns reputation |
+| **Agora** | Public capability directory — consulted when no local skill matches |
+| **Bus** | Shared JSONL log — carries quest lifecycle messages (dispatch, event, state) |
+| **Reputation System** | Tracks Bounty (task success) + Resonance (collaboration quality) per skill |
+
 ## Use Case Flow
 
 ```mermaid
