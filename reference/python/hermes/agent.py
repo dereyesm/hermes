@@ -1074,12 +1074,14 @@ def cmd_daemon_stop(clan_dir: Path) -> int:
 
 def cmd_daemon_status(clan_dir: Path) -> int:
     """Show Agent Node status."""
+    from .terminal import print_daemon_status
+
     sm = StateManager(clan_dir)
     pid = sm.get_lock_pid()
     state = sm.load()
 
     if pid is None:
-        print("Agent Node: not running")
+        print_daemon_status(alive=False, pid=None)
         return 0
 
     alive = False
@@ -1089,14 +1091,21 @@ def cmd_daemon_status(clan_dir: Path) -> int:
     except OSError:
         pass
 
-    print(f"Agent Node: {'running' if alive else 'stale (not running)'}")
-    print(f"  PID: {pid}")
+    config = None
+    try:
+        config = load_agent_config(clan_dir / "gateway.json")
+    except Exception:
+        pass
 
-    if state:
-        print(f"  Started: {state.started_at}")
-        print(f"  Last heartbeat: {state.last_heartbeat or 'never'}")
-        print(f"  Bus offset: {state.bus_offset} bytes")
-        print(f"  Active dispatches: {len(state.active_dispatches)}")
-        print(f"  Last evaluation: {state.last_evaluation or 'never'}")
+    print_daemon_status(
+        alive=alive,
+        pid=pid,
+        started_at=state.started_at if state else None,
+        last_heartbeat=state.last_heartbeat if state else None,
+        bus_offset=state.bus_offset if state else 0,
+        active_dispatches=len(state.active_dispatches) if state else 0,
+        dispatch_slots=config.max_dispatch_slots if config else 2,
+        last_evaluation=state.last_evaluation if state else None,
+    )
 
     return 0
