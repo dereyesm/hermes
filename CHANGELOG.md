@@ -9,6 +9,37 @@ This project follows a versioning scheme where:
 
 ---
 
+## [Unreleased] — Agent Node + Visualization Stack (2026-03-14 → 2026-03-15)
+
+### Persistent Operation & Visual Communication
+
+This release introduces the Agent Node daemon for continuous bus observation, and the AES-2040 Visualization Stack for protocol communication across audiences.
+
+### Added
+
+- **ARC-4601: Agent Node Protocol** (IMPLEMENTED)
+  - Persistent local daemon: BusObserver (kqueue/poll) + GatewayLink (SSE+HTTP) + Dispatcher (subprocess)
+  - State machine: INIT → RUNNING → DRAINING → STOPPED with PID lock and atomic state persistence
+  - Dual-token auth: `X-Gateway-Key` (push) + SSE query param `token` (stream)
+  - Guardrails: max dispatch slots, timeout, tool allowlist, escalation threshold
+  - Live-tested against heraldo-gateway on Render: SSE connect, kqueue <2s detection, graceful shutdown
+  - Process manager integration: launchd (macOS), systemd (Linux), `--foreground` for any manager
+  - Reference: `agent.py` (1099 lines, 7 classes), 58 tests (441 total)
+  - Lineage: RFC 4601 (PIM-SM — persistent forwarding state)
+
+- **AES-2040: Visualization Stack** (DRAFT)
+  - 5-layer stack: L1 ASCII → L2 Mermaid → L3 D2 → L4 Excalidraw → L5 Protocol Explorer
+  - 13 Mermaid diagrams: 6 sequence, 5 use case, 2 architecture (GitHub-native rendering)
+  - 4 D2 animated diagrams + SVGs: message-lifecycle, gateway-nat, crypto-seal, quest-lifecycle
+  - Protocol Explorer spec: 6 modes (Message Flow, Session Timeline, Cross-Clan Path, Crypto Envelope, Dispatch Tree, Bus Health)
+  - Structural consistency: all use case diagrams include Actors tables (UC-01 through UC-05)
+
+### Fixed
+
+- `Dispatcher.dispatch()`: `FileNotFoundError` when dispatch command is not on PATH now converts to `RuntimeError`, preventing daemon crash loop (e5f2f45)
+
+---
+
 ## [Unreleased] — Phase 1 Hardening (2026-03-02 → 2026-03-08)
 
 ### Security, Crypto & Inter-Clan Communication
