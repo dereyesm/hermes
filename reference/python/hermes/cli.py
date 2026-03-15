@@ -112,6 +112,8 @@ def cmd_init(args: argparse.Namespace) -> int:
 
 def cmd_status(args: argparse.Namespace) -> int:
     """Show gateway status."""
+    from .terminal import print_clan_status
+
     clan_dir = _resolve_clan_dir(args)
     try:
         config, gateway, agora = _load_gateway(clan_dir)
@@ -120,31 +122,14 @@ def cmd_status(args: argparse.Namespace) -> int:
         return 1
 
     profile = gateway.build_public_profile()
-
-    print(f"Clan: {config.clan_id} ({config.display_name})")
-    print(f"Protocol: {config.protocol_version}")
-    print(f"Heraldo: {config.heraldo_alias}")
-    print()
-
-    agents = profile.get("agents", [])
-    if agents:
-        print(f"Published agents ({len(agents)}):")
-        for a in agents:
-            res = a.get("resonance", 0)
-            caps = ", ".join(a.get("capabilities", []))
-            print(f"  {a['alias']:24s} R:{res:6.2f}  [{caps}]")
-    else:
-        print("No published agents. Add agents to gateway.json.")
-
-    print()
-    peers = config.peers
-    if peers:
-        print(f"Peers ({len(peers)}):")
-        for p in peers:
-            print(f"  {p.clan_id:24s} status:{p.status}  added:{p.added}")
-    else:
-        print("No peers. Run 'hermes peer add <clan-id>'.")
-
+    print_clan_status(
+        clan_id=config.clan_id,
+        display_name=config.display_name,
+        protocol_version=config.protocol_version,
+        heraldo_alias=config.heraldo_alias,
+        agents=profile.get("agents", []),
+        peers=config.peers,
+    )
     return 0
 
 
@@ -280,6 +265,8 @@ def cmd_send(args: argparse.Namespace) -> int:
 
 def cmd_inbox(args: argparse.Namespace) -> int:
     """Read messages from the clan's Agora inbox."""
+    from .terminal import print_inbox
+
     clan_dir = _resolve_clan_dir(args)
     try:
         config, gateway, agora = _load_gateway(clan_dir)
@@ -288,19 +275,7 @@ def cmd_inbox(args: argparse.Namespace) -> int:
         return 1
 
     messages = agora.read_inbox(config.clan_id)
-    if not messages:
-        print("Inbox empty.")
-        return 0
-
-    print(f"Inbox for {config.clan_id} ({len(messages)} messages):")
-    for i, msg in enumerate(messages, 1):
-        src = msg.get("source_clan", "unknown")
-        msg_type = msg.get("type", "unknown")
-        ts = msg.get("timestamp", "")
-        payload = msg.get("payload", msg.get("display_name", ""))
-        print(f"  [{i}] {ts} from:{src} type:{msg_type}")
-        if payload:
-            print(f"      {payload[:80]}")
+    print_inbox(config.clan_id, messages)
     return 0
 
 
