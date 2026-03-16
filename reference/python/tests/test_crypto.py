@@ -3,6 +3,7 @@
 import json
 import os
 import tempfile
+from datetime import date, timedelta
 
 import pytest
 
@@ -380,9 +381,10 @@ class TestNonceTracker:
 
     def test_same_nonce_returns_false(self):
         """A replayed nonce should be rejected."""
+        today = date.today().isoformat()
         tracker = NonceTracker()
-        assert tracker.check_and_record("clan_a", "aabbccdd", "2026-03-08") is True
-        assert tracker.check_and_record("clan_a", "aabbccdd", "2026-03-08") is False
+        assert tracker.check_and_record("clan_a", "aabbccdd", today) is True
+        assert tracker.check_and_record("clan_a", "aabbccdd", today) is False
 
     def test_per_sender_isolation(self):
         """Same nonce from different senders should both be accepted."""
@@ -405,18 +407,19 @@ class TestNonceTracker:
 
     def test_persistence_save_load(self):
         """NonceTracker persists across sessions via JSON file."""
+        today = date.today().isoformat()
         with tempfile.TemporaryDirectory() as tmpdir:
             path = os.path.join(tmpdir, "nonces.json")
 
             # Session 1: record a nonce
             tracker1 = NonceTracker(persistence_path=path)
-            assert tracker1.check_and_record("clan_a", "nonce_1", "2026-03-08") is True
+            assert tracker1.check_and_record("clan_a", "nonce_1", today) is True
 
             # Session 2: load from file, same nonce should be rejected
             tracker2 = NonceTracker(persistence_path=path)
-            assert tracker2.check_and_record("clan_a", "nonce_1", "2026-03-08") is False
+            assert tracker2.check_and_record("clan_a", "nonce_1", today) is False
             # But a new nonce should be accepted
-            assert tracker2.check_and_record("clan_a", "nonce_2", "2026-03-08") is True
+            assert tracker2.check_and_record("clan_a", "nonce_2", today) is True
 
     def test_persistence_file_created(self):
         """save() creates the JSON file."""
@@ -436,9 +439,10 @@ class TestNonceTrackerIntegration:
 
     def test_open_rejects_replay(self):
         """open_bus_message rejects a replayed message when nonce_tracker is provided."""
+        today = date.today().isoformat()
         dani = ClanKeyPair.generate()
         jei = ClanKeyPair.generate()
-        meta = {"src": "momoshod", "dst": "jei", "type": "quest", "ts": "2026-03-08"}
+        meta = {"src": "momoshod", "dst": "jei", "type": "quest", "ts": today}
 
         sealed = seal_bus_message(dani, jei.dh_public, "quest payload", envelope_meta=meta)
         tracker = NonceTracker()

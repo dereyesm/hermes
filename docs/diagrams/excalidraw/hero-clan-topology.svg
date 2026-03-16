@@ -1,0 +1,111 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="40 20 990 630" width="990" height="630" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif">
+  <defs>
+    <filter id="shadow" x="-4%" y="-4%" width="108%" height="108%">
+      <feDropShadow dx="1" dy="2" stdDeviation="3" flood-color="#1A1A2E" flood-opacity="0.08"/>
+    </filter>
+    <linearGradient id="relay-grad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1A1A2E"/>
+      <stop offset="100%" stop-color="#2A2A4E"/>
+    </linearGradient>
+    <linearGradient id="skill-dark" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#22223A"/>
+      <stop offset="100%" stop-color="#1A1A2E"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect x="40" y="20" width="990" height="630" rx="12" fill="#ffffff"/>
+
+  <!-- Title -->
+  <text x="535" y="60" text-anchor="middle" font-size="38" font-weight="700" fill="#1A1A2E" letter-spacing="-0.5">HERMES Protocol</text>
+
+  <!-- Subtitle -->
+  <text x="535" y="92" text-anchor="middle" font-size="15" fill="#7F8C8D" letter-spacing="0.3">Open inter-agent communication  ·  Sovereign  ·  E2E encrypted  ·  No cloud required</text>
+
+  <!-- Horizontal rule -->
+  <line x1="200" y1="110" x2="870" y2="110" stroke="#E8E8E8" stroke-width="1"/>
+
+  <!-- ===== CLAN A: MomoshoD ===== -->
+  <rect x="80" y="140" width="260" height="340" rx="10" fill="#f0fdfb" stroke="#00D4AA" stroke-width="2" filter="url(#shadow)"/>
+  <text x="210" y="170" text-anchor="middle" font-size="17" font-weight="600" fill="#00D4AA">Clan MomoshoD</text>
+
+  <!-- Skill: protocol-architect (dark/primary) -->
+  <rect x="105" y="195" width="210" height="38" rx="6" fill="url(#skill-dark)"/>
+  <text x="210" y="219" text-anchor="middle" font-size="13" font-weight="500" fill="#ffffff">protocol-architect</text>
+
+  <!-- Skill: hermes-research (amber) -->
+  <rect x="105" y="248" width="210" height="38" rx="6" fill="#fff9f0" stroke="#F5A623" stroke-width="1"/>
+  <text x="210" y="272" text-anchor="middle" font-size="13" font-weight="500" fill="#F5A623">hermes-research</text>
+
+  <!-- Skill: hermes-community (emerald) -->
+  <rect x="105" y="301" width="210" height="38" rx="6" fill="#f0fdf4" stroke="#27AE60" stroke-width="1"/>
+  <text x="210" y="325" text-anchor="middle" font-size="13" font-weight="500" fill="#27AE60">hermes-community</text>
+
+  <!-- Bus A -->
+  <rect x="105" y="358" width="210" height="45" rx="6" fill="#f8f8f8" stroke="#7F8C8D" stroke-width="1"/>
+  <text x="210" y="378" text-anchor="middle" font-size="12" font-weight="600" fill="#7F8C8D">bus.jsonl</text>
+  <text x="210" y="394" text-anchor="middle" font-size="10" fill="#A0A0A0">ARC-5322</text>
+
+  <!-- Gateway A (diamond shape via polygon) -->
+  <polygon points="210,418 265,448 210,478 155,448" fill="#fdf0f0" stroke="#E74C3C" stroke-width="2"/>
+  <text x="210" y="452" text-anchor="middle" font-size="10" font-weight="600" fill="#E74C3C">Gateway NAT</text>
+
+  <!-- ===== CLAN B: Nymyka ===== -->
+  <rect x="460" y="140" width="260" height="340" rx="10" fill="#f0fdfb" stroke="#00D4AA" stroke-width="2" filter="url(#shadow)"/>
+  <text x="590" y="170" text-anchor="middle" font-size="17" font-weight="600" fill="#00D4AA">Clan Nymyka</text>
+
+  <!-- Skill: cto-advisor (dark/primary) -->
+  <rect x="485" y="195" width="210" height="38" rx="6" fill="url(#skill-dark)"/>
+  <text x="590" y="219" text-anchor="middle" font-size="13" font-weight="500" fill="#ffffff">cto-advisor</text>
+
+  <!-- Skill: niky-ceo (amber) -->
+  <rect x="485" y="248" width="210" height="38" rx="6" fill="#fff9f0" stroke="#F5A623" stroke-width="1"/>
+  <text x="590" y="272" text-anchor="middle" font-size="13" font-weight="500" fill="#F5A623">niky-ceo</text>
+
+  <!-- Bus B -->
+  <rect x="485" y="358" width="210" height="45" rx="6" fill="#f8f8f8" stroke="#7F8C8D" stroke-width="1"/>
+  <text x="590" y="378" text-anchor="middle" font-size="12" font-weight="600" fill="#7F8C8D">bus.jsonl</text>
+  <text x="590" y="394" text-anchor="middle" font-size="10" fill="#A0A0A0">ARC-5322</text>
+
+  <!-- Gateway B (diamond) -->
+  <polygon points="590,418 645,448 590,478 535,448" fill="#fdf0f0" stroke="#E74C3C" stroke-width="2"/>
+  <text x="590" y="452" text-anchor="middle" font-size="10" font-weight="600" fill="#E74C3C">Gateway NAT</text>
+
+  <!-- ===== CLAN C: JEI (dimmed/future) ===== -->
+  <rect x="770" y="140" width="220" height="220" rx="10" fill="#f0fdf4" stroke="#27AE60" stroke-width="2" opacity="0.7" filter="url(#shadow)"/>
+  <text x="880" y="170" text-anchor="middle" font-size="17" font-weight="600" fill="#27AE60">Clan JEI</text>
+  <text x="880" y="205" text-anchor="middle" font-size="13" fill="#27AE60">QUEST-001  done</text>
+  <text x="880" y="225" text-anchor="middle" font-size="13" fill="#F5A623">QUEST-002  pending</text>
+  <text x="880" y="245" text-anchor="middle" font-size="13" fill="#7F8C8D">QUEST-003  planned</text>
+
+  <!-- ===== RELAY (center ellipse) ===== -->
+  <ellipse cx="400" cy="530" rx="100" ry="38" fill="url(#relay-grad)" filter="url(#shadow)"/>
+  <text x="400" y="526" text-anchor="middle" font-size="13" font-weight="600" fill="#ffffff">HERMES Relay</text>
+  <text x="400" y="544" text-anchor="middle" font-size="10" fill="#00D4AA">(E2E encrypted)</text>
+
+  <!-- ===== ARROWS ===== -->
+  <!-- Gateway A → Relay -->
+  <line x1="210" y1="478" x2="320" y2="518" stroke="#1A1A2E" stroke-width="2" marker-end="url(#arrowhead)"/>
+  <!-- Relay → Gateway B -->
+  <line x1="480" y1="518" x2="590" y2="478" stroke="#1A1A2E" stroke-width="2" marker-end="url(#arrowhead-rev)"/>
+
+  <!-- QUEST dispatch arrow (amber dashed) -->
+  <line x1="340" y1="270" x2="460" y2="270" stroke="#F5A623" stroke-width="2" stroke-dasharray="6,4" marker-end="url(#arrowhead-amber)"/>
+  <text x="400" y="260" text-anchor="middle" font-size="11" font-weight="500" fill="#F5A623">QUEST dispatch</text>
+
+  <!-- Arrowhead markers -->
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#1A1A2E"/>
+    </marker>
+    <marker id="arrowhead-rev" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#1A1A2E"/>
+    </marker>
+    <marker id="arrowhead-amber" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#F5A623"/>
+    </marker>
+  </defs>
+
+  <!-- ===== TAGLINE ===== -->
+  <text x="535" y="610" text-anchor="middle" font-size="13" font-style="italic" fill="#7F8C8D" letter-spacing="0.2">"La tecnologia con alma te libera tiempo para dedicar al compartir, al arte, al colectivo."</text>
+</svg>

@@ -421,10 +421,15 @@ class BusObserver:
                 yield batch
 
     async def _kqueue_watch(self) -> AsyncIterator[list[Message]]:
-        """Watch using kqueue (macOS/BSD)."""
+        """Watch using kqueue (macOS/BSD).
+
+        Properly closes kqueue and file descriptors on cancellation to
+        avoid 'Task was destroyed but it is pending' warnings.
+        """
         import select as sel
 
         kq = sel.kqueue()
+        fd = -1
         try:
             while True:
                 # Ensure bus file exists
@@ -447,18 +452,28 @@ class BusObserver:
                         yield messages
 
                     # Wait for file modification
-                    events = await asyncio.get_event_loop().run_in_executor(
-                        None,
-                        lambda: kq.control([ev], 1, self.poll_interval),
-                    )
+                    try:
+                        events = await asyncio.get_event_loop().run_in_executor(
+                            None,
+                            lambda: kq.control([ev], 1, self.poll_interval),
+                        )
+                    except asyncio.CancelledError:
+                        raise
 
                     if events:
                         messages = self.read_new_lines()
                         if messages:
                             yield messages
                 finally:
-                    os.close(fd)
+                    if fd >= 0:
+                        os.close(fd)
+                        fd = -1
+        except asyncio.CancelledError:
+            logger.debug("BusObserver kqueue watcher cancelled — cleaning up")
+            raise
         finally:
+            if fd >= 0:
+                os.close(fd)
             kq.close()
 
     async def _poll_watch(self) -> AsyncIterator[list[Message]]:
@@ -491,23 +506,39 @@ class GatewayLink:
             headers["X-Gateway-Key"] = key
         return headers
 
-    def post_message(self, message: Message) -> bool:
-        """POST a message to the gateway push endpoint. Returns success."""
+    def post_message(self, message: Message, max_retries: int = 3) -> bool:
+        """POST a message to the gateway push endpoint. Returns success.
+
+        Retries with exponential backoff on 503 Service Unavailable errors.
+        Default: up to 3 retries with 1s, 2s, 4s delays.
+        """
         url = self.config.gateway_url + self.config.gateway_push_path
         payload = json.dumps(message.to_dict()).encode("utf-8")
 
-        try:
-            req = Request(
-                url,
-                data=payload,
-                headers=self._push_headers(),
-                method="POST",
-            )
-            with urlopen(req, timeout=10) as resp:
-                return resp.status < 400
-        except Exception as e:
-            logger.warning("POST to gateway failed: %s", e)
-            return False
+        for attempt in range(max_retries + 1):
+            try:
+                req = Request(
+                    url,
+                    data=payload,
+                    headers=self._push_headers(),
+                    method="POST",
+                )
+                with urlopen(req, timeout=10) as resp:
+                    return resp.status < 400
+            except Exception as e:
+                error_str = str(e)
+                is_503 = "503" in error_str or "Service Unavailable" in error_str
+                if is_503 and attempt < max_retries:
+                    delay = 2 ** attempt  # 1s, 2s, 4s
+                    logger.warning(
+                        "POST to gateway got 503 (attempt %d/%d), retrying in %ds",
+                        attempt + 1, max_retries + 1, delay,
+                    )
+                    time.sleep(delay)
+                    continue
+                logger.warning("POST to gateway failed: %s", e)
+                return False
+        return False
 
     def send_heartbeat(self, state: NodeState, uptime: float) -> bool:
         """Send heartbeat via GET /healthz (liveness check)."""
@@ -862,13 +893,27 @@ class AgentNode:
                 os.getpid(),
             )
 
-            # Run all tasks concurrently
-            await asyncio.gather(
-                self._bus_loop(),
-                self._heartbeat_loop(),
-                self._evaluation_loop(),
-                self._sse_loop(),
-            )
+            # Run all tasks concurrently — store references for clean shutdown
+            tasks = [
+                asyncio.ensure_future(self._bus_loop()),
+                asyncio.ensure_future(self._heartbeat_loop()),
+                asyncio.ensure_future(self._evaluation_loop()),
+                asyncio.ensure_future(self._sse_loop()),
+            ]
+            try:
+                await asyncio.gather(*tasks)
+            except asyncio.CancelledError:
+                logger.info("Agent Node shutting down...")
+                # Cancel all tasks and await them to prevent
+                # "Task was destroyed but it is pending" warnings
+                for task in tasks:
+                    if not task.done():
+                        task.cancel()
+                for task in tasks:
+                    try:
+                        await task
+                    except (asyncio.CancelledError, Exception):
+                        pass
         except asyncio.CancelledError:
             logger.info("Agent Node shutting down...")
         finally:
@@ -895,11 +940,14 @@ class AgentNode:
                             logger.warning("No slots for dispatch [%s]", cid)
 
                 elif action == Action.FORWARD:
-                    success = await asyncio.get_event_loop().run_in_executor(
-                        None, self.gateway.post_message, msg
-                    )
-                    if success:
-                        logger.debug("Forwarded message: %s", msg.msg[:50])
+                    try:
+                        success = await asyncio.get_event_loop().run_in_executor(
+                            None, self.gateway.post_message, msg
+                        )
+                        if success:
+                            logger.debug("Forwarded message: %s", msg.msg[:50])
+                    except Exception as e:
+                        logger.warning("Forward failed (non-fatal): %s", e)
 
                 elif action == Action.ESCALATE:
                     safe_payload = _sanitize_payload(msg.msg[:80])

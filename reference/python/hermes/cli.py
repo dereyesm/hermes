@@ -8,6 +8,7 @@ Usage:
     python -m hermes.cli peer list [--dir PATH]
     python -m hermes.cli send <target-clan> <message> [--dir PATH]
     python -m hermes.cli inbox [--dir PATH]
+    python -m hermes.cli bus [--filter-type TYPE] [--pending] [--dir PATH]
     python -m hermes.cli discover <capability> [--dir PATH]
     python -m hermes.cli daemon start [--dir PATH] [--foreground]
     python -m hermes.cli daemon stop [--dir PATH]
@@ -279,6 +280,39 @@ def cmd_inbox(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_bus(args: argparse.Namespace) -> int:
+    """Show bus messages for the clan."""
+    from .bus import filter_for_namespace, read_bus
+    from .terminal import print_bus_messages
+
+    clan_dir = _resolve_clan_dir(args)
+    try:
+        config, _, _ = _load_gateway(clan_dir)
+    except FileNotFoundError:
+        print("Error: No gateway.json found. Run 'hermes init' first.", file=sys.stderr)
+        return 1
+
+    bus_path = clan_dir / "bus.jsonl"
+    if not bus_path.exists():
+        print("Bus file not found.", file=sys.stderr)
+        return 1
+
+    messages = read_bus(bus_path)
+
+    # --filter-type: keep only messages of a given type
+    filter_type = getattr(args, "filter_type", None)
+    if filter_type:
+        messages = [m for m in messages if m.type.lower() == filter_type.lower()]
+
+    # --pending: show only messages not ACKed by this clan's namespace
+    pending = getattr(args, "pending", False)
+    if pending:
+        messages = filter_for_namespace(messages, config.clan_id)
+
+    print_bus_messages(messages, namespace=config.clan_id)
+    return 0
+
+
 def cmd_discover(args: argparse.Namespace) -> int:
     """Discover agents by capability on the Agora."""
     clan_dir = _resolve_clan_dir(args)
@@ -347,6 +381,14 @@ def build_parser() -> argparse.ArgumentParser:
     p_inbox = sub.add_parser("inbox", help="Read inbox messages")
     _add_dir_arg(p_inbox)
 
+    # bus
+    p_bus = sub.add_parser("bus", help="Show bus messages")
+    p_bus.add_argument("--filter-type", default=None, dest="filter_type",
+                       help="Filter by message type (e.g. STATE, alert)")
+    p_bus.add_argument("--pending", action="store_true",
+                       help="Show only messages not yet ACKed by this clan")
+    _add_dir_arg(p_bus)
+
     # discover
     p_discover = sub.add_parser("discover", help="Discover agents by capability")
     p_discover.add_argument("capability", help="Capability path to search")
@@ -387,6 +429,7 @@ def main(argv: list[str] | None = None) -> int:
         "publish": cmd_publish,
         "send": cmd_send,
         "inbox": cmd_inbox,
+        "bus": cmd_bus,
         "discover": cmd_discover,
     }
 

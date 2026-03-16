@@ -6,6 +6,12 @@
 [![Specs: 17](https://img.shields.io/badge/specs-17%20(16%20IMPL%20%2B%201%20DRAFT)-orange.svg)](spec/INDEX.md)
 [![Tests: 441](https://img.shields.io/badge/tests-441%20passing-brightgreen.svg)](reference/python/tests/)
 
+<p align="center">
+  <a href="#architecture">
+    <img src="docs/diagrams/excalidraw/hero-clan-topology.svg" alt="HERMES Protocol — Clan topology with sovereign agents, encrypted relay, and cross-clan quest dispatch" width="800"/>
+  </a>
+</p>
+
 **A lightweight, file-based communication protocol for multi-agent AI systems.**
 
 Inspired by TCP/IP and telecom standards. No servers, no databases -- just files and convention.
@@ -141,6 +147,12 @@ Deploy your own HERMES instance: **[Quickstart Guide](docs/QUICKSTART.md)**
 ---
 
 ## Architecture
+
+<p align="center">
+  <img src="docs/diagrams/excalidraw/hero-clan-topology.svg" alt="HERMES Protocol — Clan topology with sovereign agents, encrypted relay, and cross-clan quest dispatch" width="800"/>
+  <br/>
+  <em>Sovereign clans communicate through encrypted relay channels. Each clan owns its agents, bus, and firewall. The Agora provides public discovery without surrendering sovereignty.</em>
+</p>
 
 ```
 ┌──────────────────────────────────────────────┐
