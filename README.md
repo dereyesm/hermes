@@ -4,7 +4,7 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Specs: 17](https://img.shields.io/badge/specs-17%20(16%20IMPL%20%2B%201%20DRAFT)-orange.svg)](spec/INDEX.md)
-[![Tests: 441](https://img.shields.io/badge/tests-441%20passing-brightgreen.svg)](reference/python/tests/)
+[![Tests: 493](https://img.shields.io/badge/tests-493%20passing-brightgreen.svg)](reference/python/tests/)
 
 <p align="center">
   <a href="#architecture">
@@ -154,55 +154,19 @@ Deploy your own HERMES instance: **[Quickstart Guide](docs/QUICKSTART.md)**
   <em>Sovereign clans communicate through encrypted relay channels. Each clan owns its agents, bus, and firewall. The Agora provides public discovery without surrendering sovereignty.</em>
 </p>
 
-```
-┌──────────────────────────────────────────────┐
-│  L4  Application    Agents read/write bus     │
-├──────────────────────────────────────────────┤
-│  L3  Transport      SYN/FIN/ACK + TTL        │
-├──────────────────────────────────────────────┤
-│  L2  Network        Routing tables            │
-├──────────────────────────────────────────────┤
-│  L1  Frame          JSONL message format      │
-├──────────────────────────────────────────────┤
-│  L0  Physical       File system               │
-└──────────────────────────────────────────────┘
-```
+<p align="center">
+  <img src="docs/diagrams/d2/five-layer-stack.svg" alt="HERMES 5-layer protocol stack" width="600"/>
+</p>
 
-```
-              ┌─────────────┐
-              │  Controller  │  (reads all, executes none)
-              │  Namespace   │
-              └──────┬───────┘
-                     │
-          ┌──────────┼──────────┐
-          │          │          │
-    ┌─────┴──┐  ┌────┴───┐  ┌───┴─────┐
-    │ eng    │  │ ops    │  │ finance │   Namespaces
-    │        │  │        │  │         │   (isolated)
-    └───┬────┘  └───┬────┘  └────┬────┘
-        │           │            │
-        └───────────┴────────────┘
-                    │
-            ┌───────┴─────┐
-            │  bus.jsonl  │  The shared bus
-            │  (JSONL)    │  (signaling only)
-            └─────────────┘
-```
+<p align="center">
+  <img src="docs/diagrams/d2/namespace-topology.svg" alt="HERMES star topology with controller hub" width="600"/>
+</p>
 
 The **Skill Gateway** ([ARC-2314](spec/ARC-2314.md)) separates operations into three planes:
 
-```
-┌─────────────────────────────────────────────────────────┐
-│  CONTROL PLANE     Messengers route messages between    │
-│                    clans. Like a postal service.         │
-├─────────────────────────────────────────────────────────┤
-│  ORCHESTRATION     Dojos assign quests to skills.       │
-│  PLANE             Like a project manager.              │
-├─────────────────────────────────────────────────────────┤
-│  USER PLANE        Skills do the actual work.           │
-│                    Like the engineers.                   │
-└─────────────────────────────────────────────────────────┘
-```
+<p align="center">
+  <img src="docs/diagrams/d2/cups-three-planes.svg" alt="HERMES CUPS triple-plane architecture" width="700"/>
+</p>
 
 - **Namespaces** are isolated workspaces with their own agents, configuration, and credentials
 - **The bus** carries coordination messages (signaling, not bulk data)
@@ -212,20 +176,9 @@ The **Skill Gateway** ([ARC-2314](spec/ARC-2314.md)) separates operations into t
 
 Inter-clan communication uses the **Gateway** ([ARC-3022](spec/ARC-3022.md)) as a NAT at the boundary:
 
-```
-┌─────────────────┐                          ┌─────────────────┐
-│   Clan Alpha    │                          │   Clan Beta     │
-│                 │                          │                 │
-│  namespaces     │     ┌─────────────┐      │  namespaces     │
-│  bus.jsonl      │◄───►│   AGORA     │◄────►│  bus.jsonl      │
-│  agents         │     │  (public)   │      │  agents         │
-│                 │     │  profiles   │      │                 │
-│  ┌───────────┐  │     │  quests     │      │  ┌───────────┐  │
-│  │  GATEWAY  │──┼────►│  attest.    │◄─────┼──│  GATEWAY  │  │
-│  │  (NAT)    │  │     └─────────────┘      │  │  (NAT)    │  │
-│  └───────────┘  │                          │  └───────────┘  │
-└─────────────────┘                          └─────────────────┘
-```
+<p align="center">
+  <img src="docs/diagrams/d2/gateway-clan-boundary.svg" alt="HERMES inter-clan gateway with NAT and Agora" width="700"/>
+</p>
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full architecture document.
 
@@ -280,7 +233,7 @@ Full index with 30 planned standards: **[spec/INDEX.md](spec/INDEX.md)**
 
 ## Reference Implementation
 
-A Python reference implementation is included for validation and experimentation (**441 tests passing**):
+A Python reference implementation is included for validation and experimentation (**493 tests passing**):
 
 ```bash
 cd reference/python
@@ -374,8 +327,8 @@ hermes/
 │   ├── GETTING-STARTED.md
 │   ├── POSITIONING.md
 │   ├── USE-CASES.md
-│   └── diagrams/      #   Visual documentation (13 Mermaid + 4 D2)
-├── reference/python/  # Reference implementation (441 tests)
+│   └── diagrams/      #   Visual documentation (13 Mermaid + 14 D2)
+├── reference/python/  # Reference implementation (493 tests)
 ├── examples/          # Sample bus, routes, configs
 ├── CHANGELOG.md
 ├── CONTRIBUTING.md

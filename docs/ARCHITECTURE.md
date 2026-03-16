@@ -4,106 +4,23 @@ A visual guide to the HERMES protocol stack.
 
 ## The 5-Layer Stack
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                                                                 │
-│  L4  APPLICATION                                                │
-│  ┌───────────┐  ┌───────────┐  ┌───────────┐  ┌───────────┐  │
-│  │  Agent A  │  │  Agent B  │  │  Agent C  │  │  Agent D  │  │
-│  │  (eng)    │  │  (ops)    │  │  (fin)    │  │  (ctrl)   │  │
-│  └─────┬─────┘  └─────┬─────┘  └─────┬─────┘  └─────┬─────┘  │
-│        │              │              │              │          │
-│════════╪══════════════╪══════════════╪══════════════╪══════════│
-│        │              │              │              │          │
-│  L3  TRANSPORT (SYN / FIN / ACK / TTL)                        │
-│  ┌────────────────────────────────────────────────────────┐   │
-│  │  Session lifecycle: SYN ──── Active ──── FIN           │   │
-│  │  Delivery: at-least-once via ACK array                 │   │
-│  │  Expiry: TTL countdown → archive                       │   │
-│  └────────────────────────────────────────────────────────┘   │
-│        │              │              │              │          │
-│════════╪══════════════╪══════════════╪══════════════╪══════════│
-│        │              │              │              │          │
-│  L2  NETWORK (Routing)                                        │
-│  ┌────────────────────────────────────────────────────────┐   │
-│  │  routes.md: namespace → paths → agents → tools         │   │
-│  │  Adjacency: star topology, controller at center        │   │
-│  │  Addressing: unicast (named) or broadcast (*)          │   │
-│  └────────────────────────────────────────────────────────┘   │
-│        │              │              │              │          │
-│════════╪══════════════╪══════════════╪══════════════╪══════════│
-│        │              │              │              │          │
-│  L1  FRAME (Message Format)                                   │
-│  ┌────────────────────────────────────────────────────────┐   │
-│  │  {"ts":"...","src":"...","dst":"...","type":"...",      │   │
-│  │   "msg":"...","ttl":N,"ack":[]}                        │   │
-│  │  One JSON object per line. Max payload: 120 chars.     │   │
-│  └────────────────────────────────────────────────────────┘   │
-│        │              │              │              │          │
-│════════╪══════════════╪══════════════╪══════════════╪══════════│
-│        │              │              │              │          │
-│  L0  PHYSICAL (File System)                                   │
-│  ┌────────────────────────────────────────────────────────┐   │
-│  │  bus.jsonl          ← active messages                  │   │
-│  │  bus-archive.jsonl  ← expired messages                 │   │
-│  │  routes.md          ← routing table                    │   │
-│  │  [ns]/config        ← per-namespace configuration      │   │
-│  │  [ns]/memory/       ← per-namespace persistent state   │   │
-│  │  [ns]/agents/       ← per-namespace agent definitions  │   │
-│  └────────────────────────────────────────────────────────┘   │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
+<p align="center">
+  <img src="diagrams/d2/five-layer-stack.svg" alt="HERMES 5-layer protocol stack" width="800"/>
+</p>
 
 ## Message Lifecycle
 
-```
- Agent writes message          Message on bus           Recipient reads
- ┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐
- │                  │     │                  │     │                  │
- │  1. FIN protocol │     │  3. Lives on bus │     │  5. SYN protocol │
- │     appends msg  │────>│     with TTL     │────>│     reads bus    │
- │                  │     │     countdown    │     │                  │
- │  2. Sets ts, src │     │                  │     │  6. Filters by   │
- │     dst, type,   │     │  4. Broadcast:   │     │     dst match    │
- │     msg, ttl     │     │     all read     │     │                  │
- │                  │     │     Unicast:     │     │  7. ACKs message │
- │                  │     │     only dst     │     │                  │
- └──────────────────┘     └──────────────────┘     └──────────────────┘
-                                   │
-                                   │ TTL expires
-                                   ▼
-                          ┌──────────────────┐
-                          │  bus-archive.jsonl│
-                          │  (permanent log) │
-                          └──────────────────┘
-```
+<p align="center">
+  <img src="diagrams/d2/message-lifecycle.svg" alt="HERMES message lifecycle" width="600"/>
+</p>
 
 ## Namespace Topology
 
 HERMES uses a **star topology** with the controller at the center:
 
-```
-                    ┌────────────────┐
-                    │   controller   │
-                    │   (read-only)  │
-                    └───────┬────────┘
-                            │
-              ┌─────────────┼─────────────┐
-              │             │             │
-       ┌──────┴──────┐ ┌───┴────┐ ┌──────┴──────┐
-       │ engineering │ │  ops   │ │  finance    │
-       │             │ │        │ │             │
-       │ Tools: A, B │ │Tools: C│ │ Tools: D, E │
-       │ Agents: 5   │ │Agents:3│ │ Agents: 2   │
-       └──────┬──────┘ └───┬────┘ └──────┬──────┘
-              │             │             │
-              └─────────────┴─────────────┘
-                            │
-                     ┌──────┴──────┐
-                     │  bus.jsonl   │
-                     └─────────────┘
-```
+<p align="center">
+  <img src="diagrams/d2/namespace-topology.svg" alt="HERMES star topology with controller hub" width="600"/>
+</p>
 
 **Key rules**:
 - Namespaces NEVER communicate directly — all traffic goes through the bus
@@ -113,74 +30,21 @@ HERMES uses a **star topology** with the controller at the center:
 
 ## Firewall Model
 
-```
- ┌─────────────────────────────────────────────────┐
- │                   HERMES Instance                │
- │                                                  │
- │  ┌────────────┐          ┌────────────┐         │
- │  │engineering │          │  finance   │         │
- │  │            │          │            │         │
- │  │ Tools:     │          │ Tools:     │         │
- │  │  ✅ jira   │  data    │  ✅ sheets │         │
- │  │  ✅ github │ ─cross──>│  ✅ banking│         │
- │  │  ❌ sheets │  only    │  ❌ jira   │         │
- │  │  ❌ banking│          │  ❌ github │         │
- │  └────────────┘          └────────────┘         │
- │                                                  │
- │  Firewall rules:                                │
- │  ┌────────────────────────────────────────┐     │
- │  │ eng  → finance : data_cross ALLOW      │     │
- │  │ eng  → finance : tool_access DENY      │     │
- │  │ eng  → finance : credential_cross DENY │     │
- │  └────────────────────────────────────────┘     │
- └─────────────────────────────────────────────────┘
-```
+<p align="center">
+  <img src="diagrams/d2/firewall-model.svg" alt="HERMES firewall model with namespace isolation" width="700"/>
+</p>
 
 ## Session Lifecycle (SYN/FIN)
 
-```
-  Session Start                    Session Active                  Session End
-  ┌──────────┐                    ┌──────────────┐                ┌──────────┐
-  │   SYN    │                    │              │                │   FIN    │
-  │          │                    │  Agent does  │                │          │
-  │ 1. Read  │                    │  real work   │                │ 1. Write │
-  │    bus   │                    │  in its      │                │    state │
-  │          │──────────────────> │  namespace   │ ─────────────> │    to bus│
-  │ 2. Filter│                    │              │                │          │
-  │    by dst│                    │  Bus is NOT  │                │ 2. Update│
-  │          │                    │  used during │                │    SYNC  │
-  │ 3. Report│                    │  work — only │                │    HEADER│
-  │    pending│                   │  at session  │                │          │
-  │          │                    │  boundaries  │                │ 3. ACK   │
-  │ 4. Flag  │                    │              │                │    consumed│
-  │    stale │                    │              │                │    msgs  │
-  │    (>3d) │                    │              │                │          │
-  └──────────┘                    └──────────────┘                └──────────┘
-```
+<p align="center">
+  <img src="diagrams/d2/session-lifecycle.svg" alt="HERMES session lifecycle (SYN/FIN)" width="700"/>
+</p>
 
 ## Control Plane vs Data Plane
 
-```
-  ┌─────────────────────────────────────────────────────────────┐
-  │  CONTROL PLANE (HERMES)                                     │
-  │                                                             │
-  │  bus.jsonl ◄──── signaling messages ────► agents            │
-  │  routes.md       (state, alerts, dispatch)                  │
-  │  SYNC HEADERS                                               │
-  │                                                             │
-  │  "Where should work happen? What changed? Who needs to know?"│
-  └─────────────────────────────────────────────────────────────┘
-
-  ┌─────────────────────────────────────────────────────────────┐
-  │  DATA PLANE (Agent Work)                                    │
-  │                                                             │
-  │  Code repos      ◄──── actual work output ────► tools       │
-  │  Documents             (code, docs, emails)     APIs        │
-  │  Databases                                      Services    │
-  │                                                             │
-  │  "The actual work: writing code, sending emails, querying." │
-  └─────────────────────────────────────────────────────────────┘
-```
+<p align="center">
+  <img src="diagrams/d2/control-vs-data-plane.svg" alt="HERMES control plane vs data plane separation" width="700"/>
+</p>
 
 HERMES is a **signaling protocol**, not a data protocol. Like SS7 in telecom networks, it carries the coordination messages that tell agents where to work and what changed — but the actual work happens outside the bus.
 
@@ -219,44 +83,9 @@ A typical HERMES deployment:
 
 When a clan wants to connect with other clans on the Agora (public inter-clan network), it deploys a **Gateway** — a NAT-like component at the boundary.
 
-```
-┌──────────────────────────────────────────────────────┐
-│                  CLAN (private)                       │
-│                                                      │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐           │
-│  │   eng    │  │   ops    │  │ finance  │           │
-│  └────┬─────┘  └────┬─────┘  └────┬─────┘           │
-│       └──────────────┼──────────────┘                │
-│                      │                               │
-│               ┌──────┴──────┐                        │
-│               │  bus.jsonl   │                        │
-│               └──────┬──────┘                        │
-│                      │                               │
-│            ┌─────────┴─────────┐                     │
-│            │     GATEWAY       │  ← ARC-3022         │
-│            │  ┌─────────────┐  │                     │
-│            │  │ NAT         │  │  Internal names     │
-│            │  │ (translate) │  │  → public aliases    │
-│            │  ├─────────────┤  │                     │
-│            │  │ Outbound    │  │  Default-deny.       │
-│            │  │ (filter)    │  │  Only approved data  │
-│            │  ├─────────────┤  │  leaves.             │
-│            │  │ Inbound     │  │                     │
-│            │  │ (validate)  │  │  Verify source,      │
-│            │  │             │  │  check rate limits.  │
-│            │  └─────────────┘  │                     │
-│            └────────┬──────────┘                     │
-└─────────────────────┼────────────────────────────────┘
-                      │
-         ═════════════╪════════════════
-                      │
-               ┌──────┴──────┐
-               │    AGORA    │  Public directory
-               │  (profiles, │  of clans, agents,
-               │   quests,   │  attestations,
-               │   attest.)  │  and Resonance.
-               └─────────────┘
-```
+<p align="center">
+  <img src="diagrams/d2/gateway-clan-boundary.svg" alt="HERMES gateway at clan boundary with NAT and Agora" width="800"/>
+</p>
 
 **What the gateway exposes**: Public profiles (alias, capabilities, Resonance score).
 
@@ -266,19 +95,9 @@ See [ARC-3022](../spec/ARC-3022.md) for the full specification.
 
 ## Dual Reputation Model
 
-```
-  INTERNAL (Clan only)              EXTERNAL (Agora)
-  ┌─────────────────┐              ┌─────────────────┐
-  │     BOUNTY      │              │   RESONANCE     │
-  │                 │              │                 │
-  │  XP × precision │   Gateway   │  Σ attestations │
-  │  × impact       │─────────────│  × recency      │
-  │                 │  translates  │  × diversity    │
-  │  Computed by    │  but never   │                 │
-  │  Dojo/operator  │  exposes     │  Computed from  │
-  │                 │  Bounty      │  external sigs  │
-  └─────────────────┘              └─────────────────┘
-```
+<p align="center">
+  <img src="diagrams/d2/dual-reputation.svg" alt="HERMES dual reputation model — Bounty vs Resonance" width="600"/>
+</p>
 
 ## Related Specifications
 

@@ -9,6 +9,57 @@ This project follows a versioning scheme where:
 
 ---
 
+## [Unreleased] — QUEST-002 Closure + ECDHE + Visual Migration (2026-03-16)
+
+### Bilateral Protocol & Forward Secrecy
+
+This release closes QUEST-002 (AAD bilateral with Clan JEI), implements ECDHE forward secrecy, and migrates all major ASCII art diagrams to D2 format with the HERMES brand kit.
+
+### Added
+
+- **QUEST-002 bilateral closure** (JEI-HERMES-010 / DANI-HERMES-010)
+  - E2E channel Ed25519 + X25519 + AES-256-GCM + AAD verified bilaterally
+  - Format convergence: `src_clan` → `src` aligned on both sides
+  - All acceptance criteria checked ✓
+
+- **ECDHE Forward Secrecy** (ARC-8446 Section 11.2 — IMPLEMENTED)
+  - `seal_bus_message_ecdhe()`: per-message ephemeral X25519 keypair
+  - HKDF domain separation: `b"HERMES-ARC8446-ECDHE-v1"`
+  - Extended signature scope: `sign(ciphertext + eph_pub)`
+  - ECDHE AAD binding: `eph_pub` included in canonical JSON
+  - Ephemeral key zeroization after DH computation
+  - `open_bus_message()` auto-detects ECDHE vs static mode
+  - Backward compatible: static-mode messages still decrypt
+  - Reference: `crypto.py`, 8 new tests (493 total)
+
+- **QUEST-003 proposed** (ECDHE bilateral adoption with Clan JEI)
+  - Full proposal: `docs/QUEST-003-ECDHE-FORWARD-SECRECY.md`
+  - Email draft dispatched to MomoshoD for sending
+
+- **QUEST-CROSS-001 proposed** (CTO review of ARC-4601 by nymyka/cto-advisor)
+  - First cross-clan quest within HERMES network
+  - Bus message dispatched to nymyka/cto-advisor
+
+- **10 new D2 brand diagrams** (AES-2040 Layer 3)
+  - Architecture: five-layer-stack, namespace-topology, firewall-model, session-lifecycle, control-vs-data-plane, gateway-clan-boundary, dual-reputation
+  - Specs: session-state-machine (ARC-0793), cups-three-planes (ARC-2314), agent-node-stack (ARC-4601)
+  - All use HERMES brand kit (#1A1A2E/#00D4AA/#F5A623/#27AE60/#E74C3C/#7F8C8D)
+  - SVGs rendered with `d2 --theme 0 --pad 80`
+
+- **L3 Channel Efficiency Model** (`docs/research/l3-channel-efficiency/overhead_model.py`)
+  - HERMES bus 53.1% efficient vs HTTP/1.1 REST 20.1%
+  - 5 protocols compared: HERMES, MQTT, gRPC, HTTP/2, HTTP/1.1
+
+### Stats
+
+- Specs: 17 (16 IMPL + 1 DRAFT) — unchanged
+- Tests: 441 → 493 (+52: 8 ECDHE + prior session)
+- D2 diagrams: 4 → 14 (+10)
+- Quests complete: 1 → 2 (QUEST-002 closed)
+- Quests proposed: 2 (QUEST-003, QUEST-CROSS-001)
+
+---
+
 ## [Unreleased] — Agent Node + Visualization Stack (2026-03-14 → 2026-03-15)
 
 ### Persistent Operation & Visual Communication
