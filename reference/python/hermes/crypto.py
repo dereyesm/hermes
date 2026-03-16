@@ -211,11 +211,46 @@ def verify_signature(sign_public: Ed25519PublicKey, data: bytes, signature_hex: 
         return False
 
 
+def derive_shared_secret_ecdhe(
+    eph_private: X25519PrivateKey, peer_static_dh_public: X25519PublicKey
+) -> bytes:
+    """Derive a shared secret using ephemeral X25519 DH + HKDF-SHA256 (ECDHE mode).
+
+    Uses a different info parameter than static mode to ensure domain separation.
+    The ephemeral key provides forward secrecy: compromising long-term keys
+    cannot retroactively decrypt past messages.
+
+    Reference: ARC-8446 §11.2 (QUEST-003).
+    """
+    raw_shared = eph_private.exchange(peer_static_dh_public)
+    hkdf = HKDF(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=None,
+        info=b"HERMES-ARC8446-ECDHE-v1",
+    )
+    return hkdf.derive(raw_shared)
+
+
 def _build_aad(envelope_meta: dict | None) -> bytes | None:
     """Build canonical AAD bytes from envelope metadata."""
     if envelope_meta is None:
         return None
     return json.dumps(envelope_meta, sort_keys=True, separators=(",", ":")).encode("utf-8")
+
+
+def _build_aad_ecdhe(envelope_meta: dict, eph_pub_hex: str) -> bytes:
+    """Build canonical AAD bytes with ephemeral public key included.
+
+    Extends the standard AAD by adding eph_pub to the envelope metadata
+    before canonical JSON serialization. Keys are sorted alphabetically,
+    so eph_pub falls between dst and src naturally.
+
+    Reference: ARC-8446 §11.2 (QUEST-003).
+    """
+    extended = dict(envelope_meta)
+    extended["eph_pub"] = eph_pub_hex
+    return json.dumps(extended, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
 
 def seal_bus_message(
@@ -250,6 +285,74 @@ def seal_bus_message(
     return result
 
 
+def seal_bus_message_ecdhe(
+    my_keys: ClanKeyPair,
+    peer_dh_public: X25519PublicKey,
+    msg: str,
+    envelope_meta: dict | None = None,
+) -> dict:
+    """Encrypt + sign a bus message with ECDHE forward secrecy.
+
+    Generates an ephemeral X25519 keypair for each message. The ephemeral
+    private key is used for DH and then zeroized (best-effort). This ensures
+    that compromising long-term keys cannot decrypt past messages.
+
+    The ephemeral public key is included in the AAD and signature scope
+    to prevent substitution attacks.
+
+    Reference: ARC-8446 §11.2 (QUEST-003).
+    """
+    # Generate ephemeral keypair
+    eph_private = X25519PrivateKey.generate()
+    eph_public = eph_private.public_key()
+    eph_pub_bytes = eph_public.public_bytes(Encoding.Raw, PublicFormat.Raw)
+    eph_pub_hex = eph_pub_bytes.hex()
+
+    # Derive shared secret using ephemeral private + peer static public
+    shared_secret = derive_shared_secret_ecdhe(eph_private, peer_dh_public)
+
+    # Zeroize ephemeral private key (best-effort in Python)
+    try:
+        eph_priv_bytes = eph_private.private_bytes(
+            Encoding.Raw, PrivateFormat.Raw, NoEncryption()
+        )
+        # Overwrite the bytes object (immutable, but we clear the reference)
+        del eph_priv_bytes
+    except Exception:
+        pass
+    del eph_private
+
+    # Build AAD with eph_pub included
+    if envelope_meta is not None:
+        aad = _build_aad_ecdhe(envelope_meta, eph_pub_hex)
+    else:
+        # Even without envelope_meta, bind eph_pub in AAD
+        aad = _build_aad_ecdhe({}, eph_pub_hex)
+
+    # Encrypt
+    encrypted = encrypt_message(shared_secret, msg, aad=aad)
+
+    # Sign ciphertext + eph_pub (extended signature scope)
+    ciphertext_bytes = bytes.fromhex(encrypted["ciphertext"])
+    signature = sign_message(my_keys.sign_private, ciphertext_bytes + eph_pub_bytes)
+
+    result = {
+        "enc": "ECDHE-X25519-AES256GCM",
+        "eph_pub": eph_pub_hex,
+        "ciphertext": encrypted["ciphertext"],
+        "nonce": encrypted["nonce"],
+        "signature": signature,
+        "sender_sign_pub": my_keys.sign_public.public_bytes(
+            Encoding.Raw, PublicFormat.Raw
+        ).hex(),
+    }
+    if envelope_meta is not None:
+        result["aad"] = aad.hex()
+    else:
+        result["aad"] = aad.hex()
+    return result
+
+
 def open_bus_message(
     my_keys: ClanKeyPair,
     peer_sign_public: Ed25519PublicKey,
@@ -261,15 +364,38 @@ def open_bus_message(
     """Verify signature + decrypt a sealed bus message.
 
     Returns the plaintext message, or None if verification fails.
+    Automatically detects ECDHE mode (forward secrecy) vs static mode
+    based on the presence of 'eph_pub' in the sealed dict.
+
+    ECDHE mode (ARC-8446 §11.2):
+    - Reconstructs ephemeral public key from hex
+    - Derives shared secret: X25519(my_static_dh_priv, eph_pub)
+    - Uses extended AAD (with eph_pub) and extended signature scope
+
+    Static mode (backward compatible):
+    - Uses static DH keys for shared secret derivation
+    - Standard AAD and signature scope
+
     If envelope_meta is provided, it is used as AAD for decryption.
-    If the sealed message contains an 'aad' field, it must match the
-    constructed AAD — otherwise decryption is rejected.
     If nonce_tracker is provided, checks the nonce for replay before
     decryption and rejects replayed messages (ARC-8446 §9.5).
     """
     ciphertext_bytes = bytes.fromhex(sealed["ciphertext"])
-    if not verify_signature(peer_sign_public, ciphertext_bytes, sealed["signature"]):
-        return None
+
+    # Detect ECDHE vs static mode
+    is_ecdhe = "eph_pub" in sealed
+
+    if is_ecdhe:
+        # ECDHE path: verify extended signature (ciphertext + eph_pub)
+        eph_pub_bytes = bytes.fromhex(sealed["eph_pub"])
+        if not verify_signature(
+            peer_sign_public, ciphertext_bytes + eph_pub_bytes, sealed["signature"]
+        ):
+            return None
+    else:
+        # Static path: verify standard signature (ciphertext only)
+        if not verify_signature(peer_sign_public, ciphertext_bytes, sealed["signature"]):
+            return None
 
     # Replay protection: check nonce before decryption
     if nonce_tracker is not None:
@@ -282,25 +408,51 @@ def open_bus_message(
         if not nonce_tracker.check_and_record(sender, sealed["nonce"], timestamp):
             return None
 
-    aad = _build_aad(envelope_meta)
+    if is_ecdhe:
+        # ECDHE: derive shared secret from my static DH + ephemeral public
+        eph_public = X25519PublicKey.from_public_bytes(bytes.fromhex(sealed["eph_pub"]))
+        shared_secret = derive_shared_secret_ecdhe(my_keys.dh_private, eph_public)
 
-    # AAD consistency check: if sealed has aad field, verify it matches
-    if "aad" in sealed and aad is not None:
-        if sealed["aad"] != aad.hex():
+        # Build ECDHE AAD (with eph_pub included)
+        if envelope_meta is not None:
+            aad = _build_aad_ecdhe(envelope_meta, sealed["eph_pub"])
+        else:
+            aad = _build_aad_ecdhe({}, sealed["eph_pub"])
+
+        # AAD consistency check
+        if "aad" in sealed:
+            if sealed["aad"] != aad.hex():
+                return None
+
+        try:
+            return decrypt_message(
+                shared_secret, sealed["nonce"], sealed["ciphertext"], aad=aad
+            )
+        except Exception:
             return None
-    elif "aad" in sealed and aad is None:
-        # Message was sealed with AAD but caller didn't provide envelope_meta
-        # Reconstruct from the stored AAD for decryption
-        aad = bytes.fromhex(sealed["aad"])
-    elif "aad" not in sealed and aad is not None:
-        # Old message without AAD — decrypt without AAD for backward compat
-        aad = None
+    else:
+        # Static path (original behavior, unchanged)
+        aad = _build_aad(envelope_meta)
 
-    shared_secret = derive_shared_secret(my_keys.dh_private, peer_dh_public)
-    try:
-        return decrypt_message(shared_secret, sealed["nonce"], sealed["ciphertext"], aad=aad)
-    except Exception:
-        return None
+        # AAD consistency check: if sealed has aad field, verify it matches
+        if "aad" in sealed and aad is not None:
+            if sealed["aad"] != aad.hex():
+                return None
+        elif "aad" in sealed and aad is None:
+            # Message was sealed with AAD but caller didn't provide envelope_meta
+            # Reconstruct from the stored AAD for decryption
+            aad = bytes.fromhex(sealed["aad"])
+        elif "aad" not in sealed and aad is not None:
+            # Old message without AAD — decrypt without AAD for backward compat
+            aad = None
+
+        shared_secret = derive_shared_secret(my_keys.dh_private, peer_dh_public)
+        try:
+            return decrypt_message(
+                shared_secret, sealed["nonce"], sealed["ciphertext"], aad=aad
+            )
+        except Exception:
+            return None
 
 
 class NonceTracker:
