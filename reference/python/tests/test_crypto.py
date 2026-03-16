@@ -6,16 +6,21 @@ import tempfile
 from datetime import date, timedelta
 
 import pytest
+from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
+from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
 from hermes.crypto import (
     ClanKeyPair,
     NonceTracker,
+    _build_aad_ecdhe,
     decrypt_message,
     derive_shared_secret,
+    derive_shared_secret_ecdhe,
     encrypt_message,
     load_peer_public,
     open_bus_message,
     seal_bus_message,
+    seal_bus_message_ecdhe,
     sign_message,
     verify_signature,
 )
@@ -471,3 +476,149 @@ class TestNonceTrackerIntegration:
         result2 = open_bus_message(jei, dani.sign_public, dani.dh_public, sealed)
         assert result1 == "msg"
         assert result2 == "msg"
+
+
+class TestECDHE:
+    """Tests for ECDHE forward secrecy (ARC-8446 §11.2, QUEST-003)."""
+
+    def test_ecdhe_seal_open_roundtrip(self):
+        """Seal with ECDHE, open, verify plaintext matches."""
+        dani = ClanKeyPair.generate()
+        jei = ClanKeyPair.generate()
+        meta = {"src": "momoshod", "dst": "jei", "type": "quest", "ts": "2026-03-16"}
+
+        sealed = seal_bus_message_ecdhe(
+            dani, jei.dh_public, "QUEST-003 forward secrecy", envelope_meta=meta
+        )
+        assert "eph_pub" in sealed
+        assert sealed["enc"] == "ECDHE-X25519-AES256GCM"
+
+        plaintext = open_bus_message(
+            jei, dani.sign_public, dani.dh_public, sealed, envelope_meta=meta
+        )
+        assert plaintext == "QUEST-003 forward secrecy"
+
+    def test_ecdhe_domain_separation(self):
+        """Same raw DH input produces different keys with ECDHE vs static info strings."""
+        priv = X25519PrivateKey.generate()
+        peer = X25519PrivateKey.generate().public_key()
+
+        secret_static = derive_shared_secret(priv, peer)
+        secret_ecdhe = derive_shared_secret_ecdhe(priv, peer)
+
+        # Same DH raw output, but different HKDF info → different derived keys
+        assert secret_static != secret_ecdhe
+        assert len(secret_static) == 32
+        assert len(secret_ecdhe) == 32
+
+    def test_ecdhe_signature_scope(self):
+        """Tamper with eph_pub after seal, verify signature fails."""
+        dani = ClanKeyPair.generate()
+        jei = ClanKeyPair.generate()
+        meta = {"src": "momoshod", "dst": "jei", "type": "quest", "ts": "2026-03-16"}
+
+        sealed = seal_bus_message_ecdhe(
+            dani, jei.dh_public, "tamper test", envelope_meta=meta
+        )
+
+        # Replace eph_pub with a different key
+        fake_eph = X25519PrivateKey.generate().public_key()
+        sealed["eph_pub"] = fake_eph.public_bytes(Encoding.Raw, PublicFormat.Raw).hex()
+
+        # Signature verification should fail (signature covers ciphertext + original eph_pub)
+        result = open_bus_message(
+            jei, dani.sign_public, dani.dh_public, sealed, envelope_meta=meta
+        )
+        assert result is None
+
+    def test_ecdhe_aad_binding(self):
+        """Modify AAD field (e.g. dst), verify decryption fails with InvalidTag."""
+        dani = ClanKeyPair.generate()
+        jei = ClanKeyPair.generate()
+        meta = {"src": "momoshod", "dst": "jei", "type": "quest", "ts": "2026-03-16"}
+
+        sealed = seal_bus_message_ecdhe(
+            dani, jei.dh_public, "aad binding test", envelope_meta=meta
+        )
+
+        # Open with modified envelope_meta — AAD mismatch should cause failure
+        bad_meta = {"src": "momoshod", "dst": "evil", "type": "quest", "ts": "2026-03-16"}
+        result = open_bus_message(
+            jei, dani.sign_public, dani.dh_public, sealed, envelope_meta=bad_meta
+        )
+        assert result is None
+
+    def test_ecdhe_aad_eph_pub_binding(self):
+        """Swap eph_pub in envelope to different key, verify decryption fails."""
+        dani = ClanKeyPair.generate()
+        jei = ClanKeyPair.generate()
+        meta = {"src": "momoshod", "dst": "jei", "type": "quest", "ts": "2026-03-16"}
+
+        sealed = seal_bus_message_ecdhe(
+            dani, jei.dh_public, "eph_pub binding test", envelope_meta=meta
+        )
+
+        # Swap eph_pub to a different key. Signature still covers original eph_pub,
+        # so this should fail at signature verification. Even if it passed,
+        # shared secret derivation would produce wrong key.
+        other_eph = X25519PrivateKey.generate().public_key()
+        sealed["eph_pub"] = other_eph.public_bytes(Encoding.Raw, PublicFormat.Raw).hex()
+
+        result = open_bus_message(
+            jei, dani.sign_public, dani.dh_public, sealed, envelope_meta=meta
+        )
+        assert result is None
+
+    def test_ecdhe_backward_compat(self):
+        """Seal with static mode (no eph_pub), open with ECDHE-capable receiver."""
+        dani = ClanKeyPair.generate()
+        jei = ClanKeyPair.generate()
+        meta = {"src": "momoshod", "dst": "jei", "type": "quest", "ts": "2026-03-16"}
+
+        # Seal with static mode (old-style)
+        sealed = seal_bus_message(dani, jei.dh_public, "static mode msg", envelope_meta=meta)
+        assert "eph_pub" not in sealed
+
+        # Open should use static path automatically
+        plaintext = open_bus_message(
+            jei, dani.sign_public, dani.dh_public, sealed, envelope_meta=meta
+        )
+        assert plaintext == "static mode msg"
+
+    def test_ecdhe_ephemeral_key_uniqueness(self):
+        """Call seal_bus_message_ecdhe twice, verify eph_pub differs."""
+        dani = ClanKeyPair.generate()
+        jei = ClanKeyPair.generate()
+
+        sealed1 = seal_bus_message_ecdhe(dani, jei.dh_public, "msg1")
+        sealed2 = seal_bus_message_ecdhe(dani, jei.dh_public, "msg2")
+
+        assert sealed1["eph_pub"] != sealed2["eph_pub"]
+
+    def test_ecdhe_open_detects_mode(self):
+        """Verify open_bus_message automatically detects ECDHE vs static."""
+        dani = ClanKeyPair.generate()
+        jei = ClanKeyPair.generate()
+        meta = {"src": "momoshod", "dst": "jei", "type": "quest", "ts": "2026-03-16"}
+
+        # ECDHE message
+        sealed_ecdhe = seal_bus_message_ecdhe(
+            dani, jei.dh_public, "ecdhe msg", envelope_meta=meta
+        )
+        assert "eph_pub" in sealed_ecdhe
+
+        # Static message
+        sealed_static = seal_bus_message(
+            dani, jei.dh_public, "static msg", envelope_meta=meta
+        )
+        assert "eph_pub" not in sealed_static
+
+        # Both should open correctly with the same open_bus_message function
+        plain_ecdhe = open_bus_message(
+            jei, dani.sign_public, dani.dh_public, sealed_ecdhe, envelope_meta=meta
+        )
+        plain_static = open_bus_message(
+            jei, dani.sign_public, dani.dh_public, sealed_static, envelope_meta=meta
+        )
+        assert plain_ecdhe == "ecdhe msg"
+        assert plain_static == "static msg"

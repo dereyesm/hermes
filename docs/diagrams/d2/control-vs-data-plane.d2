@@ -1,0 +1,148 @@
+# HERMES Control Plane vs Data Plane — ATR-Q.700
+# Brand: #1A1A2E #00D4AA #F5A623 #27AE60 #E74C3C #7F8C8D
+
+direction: down
+
+control: CONTROL PLANE (HERMES) {
+  style.font-size: 28
+  style.fill: "#1A1A2E"
+  style.font-color: "#00D4AA"
+  style.stroke: "#00D4AA"
+  style.stroke-width: 3
+  style.border-radius: 8
+
+  bus: bus.jsonl {
+    shape: cylinder
+    style.font-size: 20
+    style.fill: "#1A1A2E"
+    style.font-color: "#27AE60"
+    style.stroke: "#27AE60"
+    style.stroke-width: 2
+  }
+
+  routes: routes.md {
+    shape: page
+    style.font-size: 20
+    style.fill: "#1A1A2E"
+    style.font-color: "#00D4AA"
+    style.stroke: "#00D4AA"
+    style.stroke-width: 2
+  }
+
+  sync: SYNC HEADERS {
+    shape: page
+    style.font-size: 20
+    style.fill: "#1A1A2E"
+    style.font-color: "#F5A623"
+    style.stroke: "#F5A623"
+    style.stroke-width: 2
+  }
+
+  agents: agents {
+    shape: person
+    style.font-size: 20
+    style.fill: "#1A1A2E"
+    style.font-color: "#00D4AA"
+    style.stroke: "#00D4AA"
+    style.stroke-width: 2
+  }
+
+  bus -> agents: signaling {
+    style.stroke: "#00D4AA"
+    style.stroke-width: 3
+    style.animated: true
+    style.font-size: 16
+  }
+
+  question: '"Where should work happen?\nWhat changed?\nWho needs to know?"' {
+    style.font-size: 16
+    style.fill: "#1A1A2E"
+    style.font-color: "#7F8C8D"
+    style.stroke: "#7F8C8D"
+    style.stroke-width: 1
+    style.stroke-dash: 5
+    style.italic: true
+  }
+}
+
+data: DATA PLANE (Agent Work) {
+  style.font-size: 28
+  style.fill: "#1A1A2E"
+  style.font-color: "#F5A623"
+  style.stroke: "#F5A623"
+  style.stroke-width: 3
+  style.border-radius: 8
+
+  repos: Code repos {
+    shape: package
+    style.font-size: 20
+    style.fill: "#1A1A2E"
+    style.font-color: "#F5A623"
+    style.stroke: "#F5A623"
+    style.stroke-width: 2
+  }
+
+  docs: Documents {
+    shape: page
+    style.font-size: 20
+    style.fill: "#1A1A2E"
+    style.font-color: "#F5A623"
+    style.stroke: "#F5A623"
+    style.stroke-width: 2
+  }
+
+  databases: Databases {
+    shape: cylinder
+    style.font-size: 20
+    style.fill: "#1A1A2E"
+    style.font-color: "#F5A623"
+    style.stroke: "#F5A623"
+    style.stroke-width: 2
+  }
+
+  tools: Tools / APIs {
+    shape: hexagon
+    style.font-size: 20
+    style.fill: "#F5A623"
+    style.font-color: "#1A1A2E"
+    style.stroke: "#F5A623"
+    style.stroke-width: 2
+  }
+
+  services: Services {
+    shape: cloud
+    style.font-size: 20
+    style.fill: "#1A1A2E"
+    style.font-color: "#F5A623"
+    style.stroke: "#F5A623"
+    style.stroke-width: 2
+  }
+
+  repos -> tools: actual output {
+    style.stroke: "#F5A623"
+    style.stroke-width: 3
+    style.animated: true
+    style.font-size: 16
+  }
+
+  question: '"The actual work:\ncode, emails, queries."' {
+    style.font-size: 16
+    style.fill: "#1A1A2E"
+    style.font-color: "#7F8C8D"
+    style.stroke: "#7F8C8D"
+    style.stroke-width: 1
+    style.stroke-dash: 5
+    style.italic: true
+  }
+}
+
+# Separation line — signaling only, no data
+
+control -> data: "signaling only\n(like SS7)" {
+  style.stroke: "#7F8C8D"
+  style.stroke-width: 4
+  style.stroke-dash: 5
+  style.font-size: 20
+  style.font-color: "#7F8C8D"
+  style.bold: true
+}
