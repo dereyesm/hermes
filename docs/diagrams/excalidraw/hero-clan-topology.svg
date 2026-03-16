@@ -75,7 +75,7 @@
   <rect x="770" y="140" width="220" height="220" rx="10" fill="#f0fdf4" stroke="#27AE60" stroke-width="2" opacity="0.7" filter="url(#shadow)"/>
   <text x="880" y="170" text-anchor="middle" font-size="17" font-weight="600" fill="#27AE60">Clan JEI</text>
   <text x="880" y="205" text-anchor="middle" font-size="13" fill="#27AE60">QUEST-001  done</text>
-  <text x="880" y="225" text-anchor="middle" font-size="13" fill="#F5A623">QUEST-002  pending</text>
+  <text x="880" y="225" text-anchor="middle" font-size="13" fill="#27AE60">QUEST-002  done</text>
   <text x="880" y="245" text-anchor="middle" font-size="13" fill="#7F8C8D">QUEST-003  planned</text>
 
   <!-- ===== RELAY (center ellipse) ===== -->

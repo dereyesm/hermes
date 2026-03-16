@@ -80,7 +80,8 @@ This release completes Phase 1 with end-to-end encryption, the first inter-clan 
 - **Inter-clan communication with Clan JEI** (first external clan):
   - Encrypted handshake completed (fingerprints verified in person)
   - QUEST-001 (ARC-8446 security review): COMPLETE
-  - QUEST-002 (AAD bilateral adoption): PROPOSED
+  - QUEST-002 (AAD bilateral adoption): **COMPLETE** (bilateral closure 2026-03-16, JEI-HERMES-010)
+  - `docs/DANI-HERMES-010.md` — QUEST-002 closure acknowledgement
   - Private relay: `dereyesm/hermes-relay`
 
 - **Documentation**:

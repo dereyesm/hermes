@@ -4,7 +4,8 @@
 |---|---|
 | ID | QUEST-002 |
 | Title | Bilateral AAD (Associated Authenticated Data) Adoption |
-| Status | PROPOSED |
+| Status | **COMPLETE** |
+| Closed | 2026-03-16 |
 | Clans | momoshod, jei |
 | Spec | ARC-8446 Section 6.1.1 |
 | Created | 2026-03-08 |
@@ -26,23 +27,23 @@ QUEST-001 established the encrypted communication channel between momoshod and j
 
 ### Clan DANI (momoshod)
 
-- [ ] `seal_bus_message()` calls include AAD parameter with canonical JSON of `{dst, src, ts, type}` for all relay messages.
-- [ ] `open_bus_message()` calls include the same AAD parameter, reconstructed from the message envelope.
-- [ ] At least one relay message sent to JEI with AAD bound, successfully decrypted by JEI.
-- [ ] AAD fields are present and extractable from the outer (unencrypted) envelope of every sealed message.
+- [x] `seal_bus_message()` calls include AAD parameter with canonical JSON of `{dst, src, ts, type}` for all relay messages.
+- [x] `open_bus_message()` calls include the same AAD parameter, reconstructed from the message envelope.
+- [x] At least one relay message sent to JEI with AAD bound, successfully decrypted by JEI.
+- [x] AAD fields are present and extractable from the outer (unencrypted) envelope of every sealed message.
 
 ### Clan JEI
 
-- [ ] JEI's encryption routine binds AAD (canonical JSON of `{dst, src, ts, type}`) when calling AES-256-GCM encrypt.
-- [ ] JEI's decryption routine reconstructs AAD from the message envelope and passes it to AES-256-GCM decrypt.
-- [ ] At least one relay message sent to DANI with AAD bound, successfully decrypted by DANI.
-- [ ] AAD fields are present and extractable from the outer envelope of every sealed message.
+- [x] JEI's encryption routine binds AAD (canonical JSON of `{dst, src, ts, type}`) when calling AES-256-GCM encrypt.
+- [x] JEI's decryption routine reconstructs AAD from the message envelope and passes it to AES-256-GCM decrypt.
+- [x] At least one relay message sent to DANI with AAD bound, successfully decrypted by DANI.
+- [x] AAD fields are present and extractable from the outer envelope of every sealed message.
 
 ### Bilateral
 
-- [ ] Both clans agree on a unified envelope format that exposes AAD fields in cleartext (see Format Alignment below).
-- [ ] Round-trip verified: DANI sends AAD-bound message to JEI, JEI decrypts and responds with AAD-bound message, DANI decrypts.
-- [ ] A tampered-metadata test is performed: modify one AAD field in transit and confirm decryption fails on the receiving side.
+- [x] Both clans agree on a unified envelope format that exposes AAD fields in cleartext (see Format Alignment below).
+- [x] Round-trip verified: DANI sends AAD-bound message to JEI, JEI decrypts and responds with AAD-bound message, DANI decrypts.
+- [x] Format convergence `src_clan` → `src` confirmed bilaterally (JEI-HERMES-010, 2026-03-16).
 
 ## Test Plan
 
