@@ -288,7 +288,7 @@ def print_bus_messages(messages: list[Any], namespace: str | None = None) -> Non
         type_color = TYPE_COLORS.get(msg.type, "white")
         t.add_row(
             ack_mark,
-            msg.ts,
+            str(msg.ts),
             Text(msg.src, style=EMERALD),
             "→",
             Text(msg.dst, style=AMBER if msg.dst != "*" else "dim"),
