@@ -52,6 +52,25 @@ MAX_MSG_LENGTH = 120
 # ARC-5322 Section 7: Valid payload encoding modes
 VALID_ENCODINGS = frozenset({"raw", "cbor", "ref"})
 
+# ARC-5322 §14: Compact Wire Format
+COMPACT_EPOCH = date(2000, 1, 1)
+
+# §14.4: Type enumeration (int → string, string → int)
+TYPE_TO_INT: dict[str, int] = {
+    "state": 0,
+    "alert": 1,
+    "event": 2,
+    "request": 3,
+    "data_cross": 4,
+    "dispatch": 5,
+    "dojo_event": 6,
+}
+INT_TO_TYPE: dict[int, str] = {v: k for k, v in TYPE_TO_INT.items()}
+
+# §14.2: Positional field order
+COMPACT_FIELD_COUNT = 7  # ts, src, dst, type, msg, ttl, ack
+COMPACT_FIELD_COUNT_WITH_ENCODING = 8
+
 
 @dataclass(frozen=True)
 class Message:
@@ -87,8 +106,25 @@ class Message:
         return d
 
     def to_jsonl(self) -> str:
-        """Serialize to a single JSONL line (no trailing newline)."""
+        """Serialize to a single verbose JSONL line (no trailing newline)."""
         return json.dumps(self.to_dict(), ensure_ascii=False)
+
+    def to_compact(self) -> list:
+        """Serialize to a compact array per ARC-5322 §14.
+
+        Returns a list: [epoch_day, src, dst, type_int, msg, ttl, ack]
+        with optional 8th element for non-raw encoding.
+        """
+        epoch_day = (self.ts - COMPACT_EPOCH).days
+        type_int = TYPE_TO_INT[self.type]
+        arr = [epoch_day, self.src, self.dst, type_int, self.msg, self.ttl, list(self.ack)]
+        if self.encoding is not None and self.encoding != "raw":
+            arr.append(self.encoding)
+        return arr
+
+    def to_compact_jsonl(self) -> str:
+        """Serialize to a compact JSONL line per ARC-5322 §14."""
+        return json.dumps(self.to_compact(), ensure_ascii=False, separators=(",", ":"))
 
 
 class ValidationError(Exception):
@@ -209,6 +245,84 @@ def validate_message(data: dict) -> Message:
     )
 
 
+def validate_compact(data: list) -> Message:
+    """Validate a compact array against ARC-5322 §14 and return a Message.
+
+    Expects: [epoch_day, src, dst, type_int, msg, ttl, ack]
+    Optional 8th element: encoding string.
+    """
+    if not isinstance(data, list):
+        raise ValidationError(f"Compact message must be a JSON array, got {type(data).__name__}")
+
+    if len(data) not in (COMPACT_FIELD_COUNT, COMPACT_FIELD_COUNT_WITH_ENCODING):
+        raise ValidationError(
+            f"Compact message must have {COMPACT_FIELD_COUNT} or "
+            f"{COMPACT_FIELD_COUNT_WITH_ENCODING} elements, got {len(data)}"
+        )
+
+    epoch_day, src, dst, type_int, msg, ttl, ack = data[:7]
+    encoding_raw = data[7] if len(data) == COMPACT_FIELD_COUNT_WITH_ENCODING else None
+
+    # §14.3: epoch-day → date
+    if not isinstance(epoch_day, int) or isinstance(epoch_day, bool):
+        raise ValidationError(f"Compact ts (index 0) must be an integer, got {type(epoch_day).__name__}")
+    if epoch_day < 0:
+        raise ValidationError(f"Compact ts (index 0) must be non-negative, got {epoch_day}")
+    from datetime import timedelta
+    ts = COMPACT_EPOCH + timedelta(days=epoch_day)
+
+    # §14.4: type int → string
+    if not isinstance(type_int, int) or isinstance(type_int, bool):
+        raise ValidationError(f"Compact type (index 3) must be an integer, got {type(type_int).__name__}")
+    if type_int not in INT_TO_TYPE:
+        raise ValidationError(
+            f"Invalid compact type {type_int}. Valid range: 0-{max(INT_TO_TYPE.keys())}"
+        )
+    type_str = INT_TO_TYPE[type_int]
+
+    # Build verbose dict and delegate to existing validation
+    verbose = {
+        "ts": ts.isoformat(),
+        "src": src,
+        "dst": dst,
+        "type": type_str,
+        "msg": msg,
+        "ttl": ttl,
+        "ack": ack,
+    }
+    if encoding_raw is not None:
+        verbose["encoding"] = encoding_raw
+
+    return validate_message(verbose)
+
+
+def parse_line(line: str) -> Message:
+    """Auto-detect and parse a JSONL line (verbose or compact) per ARC-5322 §14.5.
+
+    Inspects the first non-whitespace character:
+    - '{' → verbose format (JSON object)
+    - '[' → compact format (JSON array)
+    """
+    stripped = line.strip()
+    if not stripped:
+        raise ValidationError("Empty line")
+
+    try:
+        data = json.loads(stripped)
+    except json.JSONDecodeError as e:
+        raise ValidationError(f"JSON parse error: {e}")
+
+    if isinstance(data, dict):
+        return validate_message(data)
+    elif isinstance(data, list):
+        return validate_compact(data)
+    else:
+        raise ValidationError(
+            f"HERMES message must be a JSON object (verbose) or array (compact), "
+            f"got {type(data).__name__}"
+        )
+
+
 def create_message(
     src: str,
     dst: str,
@@ -244,7 +358,14 @@ def create_message(
 
 
 def main() -> None:
-    """Validate JSONL messages from stdin. Exit 1 if any are invalid."""
+    """Validate JSONL messages from stdin. Exit 1 if any are invalid.
+
+    Supports both verbose and compact formats (auto-detected per §14.5).
+    Use --expand to convert compact messages to verbose for human reading.
+    Use --compact to convert verbose messages to compact.
+    """
+    expand_mode = "--expand" in sys.argv
+    compact_mode = "--compact" in sys.argv
     errors = 0
     total = 0
 
@@ -255,17 +376,16 @@ def main() -> None:
         total += 1
 
         try:
-            data = json.loads(line)
-        except json.JSONDecodeError as e:
-            print(f"Line {line_num}: JSON parse error: {e}", file=sys.stderr)
-            errors += 1
-            continue
-
-        try:
-            validate_message(data)
+            msg = parse_line(line)
         except ValidationError as e:
             print(f"Line {line_num}: {e}", file=sys.stderr)
             errors += 1
+            continue
+
+        if expand_mode:
+            print(msg.to_jsonl())
+        elif compact_mode:
+            print(msg.to_compact_jsonl())
 
     if total == 0:
         print("No messages to validate.", file=sys.stderr)
@@ -275,7 +395,8 @@ def main() -> None:
         print(f"\n{errors}/{total} messages invalid.", file=sys.stderr)
         sys.exit(1)
 
-    print(f"{total}/{total} messages valid.", file=sys.stderr)
+    if not expand_mode and not compact_mode:
+        print(f"{total}/{total} messages valid.", file=sys.stderr)
 
 
 def extract_cid(msg: str) -> str | None:

@@ -9,11 +9,16 @@ from pathlib import Path
 import pytest
 
 from hermes.message import (
+    COMPACT_EPOCH,
+    INT_TO_TYPE,
     MAX_MSG_LENGTH,
+    TYPE_TO_INT,
     VALID_ENCODINGS,
     Message,
     ValidationError,
     create_message,
+    parse_line,
+    validate_compact,
     validate_message,
     validate_namespace,
 )
@@ -459,6 +464,243 @@ class TestFinProtocol:
         bus = bus_dir / "bus.jsonl"
         written = fin(bus, "engineering", None)
         assert written == []
+
+
+# ─── Compact Wire Format (ARC-5322 §14) ───────────────────────────
+
+
+def _epoch_day(d: date) -> int:
+    """Convert date to epoch-day (days since 2000-01-01)."""
+    return (d - COMPACT_EPOCH).days
+
+
+class TestCompactConstants:
+    def test_type_enum_coverage(self):
+        """All valid types have an integer mapping."""
+        from hermes.message import VALID_TYPES
+        for t in VALID_TYPES:
+            assert t in TYPE_TO_INT, f"Type '{t}' missing from TYPE_TO_INT"
+
+    def test_type_enum_roundtrip(self):
+        for name, idx in TYPE_TO_INT.items():
+            assert INT_TO_TYPE[idx] == name
+
+    def test_epoch_day_known_values(self):
+        assert _epoch_day(date(2000, 1, 1)) == 0
+        assert _epoch_day(date(2026, 3, 15)) == 9570
+        assert _epoch_day(date(2025, 1, 1)) == 9132
+
+
+class TestCompactSerialization:
+    def test_to_compact_basic(self):
+        msg = create_message(
+            src="engineering", dst="*", type="state", msg="deployed",
+            ts=date(2026, 3, 15),
+        )
+        arr = msg.to_compact()
+        assert arr[0] == 9570  # epoch-day
+        assert arr[1] == "engineering"
+        assert arr[2] == "*"
+        assert arr[3] == 0  # state
+        assert arr[4] == "deployed"
+        assert arr[5] == 7  # default TTL for state
+        assert arr[6] == []
+        assert len(arr) == 7  # no encoding element
+
+    def test_to_compact_with_encoding(self):
+        msg = create_message(
+            src="eng", dst="ops", type="data_cross",
+            msg="o2Rjb3N0GQl4", encoding="cbor",
+            ts=date(2026, 3, 15),
+        )
+        arr = msg.to_compact()
+        assert len(arr) == 8
+        assert arr[7] == "cbor"
+
+    def test_to_compact_jsonl_format(self):
+        msg = create_message(
+            src="eng", dst="*", type="state", msg="ok",
+            ts=date(2026, 3, 15),
+        )
+        line = msg.to_compact_jsonl()
+        assert line.startswith("[")
+        assert ", " not in line  # compact separators
+        assert ": " not in line
+
+    def test_to_compact_jsonl_size(self):
+        """Compact format should be significantly smaller than verbose."""
+        msg = create_message(
+            src="momoshod", dst="nymyka", type="state",
+            msg="x" * 120, ts=date(2026, 3, 15),
+        )
+        verbose = msg.to_jsonl()
+        compact = msg.to_compact_jsonl()
+        assert len(compact) < len(verbose)
+        # Wrapper savings: ~69 bytes (105 → 36)
+        assert len(verbose) - len(compact) > 50
+
+    def test_to_compact_with_ack(self):
+        msg = Message(
+            ts=date(2026, 3, 15), src="eng", dst="*", type="alert",
+            msg="deadline", ttl=5, ack=["ops", "finance"],
+        )
+        arr = msg.to_compact()
+        assert arr[6] == ["ops", "finance"]
+
+
+class TestCompactValidation:
+    def test_valid_compact(self):
+        data = [9570, "engineering", "*", 0, "deployed", 7, []]
+        msg = validate_compact(data)
+        assert msg.ts == date(2026, 3, 15)
+        assert msg.src == "engineering"
+        assert msg.type == "state"
+
+    def test_valid_compact_with_encoding(self):
+        data = [9570, "eng", "ops", 4, "o2Rjb3N0GQl4", 7, [], "cbor"]
+        msg = validate_compact(data)
+        assert msg.encoding == "cbor"
+
+    def test_wrong_element_count(self):
+        with pytest.raises(ValidationError, match="7 or 8 elements"):
+            validate_compact([9570, "eng", "*", 0, "ok", 7])  # 6 elements
+
+    def test_too_many_elements(self):
+        with pytest.raises(ValidationError, match="7 or 8 elements"):
+            validate_compact([9570, "eng", "*", 0, "ok", 7, [], "raw", "extra"])
+
+    def test_invalid_epoch_day_type(self):
+        with pytest.raises(ValidationError, match="integer"):
+            validate_compact(["2026-03-15", "eng", "*", 0, "ok", 7, []])
+
+    def test_negative_epoch_day(self):
+        with pytest.raises(ValidationError, match="non-negative"):
+            validate_compact([-1, "eng", "*", 0, "ok", 7, []])
+
+    def test_invalid_type_int(self):
+        with pytest.raises(ValidationError, match="Invalid compact type"):
+            validate_compact([9570, "eng", "*", 99, "ok", 7, []])
+
+    def test_all_type_ints_valid(self):
+        for type_int, type_str in INT_TO_TYPE.items():
+            data = [9570, "eng", "*", type_int, "ok", 7, []]
+            msg = validate_compact(data)
+            assert msg.type == type_str
+
+    def test_compact_inherits_verbose_validation(self):
+        """Compact still enforces namespace rules, msg length, etc."""
+        with pytest.raises(ValidationError, match="Invalid namespace"):
+            validate_compact([9570, "BAD NAME", "*", 0, "ok", 7, []])
+
+        with pytest.raises(ValidationError, match="exceeds"):
+            validate_compact([9570, "eng", "*", 0, "x" * 121, 7, []])
+
+    def test_not_a_list(self):
+        with pytest.raises(ValidationError, match="JSON array"):
+            validate_compact("not a list")
+
+    def test_boolean_epoch_day_rejected(self):
+        with pytest.raises(ValidationError, match="integer"):
+            validate_compact([True, "eng", "*", 0, "ok", 7, []])
+
+    def test_boolean_type_rejected(self):
+        with pytest.raises(ValidationError, match="integer"):
+            validate_compact([9570, "eng", "*", True, "ok", 7, []])
+
+
+class TestCompactRoundtrip:
+    def test_verbose_to_compact_roundtrip(self):
+        """Message survives verbose → compact → verbose."""
+        original = create_message(
+            src="engineering", dst="operations", type="request",
+            msg="need_capacity_estimate", ts=date(2026, 3, 15), ttl=5,
+        )
+        compact_arr = original.to_compact()
+        restored = validate_compact(compact_arr)
+        assert restored.ts == original.ts
+        assert restored.src == original.src
+        assert restored.dst == original.dst
+        assert restored.type == original.type
+        assert restored.msg == original.msg
+        assert restored.ttl == original.ttl
+        assert restored.ack == original.ack
+
+    def test_compact_jsonl_roundtrip(self):
+        """Message survives to_compact_jsonl → parse_line."""
+        original = create_message(
+            src="eng", dst="*", type="state", msg="ok",
+            ts=date(2026, 3, 15),
+        )
+        line = original.to_compact_jsonl()
+        restored = parse_line(line)
+        assert restored.src == original.src
+        assert restored.ts == original.ts
+
+    def test_verbose_jsonl_roundtrip(self):
+        """parse_line handles verbose format too."""
+        original = create_message(
+            src="eng", dst="*", type="state", msg="ok",
+            ts=date(2026, 3, 15),
+        )
+        line = original.to_jsonl()
+        restored = parse_line(line)
+        assert restored.src == original.src
+
+    def test_all_types_roundtrip(self):
+        for type_str in TYPE_TO_INT:
+            msg = create_message(
+                src="eng", dst="ops" if type_str != "state" else "*",
+                type=type_str, msg="test", ts=date(2026, 3, 15),
+            )
+            compact = msg.to_compact_jsonl()
+            restored = parse_line(compact)
+            assert restored.type == type_str
+
+    def test_roundtrip_with_encoding(self):
+        msg = create_message(
+            src="eng", dst="ops", type="data_cross",
+            msg="/path/to/data.csv", encoding="ref",
+            ts=date(2026, 3, 15),
+        )
+        compact = msg.to_compact_jsonl()
+        restored = parse_line(compact)
+        assert restored.encoding == "ref"
+        assert restored.msg == "/path/to/data.csv"
+
+
+class TestParseLine:
+    def test_auto_detect_verbose(self):
+        line = '{"ts":"2026-03-15","src":"eng","dst":"*","type":"state","msg":"ok","ttl":7,"ack":[]}'
+        msg = parse_line(line)
+        assert msg.src == "eng"
+
+    def test_auto_detect_compact(self):
+        line = '[9570,"eng","*",0,"ok",7,[]]'
+        msg = parse_line(line)
+        assert msg.src == "eng"
+        assert msg.ts == date(2026, 3, 15)
+
+    def test_empty_line_error(self):
+        with pytest.raises(ValidationError, match="Empty line"):
+            parse_line("")
+
+    def test_invalid_json_error(self):
+        with pytest.raises(ValidationError, match="JSON parse error"):
+            parse_line("not json at all")
+
+    def test_unexpected_type_error(self):
+        with pytest.raises(ValidationError, match="JSON object.*or array"):
+            parse_line('"just a string"')
+
+    def test_mixed_bus(self):
+        """Both formats can coexist on the same bus."""
+        verbose = '{"ts":"2026-03-15","src":"eng","dst":"*","type":"state","msg":"verbose","ttl":7,"ack":[]}'
+        compact = '[9570,"ops","*",1,"compact",5,[]]'
+        m1 = parse_line(verbose)
+        m2 = parse_line(compact)
+        assert m1.msg == "verbose"
+        assert m2.msg == "compact"
+        assert m2.type == "alert"
 
 
 # ─── Sample Bus Validation ──────────────────────────────────────────
