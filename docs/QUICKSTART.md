@@ -158,7 +158,35 @@ The example agent (`examples/simple_agent.py`) is a working template — copy it
 
 ## Automated Setup
 
-Instead of steps 1-5 above, you can bootstrap everything with one command:
+### Option A — Full one-command install (recommended)
+
+Instead of steps 1-8 above, run:
+
+```bash
+cd reference/python && pip install -e .
+hermes install --clan-id my-clan --display-name "My Clan"
+```
+
+What it does:
+
+| Step | Action |
+|------|--------|
+| 1 | Initializes `~/.hermes/` with `gateway.json` and empty bus |
+| 2 | Generates Ed25519 (signing) + X25519 (DH) keypairs in `~/.hermes/.keys/` |
+| 3 | Adds `agent_node` block to `gateway.json` |
+| 4 | Installs OS service: **macOS** LaunchAgent, **Linux** systemd user unit, **Windows** scheduled task |
+| 5 | Registers 3 Claude Code hooks (`pull_on_start`, `pull_on_prompt`, `exit_reminder`) |
+| 6 | Starts the daemon and sends a desktop notification |
+
+All steps are idempotent — safe to re-run. To reverse:
+
+```bash
+hermes uninstall              # stop + remove service (keeps ~/.hermes data)
+hermes uninstall --purge      # also remove ~/.hermes and all keys
+hermes uninstall --keep-hooks # remove service but preserve Claude Code hooks
+```
+
+### Option B — Shell script bootstrap (directory structure only)
 
 ```bash
 # Default namespaces (controller, engineering, operations, finance):
@@ -171,7 +199,7 @@ bash scripts/init_hermes.sh sales engineering support
 HERMES_HOME=/path/to/shared/dir bash scripts/init_hermes.sh
 ```
 
-This creates the directory structure, bus files, routing table template, and namespace configs. Safe to re-run.
+This creates the directory structure, bus files, routing table template, and namespace configs. Safe to re-run. Does not install OS services or Claude Code hooks.
 
 ## What's Next?
 

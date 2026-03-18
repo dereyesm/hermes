@@ -76,6 +76,14 @@ cd reference/python
 pip install -e .
 ```
 
+### One-command setup (recommended)
+
+```bash
+hermes install --clan-id my-clan --display-name "My Clan"
+```
+
+This single command initializes `~/.hermes/` with clan config, generates Ed25519 + X25519 keypairs, installs an OS service (macOS LaunchAgent / Linux systemd / Windows schtasks), registers Claude Code hooks, and starts the agent-node daemon. To reverse: `hermes uninstall [--purge]`. See [docs/QUICKSTART.md](docs/QUICKSTART.md) for details.
+
 ### Write a message to the bus
 
 ```python

@@ -13,6 +13,9 @@ Usage:
     python -m hermes.cli daemon start [--dir PATH] [--foreground]
     python -m hermes.cli daemon stop [--dir PATH]
     python -m hermes.cli daemon status [--dir PATH]
+    python -m hermes.cli install --clan-id <id> --display-name <name> [options]
+    python -m hermes.cli uninstall [--purge] [--keep-hooks] [--dir PATH]
+    python -m hermes.cli hook <pull-on-start|pull-on-prompt|exit-reminder>
 """
 
 from __future__ import annotations
@@ -348,6 +351,66 @@ def cmd_discover(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_install(args: argparse.Namespace) -> int:
+    """Run the full HERMES install sequence."""
+    from .installer import run_install
+
+    clan_dir = None
+    if getattr(args, "dir", None) and args.dir != ".":
+        clan_dir = Path(args.dir)
+
+    result = run_install(
+        clan_id=args.clan_id,
+        display_name=args.display_name,
+        clan_dir=clan_dir,
+        gateway_url=getattr(args, "gateway_url", "") or "",
+        relay_url=getattr(args, "relay_url", "") or "",
+        skip_hooks=getattr(args, "skip_hooks", False),
+        skip_service=getattr(args, "skip_service", False),
+    )
+    return 0 if result.success else 1
+
+
+def cmd_uninstall(args: argparse.Namespace) -> int:
+    """Run the HERMES uninstall sequence."""
+    from .installer import run_uninstall
+
+    clan_dir = None
+    if getattr(args, "dir", None) and args.dir != ".":
+        clan_dir = Path(args.dir)
+
+    result = run_uninstall(
+        clan_dir=clan_dir,
+        purge=getattr(args, "purge", False),
+        keep_hooks=getattr(args, "keep_hooks", False),
+    )
+    return 0 if result.success else 1
+
+
+def cmd_hook(args: argparse.Namespace) -> int:
+    """Dispatch to hook handlers."""
+    from .hooks import (
+        cmd_hook_exit_reminder,
+        cmd_hook_pull_on_prompt,
+        cmd_hook_pull_on_start,
+    )
+
+    hook_commands = {
+        "pull-on-start": cmd_hook_pull_on_start,
+        "pull-on-prompt": cmd_hook_pull_on_prompt,
+        "exit-reminder": cmd_hook_exit_reminder,
+    }
+
+    hook_cmd = getattr(args, "hook_command", None)
+    if hook_cmd is None:
+        print("Usage: hermes hook <pull-on-start|pull-on-prompt|exit-reminder>",
+              file=sys.stderr)
+        return 1
+
+    hook_commands[hook_cmd]()
+    return 0
+
+
 def _add_dir_arg(parser: argparse.ArgumentParser) -> None:
     """Add --dir argument to a subparser."""
     parser.add_argument("--dir", default=".", help="Clan directory (default: current)")
@@ -414,6 +477,37 @@ def build_parser() -> argparse.ArgumentParser:
     p_discover.add_argument("capability", help="Capability path to search")
     _add_dir_arg(p_discover)
 
+    # install
+    p_install = sub.add_parser("install", help="One-command HERMES setup")
+    p_install.add_argument("--clan-id", required=True, dest="clan_id",
+                           help="Unique clan identifier")
+    p_install.add_argument("--display-name", required=True, dest="display_name",
+                           help="Human-readable clan name")
+    p_install.add_argument("--gateway-url", default="", dest="gateway_url",
+                           help="Remote gateway URL")
+    p_install.add_argument("--relay-url", default="", dest="relay_url",
+                           help="Relay URL for bilateral exchange")
+    p_install.add_argument("--skip-hooks", action="store_true", dest="skip_hooks",
+                           help="Skip Claude Code hooks installation")
+    p_install.add_argument("--skip-service", action="store_true", dest="skip_service",
+                           help="Skip OS service installation")
+    _add_dir_arg(p_install)
+
+    # uninstall
+    p_uninstall = sub.add_parser("uninstall", help="Remove HERMES installation")
+    p_uninstall.add_argument("--purge", action="store_true",
+                             help="Delete clan directory and all data")
+    p_uninstall.add_argument("--keep-hooks", action="store_true", dest="keep_hooks",
+                             help="Preserve Claude Code hooks")
+    _add_dir_arg(p_uninstall)
+
+    # hook
+    p_hook = sub.add_parser("hook", help="Claude Code hook handlers")
+    hook_sub = p_hook.add_subparsers(dest="hook_command")
+    hook_sub.add_parser("pull-on-start", help="SessionStart hook")
+    hook_sub.add_parser("pull-on-prompt", help="UserPromptSubmit hook")
+    hook_sub.add_parser("exit-reminder", help="Stop hook")
+
     # daemon (ARC-4601)
     p_daemon = sub.add_parser("daemon", help="Manage Agent Node daemon")
     daemon_sub = p_daemon.add_subparsers(dest="daemon_command")
@@ -451,7 +545,12 @@ def main(argv: list[str] | None = None) -> int:
         "inbox": cmd_inbox,
         "bus": cmd_bus,
         "discover": cmd_discover,
+        "install": cmd_install,
+        "uninstall": cmd_uninstall,
     }
+
+    if args.command == "hook":
+        return cmd_hook(args)
 
     if args.command == "peer":
         peer_commands = {

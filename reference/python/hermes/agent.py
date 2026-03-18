@@ -965,6 +965,19 @@ class AgentNode:
                     except ValidationError:
                         logger.warning("Could not create escalation for: %s", msg.msg[:50])
 
+            # Desktop notification for new peer messages (best-effort)
+            try:
+                for msg in batch:
+                    if msg.src != self.config.namespace and msg.type in ("dispatch", "alert", "event"):
+                        from .installer import send_notification
+                        send_notification(
+                            "HERMES",
+                            f"[{msg.type}] from {msg.src}: {msg.msg[:60]}",
+                        )
+                        break  # One notification per batch
+            except Exception:
+                pass  # Never crash daemon for notifications
+
             # Update state
             if self.state:
                 self.state.bus_offset = self.observer.offset

@@ -155,6 +155,41 @@ Auto-detection by array length: 5 = static, 6 = ECDHE with forward secrecy.
 
 See [ARC-5322 §14](../spec/ARC-5322.md) and [ATR-G.711](../spec/ATR-G711.md) for the full specification and efficiency analysis.
 
+## Installer & Claude Code Integration
+
+The `installer` module ([`reference/python/hermes/installer.py`](../reference/python/hermes/installer.py)) provides one-command setup for the full HERMES stack:
+
+```
+hermes install --clan-id <id> --display-name <name>
+       │
+       ├─ 1. init_clan_if_needed()     → ~/.hermes/gateway.json + bus.jsonl
+       ├─ 2. generate_keypair()        → ~/.hermes/.keys/<id>.key (Ed25519 + X25519)
+       ├─ 3. add_agent_node_section()  → gateway.json agent_node block
+       ├─ 4. install_service()         → OS-specific daemon registration
+       ├─ 5. install_hooks()           → Claude Code hooks (3 events)
+       └─ 6. notify()                  → desktop notification
+```
+
+**OS service targets**:
+
+| Platform | Mechanism | Path |
+|----------|-----------|------|
+| macOS | LaunchAgent plist | `~/Library/LaunchAgents/com.hermes.agent-node.plist` |
+| Linux | systemd user unit | `~/.config/systemd/user/hermes-agent.service` |
+| Windows | Scheduled task | `HermesAgentNode` (schtasks) |
+
+**Claude Code hooks** ([`hooks.py`](../reference/python/hermes/hooks.py)):
+
+| Hook | Event | Behavior |
+|------|-------|----------|
+| `pull_on_start` | `SessionStart` | Shows pending bus messages as `systemMessage` |
+| `pull_on_prompt` | `UserPromptSubmit` | Activates on `/hermes` prefixed prompts |
+| `exit_reminder` | `Stop` | Reminds about unacked messages |
+
+Hooks are cross-platform (no bash dependency), invoked as `python -m hermes.hooks <cmd>`.
+
+![Install Flow](diagrams/d2/install-flow.svg)
+
 ## Related Specifications
 
 | Spec | Title | What it covers |
