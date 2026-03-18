@@ -1,0 +1,137 @@
+# HERMES Compact Wire Format — ARC-5322 §14
+# Verbose vs Compact side-by-side comparison
+# Brand: #1A1A2E #00D4AA #F5A623 #27AE60 #E74C3C #7F8C8D
+
+direction: right
+
+title: "ARC-5322 §14 — Compact Wire Format" {
+  shape: text
+  style.font-size: 32
+  style.font-color: "#00D4AA"
+  style.bold: true
+}
+
+verbose: Verbose (105B wrapper) {
+  style.fill: "#1A1A2E"
+  style.stroke: "#7F8C8D"
+  style.stroke-width: 2
+  style.font-color: "#7F8C8D"
+  style.font-size: 20
+  style.border-radius: 8
+
+  keys: |md
+    **Keys (21B)**: ts, src, dst, type, msg, ttl, ack
+    **Quotes (14B)**: 7 × 2 around keys
+    **Separators (33B)**: ": " × 7 + ", " × 6
+    **Values (29B)**: "2026-03-15", "state"
+    **Structure (8B)**: { } + value quotes
+  | {
+    style.font-size: 14
+    style.font-color: "#7F8C8D"
+  }
+
+  example: |code
+    {"ts":"2026-03-15","src":"eng","dst":"*",
+     "type":"state","msg":"...",
+     "ttl":7,"ack":[]}
+  | {
+    style.font-size: 13
+    style.font-color: "#F5A623"
+  }
+}
+
+compact: Compact (36B wrapper) {
+  style.fill: "#1A1A2E"
+  style.stroke: "#00D4AA"
+  style.stroke-width: 3
+  style.font-color: "#00D4AA"
+  style.font-size: 20
+  style.border-radius: 8
+
+  savings: |md
+    **No keys**: positional → schema known
+    **Epoch-day**: 9570 (4B vs 10B)
+    **Type enum**: 0 (1B vs 5-10B)
+    **Compact sep**: no spaces
+    **Still JSON**: cat + jq + grep
+  | {
+    style.font-size: 14
+    style.font-color: "#00D4AA"
+  }
+
+  example: |code
+    [9570,"eng","*",0,"...",7,[]]
+  | {
+    style.font-size: 13
+    style.font-color: "#27AE60"
+  }
+}
+
+verbose -> compact: "-66% wrapper\n105B → 36B" {
+  style.stroke: "#F5A623"
+  style.font-color: "#F5A623"
+  style.font-size: 16
+  style.stroke-width: 3
+  style.animated: true
+}
+
+efficiency: |md
+  **Efficiency @ 120B**
+  ───────────────────
+  HERMES compact **76.9%** ←
+  HERMES verbose   53.1%
+  MQTT v5.0        47.4%
+  gRPC             40.0%
+  HTTP/2           33.7%
+  HTTP/1.1         20.1%
+| {
+  shape: rectangle
+  style.fill: "#1A1A2E"
+  style.stroke: "#00D4AA"
+  style.font-color: "#00D4AA"
+  style.font-size: 16
+  style.border-radius: 8
+}
+
+compact -> efficiency: "4.9x less\nthan gRPC" {
+  style.stroke: "#27AE60"
+  style.font-color: "#27AE60"
+  style.font-size: 14
+  style.stroke-width: 2
+}
+
+detect: Auto-Detect {
+  shape: diamond
+  style.fill: "#F5A623"
+  style.font-color: "#1A1A2E"
+  style.font-size: 18
+  style.stroke: "#F5A623"
+  style.stroke-width: 2
+}
+
+detect -> verbose: "first char {" {
+  style.stroke: "#7F8C8D"
+  style.font-color: "#7F8C8D"
+  style.font-size: 14
+}
+
+detect -> compact: "first char [" {
+  style.stroke: "#00D4AA"
+  style.font-color: "#00D4AA"
+  style.font-size: 14
+}
+
+bus: bus.jsonl {
+  shape: cylinder
+  style.fill: "#1A1A2E"
+  style.font-color: "#27AE60"
+  style.stroke: "#27AE60"
+  style.stroke-width: 2
+  style.font-size: 20
+}
+
+bus -> detect: "parse_line()" {
+  style.stroke: "#27AE60"
+  style.font-color: "#27AE60"
+  style.font-size: 14
+}

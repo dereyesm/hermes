@@ -93,12 +93,16 @@ def fin(
     bus_path: str | Path,
     namespace: str,
     actions: list[FinAction] | None = None,
+    compact: bool = False,
 ) -> list[Message]:
     """Execute the FIN protocol for a namespace.
 
     Per ARC-0793:
     1. Write state changes to bus
     2. Return the messages written (caller handles SYNC HEADER update and ACKs)
+
+    Args:
+        compact: If True, write messages in compact format (ARC-5322 §14).
 
     Returns list of messages written to the bus.
     """
@@ -114,7 +118,7 @@ def fin(
             msg=action.msg,
             ttl=action.ttl,
         )
-        write_message(bus_path, msg)
+        write_message(bus_path, msg, compact=compact)
         written.append(msg)
 
     return written

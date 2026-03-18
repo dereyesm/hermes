@@ -528,6 +528,18 @@ class TestSynProtocol:
 
 
 class TestFinProtocol:
+    def test_fin_writes_compact(self, bus_dir):
+        bus = bus_dir / "bus.jsonl"
+        actions = [
+            FinAction(dst="*", type="state", msg="compact_fin"),
+        ]
+        written = fin(bus, "engineering", actions, compact=True)
+        assert len(written) == 1
+        raw = bus.read_text()
+        assert raw.startswith("[")  # compact format
+        msgs = read_bus(bus)
+        assert msgs[0].msg == "compact_fin"
+
     def test_fin_writes_messages(self, bus_dir):
         bus = bus_dir / "bus.jsonl"
         actions = [
