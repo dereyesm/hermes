@@ -1,8 +1,9 @@
-"""Tests for HERMES CLI — hermes init, status, publish, peer, send, inbox, discover."""
+"""Tests for HERMES CLI — hermes init, status, publish, peer, send, inbox, discover, bus."""
 
 from __future__ import annotations
 
 from hermes.cli import main
+from hermes.message import create_message
 
 
 class TestInit:
@@ -208,6 +209,85 @@ class TestDiscover:
         matches = agora.discover("finance")
         assert len(matches) == 1
         assert matches[0]["agent_alias"] == "gold-auditor"
+
+
+class TestBusCommand:
+    """Tests for hermes bus command with --compact and --expand flags."""
+
+    def _setup_clan_with_bus(self, tmp_path, capsys):
+        """Create a clan dir with gateway.json and a bus with test messages."""
+        from datetime import date
+
+        main(["init", "test-clan", "Test Clan", "--dir", str(tmp_path)])
+        capsys.readouterr()  # discard init output
+        bus_path = tmp_path / "bus.jsonl"
+        msg = create_message(
+            src="alpha", dst="*", type="state", msg="test message", ttl=7,
+            ts=date(2026, 3, 17),
+        )
+        bus_path.write_text(msg.to_jsonl() + "\n")
+        return bus_path
+
+    def test_bus_compact_output(self, tmp_path, capsys):
+        """hermes bus --compact should output compact JSONL."""
+        self._setup_clan_with_bus(tmp_path, capsys)
+        rc = main(["bus", "--compact", "--dir", str(tmp_path)])
+        assert rc == 0
+        out = capsys.readouterr().out.strip()
+        assert out.startswith("[")  # compact format starts with [
+
+    def test_bus_expand_output(self, tmp_path, capsys):
+        """hermes bus --expand should output verbose JSONL."""
+        self._setup_clan_with_bus(tmp_path, capsys)
+        rc = main(["bus", "--expand", "--dir", str(tmp_path)])
+        assert rc == 0
+        out = capsys.readouterr().out.strip()
+        assert out.startswith("{")  # verbose format starts with {
+
+    def test_bus_default_output(self, tmp_path, capsys):
+        """hermes bus (no flags) should use print_bus_messages."""
+        self._setup_clan_with_bus(tmp_path, capsys)
+        rc = main(["bus", "--dir", str(tmp_path)])
+        assert rc == 0
+
+    def test_bus_compact_reads_mixed_format(self, tmp_path, capsys):
+        """hermes bus --compact should handle mixed verbose+compact input."""
+        from datetime import date
+
+        self._setup_clan_with_bus(tmp_path, capsys)
+        bus_path = tmp_path / "bus.jsonl"
+        # Add a compact message
+        msg2 = create_message(
+            src="beta", dst="*", type="event", msg="compact msg", ttl=3,
+            ts=date(2026, 3, 17),
+        )
+        with bus_path.open("a") as f:
+            f.write(msg2.to_compact_jsonl() + "\n")
+
+        rc = main(["bus", "--compact", "--dir", str(tmp_path)])
+        assert rc == 0
+        lines = capsys.readouterr().out.strip().split("\n")
+        assert len(lines) == 2
+        assert all(line.startswith("[") for line in lines)
+
+    def test_bus_compact_with_filter(self, tmp_path, capsys):
+        """--compact works with --filter-type."""
+        from datetime import date
+
+        self._setup_clan_with_bus(tmp_path, capsys)
+        bus_path = tmp_path / "bus.jsonl"
+        msg2 = create_message(
+            src="beta", dst="*", type="alert", msg="alert msg", ttl=5,
+            ts=date(2026, 3, 17),
+        )
+        with bus_path.open("a") as f:
+            f.write(msg2.to_jsonl() + "\n")
+
+        rc = main(["bus", "--compact", "--filter-type", "alert", "--dir", str(tmp_path)])
+        assert rc == 0
+        lines = capsys.readouterr().out.strip().split("\n")
+        assert len(lines) == 1
+        assert "alert msg" in lines[0]
 
 
 class TestEndToEnd:

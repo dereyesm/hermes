@@ -10,6 +10,8 @@ from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
 from hermes.crypto import (
+    COMPACT_SEALED_ECDHE_LEN,
+    COMPACT_SEALED_STATIC_LEN,
     ClanKeyPair,
     NonceTracker,
     _build_aad_ecdhe,
@@ -19,8 +21,11 @@ from hermes.crypto import (
     encrypt_message,
     load_peer_public,
     open_bus_message,
+    open_bus_message_compact,
     seal_bus_message,
+    seal_bus_message_compact,
     seal_bus_message_ecdhe,
+    seal_bus_message_ecdhe_compact,
     sign_message,
     verify_signature,
 )
@@ -622,3 +627,163 @@ class TestECDHE:
         )
         assert plain_ecdhe == "ecdhe msg"
         assert plain_static == "static msg"
+
+
+class TestCompactSealedEnvelope:
+    """Tests for compact sealed envelope format (ARC-5322 §14 + ARC-8446)."""
+
+    def test_static_compact_roundtrip(self):
+        """Seal compact static, open compact, verify plaintext."""
+        dani = ClanKeyPair.generate()
+        jei = ClanKeyPair.generate()
+        meta = {"src": "momoshod", "dst": "jei", "type": "quest", "ts": "2026-03-17"}
+
+        sealed = seal_bus_message_compact(dani, jei.dh_public, "compact static", envelope_meta=meta)
+        assert isinstance(sealed, list)
+        assert len(sealed) == COMPACT_SEALED_STATIC_LEN
+
+        plaintext = open_bus_message_compact(
+            jei, dani.sign_public, dani.dh_public, sealed, envelope_meta=meta
+        )
+        assert plaintext == "compact static"
+
+    def test_ecdhe_compact_roundtrip(self):
+        """Seal compact ECDHE, open compact, verify plaintext."""
+        dani = ClanKeyPair.generate()
+        jei = ClanKeyPair.generate()
+        meta = {"src": "momoshod", "dst": "jei", "type": "quest", "ts": "2026-03-17"}
+
+        sealed = seal_bus_message_ecdhe_compact(
+            dani, jei.dh_public, "compact ecdhe", envelope_meta=meta
+        )
+        assert isinstance(sealed, list)
+        assert len(sealed) == COMPACT_SEALED_ECDHE_LEN
+
+        plaintext = open_bus_message_compact(
+            jei, dani.sign_public, dani.dh_public, sealed, envelope_meta=meta
+        )
+        assert plaintext == "compact ecdhe"
+
+    def test_static_compact_array_structure(self):
+        """Verify compact static array has [ct, nonce, sig, pub, aad]."""
+        dani = ClanKeyPair.generate()
+        jei = ClanKeyPair.generate()
+        sealed = seal_bus_message_compact(dani, jei.dh_public, "structure test")
+        assert len(sealed) == 5
+        # All elements should be hex strings
+        for i, elem in enumerate(sealed):
+            assert isinstance(elem, str), f"Element {i} should be string"
+
+    def test_ecdhe_compact_array_structure(self):
+        """Verify compact ECDHE array has [ct, nonce, sig, pub, aad, eph_pub]."""
+        dani = ClanKeyPair.generate()
+        jei = ClanKeyPair.generate()
+        sealed = seal_bus_message_ecdhe_compact(dani, jei.dh_public, "structure test")
+        assert len(sealed) == 6
+        # eph_pub (index 5) should be 64 hex chars (32 bytes X25519 public key)
+        assert len(sealed[5]) == 64
+
+    def test_compact_is_json_serializable(self):
+        """Compact envelope should survive JSON round-trip."""
+        dani = ClanKeyPair.generate()
+        jei = ClanKeyPair.generate()
+        meta = {"src": "momoshod", "dst": "jei", "type": "quest", "ts": "2026-03-17"}
+
+        sealed = seal_bus_message_ecdhe_compact(
+            dani, jei.dh_public, "json roundtrip", envelope_meta=meta
+        )
+        json_str = json.dumps(sealed)
+        restored = json.loads(json_str)
+
+        plaintext = open_bus_message_compact(
+            jei, dani.sign_public, dani.dh_public, restored, envelope_meta=meta
+        )
+        assert plaintext == "json roundtrip"
+
+    def test_compact_rejects_wrong_length(self):
+        """Open compact should reject arrays with wrong element count."""
+        dani = ClanKeyPair.generate()
+        jei = ClanKeyPair.generate()
+        result = open_bus_message_compact(
+            jei, dani.sign_public, dani.dh_public, ["a", "b", "c"]
+        )
+        assert result is None
+
+    def test_compact_rejects_non_list(self):
+        """Open compact should reject non-list input."""
+        dani = ClanKeyPair.generate()
+        jei = ClanKeyPair.generate()
+        result = open_bus_message_compact(
+            jei, dani.sign_public, dani.dh_public, {"not": "a list"}
+        )
+        assert result is None
+
+    def test_compact_vs_verbose_same_crypto(self):
+        """Compact and verbose seal should produce equivalent crypto operations."""
+        dani = ClanKeyPair.generate()
+        jei = ClanKeyPair.generate()
+        meta = {"src": "momoshod", "dst": "jei", "type": "quest", "ts": "2026-03-17"}
+
+        # Seal verbose, open compact (cross-format should NOT work — different nonces)
+        # But sealing + opening in same format should always work
+        sealed_v = seal_bus_message(dani, jei.dh_public, "verbose", envelope_meta=meta)
+        sealed_c = seal_bus_message_compact(dani, jei.dh_public, "compact", envelope_meta=meta)
+
+        plain_v = open_bus_message(
+            jei, dani.sign_public, dani.dh_public, sealed_v, envelope_meta=meta
+        )
+        plain_c = open_bus_message_compact(
+            jei, dani.sign_public, dani.dh_public, sealed_c, envelope_meta=meta
+        )
+        assert plain_v == "verbose"
+        assert plain_c == "compact"
+
+    def test_ecdhe_compact_ephemeral_uniqueness(self):
+        """Each ECDHE compact seal generates a unique eph_pub."""
+        dani = ClanKeyPair.generate()
+        jei = ClanKeyPair.generate()
+
+        s1 = seal_bus_message_ecdhe_compact(dani, jei.dh_public, "msg1")
+        s2 = seal_bus_message_ecdhe_compact(dani, jei.dh_public, "msg2")
+        assert s1[5] != s2[5]  # eph_pub at index 5
+
+    def test_compact_without_envelope_meta(self):
+        """Compact seal/open works without envelope_meta."""
+        dani = ClanKeyPair.generate()
+        jei = ClanKeyPair.generate()
+
+        sealed = seal_bus_message_compact(dani, jei.dh_public, "no meta")
+        plaintext = open_bus_message_compact(
+            jei, dani.sign_public, dani.dh_public, sealed
+        )
+        assert plaintext == "no meta"
+
+    def test_ecdhe_compact_without_envelope_meta(self):
+        """ECDHE compact seal/open works without envelope_meta."""
+        dani = ClanKeyPair.generate()
+        jei = ClanKeyPair.generate()
+
+        sealed = seal_bus_message_ecdhe_compact(dani, jei.dh_public, "no meta ecdhe")
+        plaintext = open_bus_message_compact(
+            jei, dani.sign_public, dani.dh_public, sealed
+        )
+        assert plaintext == "no meta ecdhe"
+
+    def test_compact_size_savings(self):
+        """Compact envelope should be smaller than verbose when serialized."""
+        dani = ClanKeyPair.generate()
+        jei = ClanKeyPair.generate()
+        meta = {"src": "momoshod", "dst": "jei", "type": "quest", "ts": "2026-03-17"}
+
+        sealed_v = seal_bus_message_ecdhe(
+            dani, jei.dh_public, "size test", envelope_meta=meta
+        )
+        sealed_c = seal_bus_message_ecdhe_compact(
+            dani, jei.dh_public, "size test", envelope_meta=meta
+        )
+
+        json_v = json.dumps(sealed_v, separators=(",", ":"))
+        json_c = json.dumps(sealed_c, separators=(",", ":"))
+
+        # Compact removes key names → should be smaller
+        assert len(json_c) < len(json_v)

@@ -309,6 +309,20 @@ def cmd_bus(args: argparse.Namespace) -> int:
     if pending:
         messages = filter_for_namespace(messages, config.clan_id)
 
+    # --compact: output in compact JSONL format (ARC-5322 §14)
+    compact = getattr(args, "compact", False)
+    if compact:
+        for m in messages:
+            print(m.to_compact_jsonl())
+        return 0
+
+    # --expand: output in verbose JSONL format
+    expand = getattr(args, "expand", False)
+    if expand:
+        for m in messages:
+            print(m.to_jsonl())
+        return 0
+
     print_bus_messages(messages, namespace=config.clan_id)
     return 0
 
@@ -375,6 +389,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_send = sub.add_parser("send", help="Send message to peer")
     p_send.add_argument("target_clan", help="Target clan ID")
     p_send.add_argument("message", help="Message payload")
+    p_send.add_argument("--compact", action="store_true",
+                        help="Use compact wire format (ARC-5322 §14)")
     _add_dir_arg(p_send)
 
     # inbox
@@ -387,6 +403,10 @@ def build_parser() -> argparse.ArgumentParser:
                        help="Filter by message type (e.g. STATE, alert)")
     p_bus.add_argument("--pending", action="store_true",
                        help="Show only messages not yet ACKed by this clan")
+    p_bus.add_argument("--compact", action="store_true",
+                       help="Output in compact JSONL format (ARC-5322 §14)")
+    p_bus.add_argument("--expand", action="store_true",
+                       help="Output in verbose JSONL format")
     _add_dir_arg(p_bus)
 
     # discover
