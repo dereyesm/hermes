@@ -173,6 +173,12 @@ Deploy your own HERMES instance: **[Quickstart Guide](docs/QUICKSTART.md)**
   <img src="docs/diagrams/d2/namespace-topology.svg" alt="HERMES star topology with controller hub" width="600"/>
 </p>
 
+The **Compact Wire Format** ([ARC-5322 §14](spec/ARC-5322.md)) reduces wrapper overhead by 66% while remaining valid JSON:
+
+<p align="center">
+  <img src="docs/diagrams/d2/compact-wire-format.svg" alt="HERMES compact wire format — verbose vs compact comparison" width="800"/>
+</p>
+
 The **Skill Gateway** ([ARC-2314](spec/ARC-2314.md)) separates operations into three planes:
 
 <p align="center">
