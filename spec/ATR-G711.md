@@ -499,5 +499,55 @@ against the HERMES reference implementation.
 
 ---
 
+## Appendix D: Overhead Model Reference Data
+
+Complete overhead comparison at 120-byte payload (ARC-5322 reference message
+size), produced by `overhead_model.py`:
+
+### D.1. Per-Message Overhead
+
+| Protocol | Overhead | Total | Overhead% | Efficiency |
+|----------|----------|-------|-----------|-----------|
+| HERMES compact (§14) | 37 B | 157 B | 23.6% | **76.4%** |
+| HERMES verbose | 106 B | 226 B | 46.9% | 53.1% |
+| MQTT v5.0 (TLS) | 133 B | 253 B | 52.6% | 47.4% |
+| gRPC (HTTP/2 + protobuf) | 180 B | 300 B | 60.0% | 40.0% |
+| HTTP/2 (HPACK, HTTPS) | 236 B | 356 B | 66.3% | 33.7% |
+| HTTP/1.1 REST (HTTPS) | 477 B | 597 B | 79.9% | 20.1% |
+
+### D.2. Overhead Breakdown
+
+| Protocol | Transport | Framing | Format | Total |
+|----------|-----------|---------|--------|-------|
+| HERMES compact (§14) | 0 B | 1 B | 36 B | 37 B |
+| HERMES verbose | 0 B | 1 B | 105 B | 106 B |
+| MQTT v5.0 (TLS) | 62 B | 31 B | 40 B | 133 B |
+| gRPC (HTTP/2 + protobuf) | 62 B | 103 B | 15 B | 180 B |
+| HTTP/2 (HPACK, HTTPS) | 62 B | 109 B | 65 B | 236 B |
+| HTTP/1.1 REST (HTTPS) | 62 B | 350 B | 65 B | 477 B |
+
+Transport = TCP(20B) + TLS 1.3(22B) + IPv4(20B) = 62B for network protocols.
+HERMES bus: 0B transport (local file I/O, no network stack).
+
+### D.3. Cumulative at Scale
+
+| Protocol | N=1 | N=100 | N=1,000 |
+|----------|-----|-------|---------|
+| HERMES compact | 37 B | 3.6 KB | 36.1 KB |
+| HERMES verbose | 106 B | 10.4 KB | 103.5 KB |
+| gRPC | 180 B | 17.6 KB | 175.8 KB |
+| HTTP/1.1 REST | 477 B | 46.6 KB | 465.8 KB |
+
+### D.4. Key Ratios
+
+- HERMES compact vs gRPC: **4.9x less overhead** (37B vs 180B)
+- HERMES compact vs MQTT: **3.6x less overhead** (37B vs 133B)
+- HERMES compact vs HTTP/1.1: **12.9x less overhead** (37B vs 477B)
+
+Data source: `docs/research/l3-channel-efficiency/overhead_model.py`
+Methodology: RFC-derived byte counts. See §6.6 for formal sources.
+
+---
+
 *ATR-G.711 — HERMES Project — MIT License*
 *Generated from overhead_model.py v1.0 data (2026-03-17)*

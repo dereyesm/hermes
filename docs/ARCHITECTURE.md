@@ -99,6 +99,62 @@ See [ARC-3022](../spec/ARC-3022.md) for the full specification.
   <img src="diagrams/d2/dual-reputation.svg" alt="HERMES dual reputation model — Bounty vs Resonance" width="600"/>
 </p>
 
+## Compact Wire Format (ARC-5322 §14)
+
+HERMES supports a **dual-mode wire format**: verbose (JSON objects) and compact (JSON arrays). Both are valid JSON, readable by standard tools, and can coexist on the same bus.
+
+### Verbose vs Compact
+
+```
+Verbose:  {"ts":"2026-03-17","src":"engineering","dst":"*","type":"state","msg":"API deployed","ttl":7,"ack":[]}
+Compact:  [9572,"engineering","*",0,"API deployed",7,[]]
+```
+
+The compact format replaces key names with positional indices and uses integer encodings for `ts` (epoch-day since 2000-01-01) and `type` (enum 0-6). This eliminates ~69 bytes of overhead per message.
+
+### Efficiency
+
+| Format | Overhead | Efficiency | vs gRPC |
+|--------|----------|-----------|---------|
+| Verbose | 105 B | 53.1% | 1.7x better |
+| **Compact** | **36 B** | **76.9%** | **4.9x better** |
+| gRPC (HTTP/2+protobuf) | 180 B | 40.0% | — |
+
+### Mixed-Mode Bus
+
+The bus auto-detects format by the first character of each line (`{` = verbose, `[` = compact). Implementations read both formats regardless of which they write.
+
+```
+{"ts":"2026-03-17","src":"alpha","dst":"*","type":"state","msg":"old agent","ttl":7,"ack":[]}
+[9572,"beta","*",2,"new agent",3,[]]
+```
+
+### CLI Support
+
+```bash
+hermes bus --compact      # Output all messages in compact format
+hermes bus --expand       # Output all messages in verbose format
+cat bus.jsonl | python -m hermes.message --compact   # Convert to compact
+cat bus.jsonl | python -m hermes.message --expand    # Convert to verbose
+```
+
+### Compact Sealed Envelopes (ARC-8446)
+
+Encrypted messages also support compact representation:
+
+| Mode | Format | Elements |
+|------|--------|----------|
+| Static | `[ciphertext, nonce, signature, sender_pub, aad]` | 5 |
+| ECDHE | `[ciphertext, nonce, signature, sender_pub, aad, eph_pub]` | 6 |
+
+Auto-detection by array length: 5 = static, 6 = ECDHE with forward secrecy.
+
+<p align="center">
+  <img src="diagrams/d2/compact-wire-format.svg" alt="HERMES compact wire format comparison" width="700"/>
+</p>
+
+See [ARC-5322 §14](../spec/ARC-5322.md) and [ATR-G.711](../spec/ATR-G711.md) for the full specification and efficiency analysis.
+
 ## Related Specifications
 
 | Spec | Title | What it covers |

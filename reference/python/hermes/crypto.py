@@ -455,6 +455,101 @@ def open_bus_message(
             return None
 
 
+# ARC-5322 §14 + ARC-8446: Compact sealed envelope format
+# Static:  [ciphertext, nonce, signature, sender_sign_pub, aad]
+# ECDHE:   [ciphertext, nonce, signature, sender_sign_pub, aad, eph_pub]
+COMPACT_SEALED_STATIC_LEN = 5
+COMPACT_SEALED_ECDHE_LEN = 6
+
+
+def seal_bus_message_compact(
+    my_keys: ClanKeyPair,
+    peer_dh_public: X25519PublicKey,
+    msg: str,
+    envelope_meta: dict | None = None,
+) -> list:
+    """Encrypt + sign a bus message, returning a compact array envelope.
+
+    Same cryptography as seal_bus_message(), but returns a positional array
+    instead of a dict to reduce overhead. Format: ARC-5322 §14 compact
+    sealed envelope (5 elements for static mode).
+    """
+    sealed = seal_bus_message(my_keys, peer_dh_public, msg, envelope_meta)
+    return [
+        sealed["ciphertext"],
+        sealed["nonce"],
+        sealed["signature"],
+        sealed["sender_sign_pub"],
+        sealed.get("aad", ""),
+    ]
+
+
+def seal_bus_message_ecdhe_compact(
+    my_keys: ClanKeyPair,
+    peer_dh_public: X25519PublicKey,
+    msg: str,
+    envelope_meta: dict | None = None,
+) -> list:
+    """Encrypt + sign a bus message with ECDHE, returning a compact array envelope.
+
+    Same cryptography as seal_bus_message_ecdhe(), but returns a positional array
+    instead of a dict. Format: ARC-5322 §14 compact sealed envelope
+    (6 elements for ECDHE mode — includes eph_pub).
+    """
+    sealed = seal_bus_message_ecdhe(my_keys, peer_dh_public, msg, envelope_meta)
+    return [
+        sealed["ciphertext"],
+        sealed["nonce"],
+        sealed["signature"],
+        sealed["sender_sign_pub"],
+        sealed.get("aad", ""),
+        sealed["eph_pub"],
+    ]
+
+
+def open_bus_message_compact(
+    my_keys: ClanKeyPair,
+    peer_sign_public: Ed25519PublicKey,
+    peer_dh_public: X25519PublicKey,
+    sealed_compact: list,
+    envelope_meta: dict | None = None,
+    nonce_tracker: "NonceTracker | None" = None,
+) -> str | None:
+    """Verify + decrypt a compact sealed envelope.
+
+    Auto-detects ECDHE (6 elements) vs static (5 elements) by array length.
+    Converts to dict and delegates to open_bus_message().
+    """
+    if not isinstance(sealed_compact, list):
+        return None
+    if len(sealed_compact) == COMPACT_SEALED_ECDHE_LEN:
+        sealed = {
+            "ciphertext": sealed_compact[0],
+            "nonce": sealed_compact[1],
+            "signature": sealed_compact[2],
+            "sender_sign_pub": sealed_compact[3],
+            "aad": sealed_compact[4],
+            "eph_pub": sealed_compact[5],
+            "enc": "ECDHE-X25519-AES256GCM",
+        }
+    elif len(sealed_compact) == COMPACT_SEALED_STATIC_LEN:
+        sealed = {
+            "ciphertext": sealed_compact[0],
+            "nonce": sealed_compact[1],
+            "signature": sealed_compact[2],
+            "sender_sign_pub": sealed_compact[3],
+        }
+        if sealed_compact[4]:
+            sealed["aad"] = sealed_compact[4]
+    else:
+        return None
+
+    return open_bus_message(
+        my_keys, peer_sign_public, peer_dh_public,
+        sealed, envelope_meta, nonce_tracker,
+    )
+
+
 class NonceTracker:
     """Tracks received nonces to prevent replay attacks (ARC-8446 §9.5).
 
