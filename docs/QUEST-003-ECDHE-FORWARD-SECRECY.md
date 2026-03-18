@@ -4,7 +4,7 @@
 |---|---|
 | ID | QUEST-003 |
 | Title | Per-Message Forward Secrecy via Ephemeral Diffie-Hellman (ECDHE) |
-| Status | **PROPOSED** |
+| Status | **PHASE 1 COMPLETE** |
 | Clans | momoshod, jei |
 | Spec | ARC-8446 Section 11.2 |
 | Created | 2026-03-16 |
@@ -152,14 +152,15 @@ as the primary detection mechanism, with `enc` as a secondary signal.
 
 ### Clan DANI (momoshod)
 
-- [ ] `seal_bus_message()` supports `ephemeral=True` parameter (or new `seal_bus_message_ecdhe()`)
-- [ ] Ephemeral X25519 keypair generated per call; private key zeroized after DH
-- [ ] HKDF uses `info=b"HERMES-ARC8446-ECDHE-v1"` for ECDHE derivation
-- [ ] Signature computed over `ciphertext_bytes + eph_pub_bytes`
-- [ ] AAD includes `eph_pub` field per Section 11.2.5
-- [ ] `open_bus_message()` detects `eph_pub` and uses ECDHE path automatically
-- [ ] Backward compat: static-mode messages still decrypt correctly
-- [ ] Zeroization test: verify ephemeral private key is not recoverable after seal
+- [x] `seal_bus_message_ecdhe()` implemented (crypto.py:288)
+- [x] Ephemeral X25519 keypair generated per call; private key zeroized after DH
+- [x] HKDF uses `info=b"HERMES-ARC8446-ECDHE-v1"` for ECDHE derivation
+- [x] Signature computed over `ciphertext_bytes + eph_pub_bytes`
+- [x] AAD includes `eph_pub` field per Section 11.2.5
+- [x] `open_bus_message()` detects `eph_pub` and uses ECDHE path automatically
+- [x] Backward compat: static-mode messages still decrypt correctly
+- [x] Zeroization: ephemeral private key deleted after DH (best-effort Python)
+- [x] Compact sealed envelopes: `seal_bus_message_ecdhe_compact()` (2026-03-18)
 - [ ] At least one ECDHE-sealed message sent to JEI via relay, successfully decrypted
 
 ### Clan JEI
@@ -212,10 +213,10 @@ as the primary detection mechanism, with `enc` as a secondary signal.
 
 | Phase | Target | Owner |
 |---|---|---|
-| Proposal review | 2026-03-17 | Both clans |
-| Phase 1 (local tests) | 2026-03-19 | Each clan independently |
-| Phase 2 (bilateral exchange) | 2026-03-22 | Both clans |
-| Phase 3 (documentation + enforce) | 2026-03-24 | Both clans |
+| Proposal review | 2026-03-17 | Both clans | DONE |
+| Phase 1 (local tests) | 2026-03-19 | Each clan independently | **DANI COMPLETE (2026-03-18)** |
+| Phase 2 (bilateral exchange) | 2026-03-22 | Both clans | Pending |
+| Phase 3 (documentation + enforce) | 2026-03-24 | Both clans | Pending |
 
 ## Security Considerations
 
