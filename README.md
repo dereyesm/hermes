@@ -3,8 +3,8 @@
 [![Tests](https://github.com/dereyesm/hermes/actions/workflows/ci.yml/badge.svg)](https://github.com/dereyesm/hermes/actions/workflows/ci.yml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Specs: 17](https://img.shields.io/badge/specs-17%20(16%20IMPL%20%2B%201%20DRAFT)-orange.svg)](spec/INDEX.md)
-[![Tests: 493](https://img.shields.io/badge/tests-493%20passing-brightgreen.svg)](reference/python/tests/)
+[![Specs: 18](https://img.shields.io/badge/specs-18%20(17%20IMPL%20%2B%201%20DRAFT)-orange.svg)](spec/INDEX.md)
+[![Tests: 524](https://img.shields.io/badge/tests-524%20passing-brightgreen.svg)](reference/python/tests/)
 
 <p align="center">
   <a href="#architecture">
@@ -57,6 +57,7 @@ See [docs/POSITIONING.md](docs/POSITIONING.md) for the full technical positionin
 ## Key Features
 
 - **Zero infrastructure** -- works with `cat >> bus.jsonl`. No servers, no Docker, no cloud, no internet required.
+- **76.9% wire efficient** -- compact mode ([ARC-5322 §14](spec/ARC-5322.md)) is 4.9x less overhead than gRPC and 3.6x less than MQTT. Still valid JSON, readable with `cat` and `jq`. See [ATR-G.711](spec/ATR-G711.md).
 - **File-based = auditable** -- every message is a line of JSON. Git-versionable, grep-searchable, human-inspectable.
 - **Telecom engineering rigor** -- three-track standards system (ARC/ATR/AES) modeled after IETF, ITU-T, and IEEE. Shannon-constrained payloads. Triple-plane CUPS architecture (ARC-2314): Control Plane (Messengers), Orchestration Plane (Dojos), User Plane (Skills).
 - **Privacy-first** -- ARC-1918 firewalls enforce namespace isolation. The gateway (ARC-3022) acts as NAT: internal identity is never exposed to external networks.
@@ -124,21 +125,31 @@ for line in sys.stdin:
 "
 ```
 
-A complete HERMES message has exactly 7 fields per [ARC-5322](spec/ARC-5322.md):
+A complete HERMES message has exactly 7 fields per [ARC-5322](spec/ARC-5322.md). Two wire formats are supported, auto-detected by the first character (`{` or `[`):
 
 ```json
-{"ts":"2026-03-03","src":"engineering","dst":"ops","type":"state","msg":"Build pipeline green. 214 tests passing.","ttl":7,"ack":[]}
+{"ts":"2026-03-03","src":"engineering","dst":"ops","type":"state","msg":"Build pipeline green.","ttl":7,"ack":[]}
+[9559,"engineering","ops",0,"Build pipeline green.",7,[]]
 ```
 
-| Field | Description |
-|-------|-------------|
-| `ts` | ISO date (YYYY-MM-DD) |
-| `src` | Source namespace |
-| `dst` | Destination namespace (`*` for broadcast) |
-| `type` | Message type: `state`, `alert`, `event`, `request`, `data_cross`, `dispatch`, `dojo_event` |
-| `msg` | Payload (max 120 characters -- Shannon constraint for atomicity) |
-| `ttl` | Time-to-live in days |
-| `ack` | Array of namespaces that have acknowledged this message |
+The **verbose** format (object) is human-first. The **compact** format ([§14](spec/ARC-5322.md)) uses positional arrays, epoch-day timestamps, and integer type enums -- reducing wrapper from 105B to 36B while remaining valid JSON:
+
+| Metric | Verbose | Compact |
+|--------|---------|---------|
+| Wrapper overhead | 105 B | **36 B** |
+| Efficiency @120B | 53.1% | **76.9%** |
+| vs gRPC | 1.7x | **4.9x** less overhead |
+| vs MQTT | 1.3x | **3.6x** less overhead |
+
+| Field | Verbose Key | Compact Index | Description |
+|-------|-------------|---------------|-------------|
+| Timestamp | `ts` | `[0]` | ISO date or epoch-day (days since 2000-01-01) |
+| Source | `src` | `[1]` | Source namespace |
+| Destination | `dst` | `[2]` | Destination namespace (`*` for broadcast) |
+| Type | `type` | `[3]` | Message type (string or integer 0-6) |
+| Payload | `msg` | `[4]` | Payload (max 120 chars -- Shannon constraint) |
+| TTL | `ttl` | `[5]` | Time-to-live in days |
+| Acks | `ack` | `[6]` | Array of namespaces that acknowledged |
 
 **New to HERMES?** Start here: **[Getting Started Guide](docs/GETTING-STARTED.md)** -- step-by-step setup, call flows explained visually, and how to connect your clan to the network.
 
@@ -206,7 +217,7 @@ HERMES uses a formal, RFC-like standards process with three tracks, each tracing
 | **ATR** | ITU-T Rec. | Architecture, reference models, telecom-inspired patterns | ATR-X.200: Reference Model |
 | **AES** | IEEE Std | Implementation standards: interoperability, isolation, QoS | AES-802.1Q: Namespace Isolation |
 
-### Implemented Standards (16 specs + 1 DRAFT)
+### Implemented Standards (17 specs + 1 DRAFT)
 
 | Standard | Title | Tier | IETF/ITU-T Lineage |
 |----------|-------|------|---------------------|
@@ -219,12 +230,13 @@ HERMES uses a formal, RFC-like standards process with three tracks, each tracing
 | [ARC-2606](spec/ARC-2606.md) | Agent Profile & Discovery | Extension | RFC 2606 (Reserved Domains) |
 | [ARC-3022](spec/ARC-3022.md) | Agent Gateway Protocol | Extension | RFC 3022 (NAT) |
 | [ARC-4601](spec/ARC-4601.md) | Agent Node Protocol | Extension | RFC 4601 (PIM-SM) |
-| [ARC-5322](spec/ARC-5322.md) | Message Format | Core | RFC 5322 (Internet Message Format) |
+| [ARC-5322](spec/ARC-5322.md) | Message Format + Compact Wire (§14) | Core | RFC 5322 (Internet Message Format) |
 | [ARC-7231](spec/ARC-7231.md) | Agent Semantics — Bridge Protocol | Extension | RFC 7231 (HTTP Semantics) |
 | [ARC-8446](spec/ARC-8446.md) | Encrypted Bus Protocol | Security | RFC 8446 (TLS 1.3) |
 | [ARC-2119](spec/ARC-2119.md) | Requirement Level Keywords | Meta | RFC 2119 (MUST/SHOULD/MAY) |
 | [ATR-X.200](spec/ATR-X200.md) | Reference Model | Core | ITU-T X.200 (OSI Reference Model) |
 | [ATR-Q.700](spec/ATR-Q700.md) | Out-of-Band Signaling | Philosophy | ITU-T Q.700 (SS7) |
+| [ATR-G.711](spec/ATR-G711.md) | Payload Encoding & Wire Efficiency | Extension | ITU-T G.711 (PCM) |
 | [AES-2040](spec/AES-2040.md) | Agent Visualization Standard | Extension | Original (DRAFT) |
 
 Full index with 30 planned standards: **[spec/INDEX.md](spec/INDEX.md)**
@@ -233,7 +245,7 @@ Full index with 30 planned standards: **[spec/INDEX.md](spec/INDEX.md)**
 
 ## Reference Implementation
 
-A Python reference implementation is included for validation and experimentation (**493 tests passing**):
+A Python reference implementation is included for validation and experimentation (**524 tests passing**):
 
 ```bash
 cd reference/python
@@ -242,7 +254,7 @@ python -m pytest tests/ -v
 ```
 
 Modules:
-- `message.py` -- format validation per ARC-5322, transport mode classification per ARC-0768
+- `message.py` -- format validation per ARC-5322 (verbose + compact §14), transport mode per ARC-0768
 - `bus.py` -- read, write, filter, archive, correlation per ARC-0793 and ARC-0768
 - `sync.py` -- SYN/FIN lifecycle management
 - `gateway.py` -- identity translation, outbound filtering, attestation per ARC-3022
@@ -302,7 +314,7 @@ Full plan: **[docs/EVOLUTION-PLAN.md](docs/EVOLUTION-PLAN.md)**
 
 ```
 hermes/
-├── spec/              # Formal standards (17 specs, 30 planned)
+├── spec/              # Formal standards (18 specs, 30 planned)
 │   ├── ARC-0001.md    #   Architecture (meta-standard)
 │   ├── ARC-0768.md    #   Datagram & Reliable Message Semantics
 │   ├── ARC-0791.md    #   Addressing & Routing
@@ -318,6 +330,7 @@ hermes/
 │   ├── ARC-7231.md    #   Agent Semantics — Bridge Protocol
 │   ├── ARC-8446.md    #   Encrypted Bus Protocol
 │   ├── AES-2040.md    #   Agent Visualization Standard (DRAFT)
+│   ├── ATR-G711.md    #   Payload Encoding & Wire Efficiency
 │   ├── ATR-Q700.md    #   Out-of-Band Signaling
 │   ├── ATR-X200.md    #   Reference Model
 │   └── INDEX.md       #   Full standards index
@@ -328,7 +341,7 @@ hermes/
 │   ├── POSITIONING.md
 │   ├── USE-CASES.md
 │   └── diagrams/      #   Visual documentation (13 Mermaid + 14 D2)
-├── reference/python/  # Reference implementation (493 tests)
+├── reference/python/  # Reference implementation (524 tests)
 ├── examples/          # Sample bus, routes, configs
 ├── CHANGELOG.md
 ├── CONTRIBUTING.md

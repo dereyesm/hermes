@@ -30,20 +30,22 @@ python3 overhead_model.py --sweep > results/sweep.csv
 python3 overhead_model.py --json > results/120b.json
 ```
 
-## Key Finding (preliminary)
+## Key Finding
 
 At 120-byte payload:
 
 | Protocol | Overhead | Efficiency |
 |----------|----------|------------|
-| **HERMES (local)** | ~36% | ~64% |
-| MQTT v5.0 | ~48% | ~52% |
-| HTTP/2 + gRPC | ~55% | ~45% |
-| HTTP/1.1 REST | ~74% | ~26% |
-| AMQP 1.0 | ~76% | ~24% |
+| **HERMES compact (§14)** | **24%** | **76.4%** |
+| HERMES verbose | ~47% | ~53% |
+| MQTT v5.0 | ~53% | ~47% |
+| gRPC (HTTP/2 + protobuf) | ~60% | ~40% |
+| HTTP/2 (HPACK) | ~66% | ~34% |
+| HTTP/1.1 REST | ~80% | ~20% |
 
-HERMES local (file-based) eliminates the transport stack entirely for intra-clan messages.
-At 120 bytes, this is **2-3x more efficient** than REST and gRPC per message.
+HERMES compact mode (ARC-5322 §14) is **4.9x less overhead than gRPC** and
+**3.6x less than MQTT** — while remaining valid JSON, readable with `cat` + `jq`.
+See [ATR-G.711](../../../spec/ATR-G711.md) for the full analysis.
 
 ## Model Assumptions
 
@@ -74,8 +76,9 @@ At 120 bytes, this is **2-3x more efficient** than REST and gRPC per message.
 
 ## Status
 
-- [x] Analytical model (overhead_model.py)
+- [x] Analytical model (overhead_model.py) — 6 protocols, verbose + compact
+- [x] ATR-G.711 spec — payload encoding & wire efficiency (IMPLEMENTED)
+- [x] ARC-5322 §14 — compact wire format (IMPLEMENTED, 31 tests)
 - [ ] Wireshark empirical capture
 - [ ] M-Lab latency integration
 - [ ] Energy per message model
-- [ ] ATR-G.711 appendix
