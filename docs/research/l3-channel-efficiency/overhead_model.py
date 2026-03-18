@@ -3,9 +3,10 @@
 L3 Channel Efficiency — Overhead Model
 HERMES Research | ATR-G.711 supporting data
 
-Compares per-message overhead across 5 communication protocols for the
+Compares per-message overhead across 6 communication protocols for the
 HERMES use case: short agent-to-agent messages (<=120 chars payload) between
-co-located or nearby agents.
+co-located or nearby agents. Includes both HERMES verbose (object) and
+compact (positional array, ARC-5322 §14) wire formats.
 
 Model methodology:
     For each protocol, we decompose the total cost of sending one message into:
@@ -55,7 +56,7 @@ from dataclasses import dataclass
 # ---------------------------------------------------------------------------
 
 def measure_hermes_wrapper(payload_size: int = 120) -> int:
-    """Measure the real wrapper overhead of a HERMES ARC-5322 message.
+    """Measure the real wrapper overhead of a HERMES ARC-5322 verbose message.
 
     Uses the reference implementation's serialization format (json.dumps with
     default separators) and typical namespace names.
@@ -70,6 +71,18 @@ def measure_hermes_wrapper(payload_size: int = 120) -> int:
         "ack": [],
     }
     serialized = json.dumps(msg, ensure_ascii=False)
+    return len(serialized) - payload_size  # wrapper = total - payload
+
+
+def measure_hermes_compact_wrapper(payload_size: int = 120) -> int:
+    """Measure the wrapper overhead of a HERMES ARC-5322 §14 compact message.
+
+    Compact format: positional JSON array with epoch-day timestamp,
+    integer type enum, and compact separators (no spaces).
+    """
+    # epoch-day for 2026-03-15 = 9570, type "state" = 0
+    msg = [9570, "momoshod", "nymyka", 0, "x" * payload_size, 7, []]
+    serialized = json.dumps(msg, ensure_ascii=False, separators=(",", ":"))
     return len(serialized) - payload_size  # wrapper = total - payload
 
 
@@ -110,21 +123,37 @@ class ProtocolModel:
 
 
 def build_protocols() -> list[ProtocolModel]:
-    """Build the 5 protocol models with documented byte counts."""
+    """Build the 6 protocol models with documented byte counts."""
 
     hermes_wrapper = measure_hermes_wrapper(120)  # ~105 bytes measured
+    hermes_compact = measure_hermes_compact_wrapper(120)  # ~35 bytes measured
 
     return [
-        # 1. HERMES bus (local file append)
+        # 1. HERMES compact (ARC-5322 §14 positional array)
         ProtocolModel(
-            name="HERMES bus (JSONL file)",
-            description="Append one JSON line + newline to local bus file. No network.",
+            name="HERMES compact (§14)",
+            description="Positional JSON array + epoch-day + type-int. No network.",
+            transport_bytes=0,      # No network stack
+            framing_bytes=1,        # The trailing newline character
+            format_wrapper_bytes=hermes_compact,
+            notes=(
+                f"Measured wrapper: {hermes_compact}B (json.dumps compact separators, "
+                f"positional array, epoch-day ts, integer type enum). "
+                f"Still valid JSON — readable with cat, jq, grep. "
+                f"ARC-5322 §14: auto-detect by first char [ vs {{."
+            ),
+        ),
+
+        # 2. HERMES verbose (original object format)
+        ProtocolModel(
+            name="HERMES verbose",
+            description="JSON object with named keys + newline to local bus file. No network.",
             transport_bytes=0,      # No network stack
             framing_bytes=1,        # The trailing newline character
             format_wrapper_bytes=hermes_wrapper,  # Measured: ~105B for typical namespaces
             notes=(
                 f"Measured wrapper: {hermes_wrapper}B (json.dumps default separators, "
-                f"8-char namespaces). Compact separators would save ~6B. "
+                f"8-char namespaces). Human-first format for debugging and small deployments. "
                 f"Zero transport overhead — pure file I/O."
             ),
         ),
@@ -258,7 +287,7 @@ def print_single_table(results: list[dict], payload: int) -> None:
     print("  " + "-" * (w - 4))
 
     for r in results:
-        marker = " <<" if "HERMES bus" in r["protocol"] else ""
+        marker = " <<" if "HERMES compact" in r["protocol"] else ""
         print(
             f"  {r['protocol']:<30} "
             f"{r['overhead_bytes']:>7} B  "
@@ -272,25 +301,31 @@ def print_single_table(results: list[dict], payload: int) -> None:
     print()
 
     # Key finding
-    hermes = next(r for r in results if "HERMES bus" in r["protocol"])
+    hermes_compact = next(r for r in results if "HERMES compact" in r["protocol"])
+    hermes_verbose = next(r for r in results if "HERMES verbose" in r["protocol"])
     worst = max(results, key=lambda x: x["overhead_pct"])
     best_net = min(
-        (r for r in results if "HERMES bus" not in r["protocol"]),
+        (r for r in results if "HERMES" not in r["protocol"]),
         key=lambda x: x["overhead_pct"],
     )
 
     print(f"  Key findings:")
-    print(f"    HERMES bus (local):  {hermes['efficiency_pct']}% efficient "
-          f"({hermes['overhead_bytes']}B overhead)")
+    print(f"    HERMES compact:      {hermes_compact['efficiency_pct']}% efficient "
+          f"({hermes_compact['overhead_bytes']}B overhead)")
+    print(f"    HERMES verbose:      {hermes_verbose['efficiency_pct']}% efficient "
+          f"({hermes_verbose['overhead_bytes']}B overhead)")
     print(f"    Best network alt:    {best_net['protocol']} at "
           f"{best_net['efficiency_pct']}% efficient")
     print(f"    Worst:               {worst['protocol']} at "
           f"{worst['efficiency_pct']}% efficient")
 
-    if hermes["overhead_pct"] > 0:
-        ratio = worst["overhead_bytes"] / hermes["overhead_bytes"]
-        print(f"    HERMES saves {ratio:.1f}x less overhead than "
+    if hermes_compact["overhead_pct"] > 0:
+        ratio_worst = worst["overhead_bytes"] / hermes_compact["overhead_bytes"]
+        ratio_best_net = best_net["overhead_bytes"] / hermes_compact["overhead_bytes"]
+        print(f"    HERMES compact: {ratio_worst:.1f}x less overhead than "
               f"{worst['protocol'].split('(')[0].strip()}")
+        print(f"    HERMES compact: {ratio_best_net:.1f}x less overhead than "
+              f"{best_net['protocol'].split('(')[0].strip()}")
     print()
 
 
@@ -354,7 +389,7 @@ def print_cumulative_table(rows: list[dict], payload: int) -> None:
     if 1000 in counts:
         print()
         hermes_row = next(r for r in rows
-                          if r["n"] == 1000 and "HERMES bus" in r["protocol"])
+                          if r["n"] == 1000 and "HERMES compact" in r["protocol"])
         print(f"  At 1,000 messages:")
         for pname in protocols:
             r = next(r for r in rows if r["n"] == 1000 and r["protocol"] == pname)
