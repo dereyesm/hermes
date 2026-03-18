@@ -10,10 +10,13 @@ from datetime import date, timedelta
 from pathlib import Path
 
 from .message import (
+    ENCODING_SEALED,
+    ENCODING_SEALED_ECDHE,
     Message,
     ValidationError,
     extract_cid,
     extract_re,
+    is_sealed,
     parse_line,
     transport_mode,
     validate_message,
@@ -286,3 +289,148 @@ def generate_escalation(original: Message) -> Message:
         type="alert",
         msg=payload,
     )
+
+
+# ─── Sealed Envelope Operations (ARC-8446 + ARC-5322 §14) ─────
+
+
+def _envelope_meta(m: Message) -> dict:
+    """Build envelope_meta AAD from a Message's own fields."""
+    return {"src": m.src, "dst": m.dst, "ts": m.ts.isoformat(), "type": m.type}
+
+
+def write_sealed_message(
+    bus_path: str | Path,
+    message: Message,
+    my_keys,
+    peer_dh_public,
+    compact: bool = False,
+    ecdhe: bool = True,
+) -> None:
+    """Seal and write a message to the bus.
+
+    Encrypts message.msg via compact sealed envelope, then writes a new
+    Message with the sealed array as msg and encoding marker.
+
+    Args:
+        bus_path: Path to the bus JSONL file.
+        message: Plaintext Message to seal and write.
+        my_keys: Sender's ClanKeyPair.
+        peer_dh_public: Recipient's X25519 public key.
+        compact: If True, write bus line in compact format.
+        ecdhe: If True (default), use ECDHE. If False, use static DH.
+    """
+    from .crypto import seal_bus_message_compact, seal_bus_message_ecdhe_compact
+
+    meta = _envelope_meta(message)
+
+    if ecdhe:
+        sealed_array = seal_bus_message_ecdhe_compact(
+            my_keys, peer_dh_public, message.msg, envelope_meta=meta,
+        )
+        encoding = ENCODING_SEALED_ECDHE
+    else:
+        sealed_array = seal_bus_message_compact(
+            my_keys, peer_dh_public, message.msg, envelope_meta=meta,
+        )
+        encoding = ENCODING_SEALED
+
+    sealed_msg = Message(
+        ts=message.ts,
+        src=message.src,
+        dst=message.dst,
+        type=message.type,
+        msg=json.dumps(sealed_array, separators=(",", ":")),
+        ttl=message.ttl,
+        ack=list(message.ack),
+        encoding=encoding,
+    )
+    write_message(bus_path, sealed_msg, compact=compact)
+
+
+def open_sealed_message(
+    message: Message,
+    my_keys,
+    peer_sign_public,
+    peer_dh_public,
+    nonce_tracker=None,
+) -> Message | None:
+    """Decrypt a sealed bus message and return a plaintext Message.
+
+    Args:
+        message: A Message with encoding "sealed" or "sealed-ecdhe".
+        my_keys: Recipient's ClanKeyPair.
+        peer_sign_public: Sender's Ed25519 public key.
+        peer_dh_public: Sender's X25519 public key.
+        nonce_tracker: Optional NonceTracker for replay detection.
+
+    Returns:
+        A new Message with decrypted msg and encoding=None,
+        or None if decryption/verification fails.
+    """
+    from .crypto import open_bus_message_compact
+
+    if not is_sealed(message):
+        return message
+
+    meta = _envelope_meta(message)
+
+    try:
+        sealed_array = json.loads(message.msg)
+    except (json.JSONDecodeError, TypeError):
+        return None
+
+    plaintext = open_bus_message_compact(
+        my_keys, peer_sign_public, peer_dh_public,
+        sealed_array, envelope_meta=meta, nonce_tracker=nonce_tracker,
+    )
+    if plaintext is None:
+        return None
+
+    return Message(
+        ts=message.ts,
+        src=message.src,
+        dst=message.dst,
+        type=message.type,
+        msg=plaintext,
+        ttl=message.ttl,
+        ack=list(message.ack),
+        encoding=None,
+    )
+
+
+def read_bus_sealed(
+    bus_path: str | Path,
+    my_keys,
+    peer_sign_public,
+    peer_dh_public,
+    nonce_tracker=None,
+) -> list[Message]:
+    """Read bus and transparently decrypt any sealed messages.
+
+    Plaintext messages pass through unchanged. Sealed messages that fail
+    decryption are replaced with None (filtered out).
+
+    Args:
+        bus_path: Path to the bus JSONL file.
+        my_keys: Recipient's ClanKeyPair.
+        peer_sign_public: Sender's Ed25519 public key.
+        peer_dh_public: Sender's X25519 public key.
+        nonce_tracker: Optional NonceTracker for replay detection.
+
+    Returns:
+        List of plaintext Messages (sealed messages decrypted in place).
+    """
+    messages = read_bus(bus_path)
+    result = []
+    for m in messages:
+        if is_sealed(m):
+            opened = open_sealed_message(
+                m, my_keys, peer_sign_public, peer_dh_public,
+                nonce_tracker=nonce_tracker,
+            )
+            if opened is not None:
+                result.append(opened)
+        else:
+            result.append(m)
+    return result

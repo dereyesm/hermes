@@ -50,7 +50,11 @@ _NAMESPACE_RE = re.compile(r"^[a-z][a-z0-9\-]{0,62}$")
 MAX_MSG_LENGTH = 120
 
 # ARC-5322 Section 7: Valid payload encoding modes
-VALID_ENCODINGS = frozenset({"raw", "cbor", "ref"})
+VALID_ENCODINGS = frozenset({"raw", "cbor", "ref", "sealed", "sealed-ecdhe"})
+
+# Sealed envelope encoding markers (ARC-8446 + ARC-5322 §14)
+ENCODING_SEALED = "sealed"
+ENCODING_SEALED_ECDHE = "sealed-ecdhe"
 
 # ARC-5322 §14: Compact Wire Format
 COMPACT_EPOCH = date(2000, 1, 1)
@@ -418,6 +422,14 @@ def transport_mode(msg_type: str) -> str:
     "DGM" for datagram types (state, event, alert, dojo_event).
     """
     return "REL" if msg_type in RELIABLE_TYPES else "DGM"
+
+
+def is_sealed(msg: Message) -> bool:
+    """Check if a message contains a sealed (encrypted) envelope.
+
+    Returns True if encoding starts with "sealed".
+    """
+    return msg.encoding is not None and msg.encoding.startswith("sealed")
 
 
 if __name__ == "__main__":
