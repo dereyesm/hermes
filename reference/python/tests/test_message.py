@@ -406,6 +406,93 @@ class TestBusOperations:
         assert "finance" in msgs[0].ack
 
 
+# ─── Compact Bus Operations (ARC-5322 §14 + bus.py) ────────────────
+
+
+class TestCompactBusOperations:
+    def test_write_compact_and_read(self, bus_dir):
+        bus = bus_dir / "bus.jsonl"
+        msg = create_message(src="eng", dst="*", type="state", msg="compact_test")
+        write_message(bus, msg, compact=True)
+        raw = bus.read_text()
+        assert raw.startswith("[")  # compact format
+        msgs = read_bus(bus)
+        assert len(msgs) == 1
+        assert msgs[0].msg == "compact_test"
+
+    def test_mixed_mode_bus(self, bus_dir):
+        """Bus with both verbose and compact messages reads correctly."""
+        bus = bus_dir / "bus.jsonl"
+        msg1 = create_message(src="eng", dst="*", type="state", msg="verbose_msg")
+        msg2 = create_message(src="ops", dst="*", type="alert", msg="compact_msg")
+        write_message(bus, msg1, compact=False)
+        write_message(bus, msg2, compact=True)
+
+        raw_lines = bus.read_text().strip().split("\n")
+        assert raw_lines[0].startswith("{")  # verbose
+        assert raw_lines[1].startswith("[")  # compact
+
+        msgs = read_bus(bus)
+        assert len(msgs) == 2
+        assert msgs[0].msg == "verbose_msg"
+        assert msgs[1].msg == "compact_msg"
+
+    def test_ack_on_compact_bus(self, bus_dir):
+        bus = bus_dir / "bus.jsonl"
+        msg = create_message(src="eng", dst="*", type="state", msg="needs_ack")
+        write_message(bus, msg, compact=True)
+
+        count = ack_message(bus, "finance", lambda m: m.msg == "needs_ack")
+        assert count == 1
+
+        msgs = read_bus(bus)
+        assert "finance" in msgs[0].ack
+
+    def test_archive_compact(self, bus_dir):
+        bus = bus_dir / "bus.jsonl"
+        archive = bus_dir / "bus-archive.jsonl"
+
+        expired = Message(
+            ts=date.today() - timedelta(days=10),
+            src="eng", dst="*", type="event", msg="old_compact",
+            ttl=3, ack=[],
+        )
+        active = create_message(src="eng", dst="*", type="state", msg="active_compact")
+
+        write_message(bus, expired, compact=True)
+        write_message(bus, active, compact=True)
+
+        count = archive_expired(bus, archive, compact=True)
+        assert count == 1
+
+        remaining = read_bus(bus)
+        assert len(remaining) == 1
+        assert remaining[0].msg == "active_compact"
+
+        archived = read_bus(archive)
+        assert len(archived) == 1
+        assert archived[0].msg == "old_compact"
+
+    def test_compact_write_is_smaller(self, bus_dir):
+        """Compact bus file is smaller than verbose for same messages."""
+        bus_v = bus_dir / "verbose.jsonl"
+        bus_c = bus_dir / "compact.jsonl"
+
+        for i in range(10):
+            msg = create_message(
+                src="eng", dst="*", type="state",
+                msg=f"message number {i} with some payload",
+            )
+            write_message(bus_v, msg, compact=False)
+            write_message(bus_c, msg, compact=True)
+
+        size_v = bus_v.stat().st_size
+        size_c = bus_c.stat().st_size
+        assert size_c < size_v
+        # At least 20% smaller
+        assert size_c < size_v * 0.80
+
+
 # ─── SYN/FIN Protocol ───────────────────────────────────────────────
 
 
