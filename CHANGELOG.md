@@ -9,6 +9,68 @@ This project follows a versioning scheme where:
 
 ---
 
+## [Unreleased] — Compact Wire Format + ATR-G.711 (2026-03-17)
+
+### Wire Efficiency & Payload Encoding
+
+This release introduces the Compact Wire Format (ARC-5322 §14) and ATR-G.711, delivering the highest wire efficiency of any agent communication protocol measured — 76.9% at 120B payload, 4.9x less overhead than gRPC — while remaining valid, human-readable JSON.
+
+### Added
+
+- **ARC-5322 §14: Compact Wire Format** (IMPLEMENTED)
+  - Positional JSON array encoding: `[epoch_day, src, dst, type_int, msg, ttl, ack]`
+  - Epoch-day timestamp (days since 2000-01-01): 10B → 4B
+  - Integer type enum (0-6): 5-10B → 1B
+  - Compact separators: no spaces after `,` and `:`
+  - Auto-detect by first character: `{` = verbose, `[` = compact
+  - Mixed-mode buses: verbose and compact messages coexist
+  - 100% backward compatible — verbose format unchanged
+  - Wrapper reduction: 105B → 36B (-66%)
+  - Reference: `message.py` (parse_line, validate_compact, to_compact_jsonl)
+
+- **ATR-G.711: Payload Encoding & Wire Efficiency** (IMPLEMENTED)
+  - Formal spec for JSON as normative HERMES encoding
+  - G.711 analogy: inspectability over compression (like PCM over Opus)
+  - Overhead model data integrated (6 protocols, 9 payload sizes)
+  - Compact encoding extension rules (CBOR/MessagePack MAY on gateways)
+  - Security considerations for JSON bus operations
+
+- **bus.py mixed-mode compact support**
+  - `read_bus()` auto-detects verbose/compact via `parse_line()`
+  - `write_message(compact=True)` for compact output
+  - `archive_expired()` and `ack_message()` support compact flag
+
+- **sync.py compact support**
+  - `fin(compact=True)` writes FIN messages in compact format
+
+- **Serialization benchmark** (`docs/research/l3-channel-efficiency/benchmark.py`)
+  - 872K msg/sec compact serialize vs 650K verbose (1.34x speedup)
+  - Deserialize: ~equal (compact epoch-day conversion has minor cost)
+
+- **overhead_model.py updated** to 6 protocols (HERMES compact + verbose)
+
+- **D2 diagram**: `compact-wire-format.svg` — visual comparison with efficiency table and auto-detect flow
+
+- **QUEST-003 ACCEPTED** by Clan JEI
+  - ECDHE forward secrecy bilateral adoption
+  - Timeline: Phase 1 (19 Mar), Phase 2 bilateral (22 Mar), Phase 3 activate (24 Mar)
+  - 8 local ECDHE tests already passing (Phase 1 complete ahead of schedule)
+
+### Changed
+
+- **README.md** — headline feature: 76.9% efficient, badges updated (18 specs, 524 tests), compact vs verbose comparison table
+- **spec/INDEX.md** — ATR-G.711 PLANNED → IMPLEMENTED
+- **L3 research README** — checklist updated (ATR-G.711 ✓, ARC-5322 §14 ✓)
+
+### Stats
+
+- Specs: 17 → 18 (17 IMPL + 1 DRAFT) — +ATR-G.711
+- Tests: 493 → 530 (+37: compact format + bus + sync)
+- D2 diagrams: 14 → 15 (+1: compact-wire-format)
+- Commits: 6 this session
+
+---
+
 ## [Unreleased] — QUEST-002 Closure + ECDHE + Visual Migration (2026-03-16)
 
 ### Bilateral Protocol & Forward Secrecy
