@@ -16,10 +16,20 @@ from hermes.bus import (
     filter_for_namespace,
     find_expired,
     find_stale,
+    open_sealed_message,
     read_bus,
+    read_bus_sealed,
     write_message,
+    write_sealed_message,
 )
-from hermes.message import Message, create_message
+from hermes.crypto import ClanKeyPair, NonceTracker
+from hermes.message import (
+    ENCODING_SEALED,
+    ENCODING_SEALED_ECDHE,
+    Message,
+    create_message,
+    is_sealed,
+)
 
 
 # ─── Fixtures ──────────────────────────────────────────────────────
@@ -414,3 +424,161 @@ class TestAckMessage:
         msgs = read_bus(bus_file)
         assert "fin" in msgs[0].ack
         assert "ops" in msgs[0].ack
+
+
+# ─── Sealed Envelope Integration (ARC-8446 + ARC-5322 §14) ───
+
+
+@pytest.fixture
+def clan_keys():
+    """Generate two clan keypairs (sender/receiver)."""
+    return ClanKeyPair.generate(), ClanKeyPair.generate()
+
+
+class TestSealedBus:
+    def test_write_sealed_message_static(self, bus_file, clan_keys):
+        """Write a static-DH sealed message and verify encoding field."""
+        sender, receiver = clan_keys
+        msg = create_message(src="alpha", dst="beta", type="state", msg="secret")
+        write_sealed_message(bus_file, msg, sender, receiver.dh_public, ecdhe=False)
+
+        raw = read_bus(bus_file)
+        assert len(raw) == 1
+        assert raw[0].encoding == ENCODING_SEALED
+        assert is_sealed(raw[0])
+
+    def test_write_sealed_message_ecdhe(self, bus_file, clan_keys):
+        """Write an ECDHE sealed message and verify encoding field."""
+        sender, receiver = clan_keys
+        msg = create_message(src="alpha", dst="beta", type="state", msg="secret-ecdhe")
+        write_sealed_message(bus_file, msg, sender, receiver.dh_public, ecdhe=True)
+
+        raw = read_bus(bus_file)
+        assert len(raw) == 1
+        assert raw[0].encoding == ENCODING_SEALED_ECDHE
+
+    def test_open_sealed_message_roundtrip(self, bus_file, clan_keys):
+        """Seal → write → read → open → plaintext matches original."""
+        sender, receiver = clan_keys
+        msg = create_message(src="alpha", dst="beta", type="event", msg="roundtrip-static")
+        write_sealed_message(bus_file, msg, sender, receiver.dh_public, ecdhe=False)
+
+        raw = read_bus(bus_file)
+        opened = open_sealed_message(
+            raw[0], receiver, sender.sign_public, sender.dh_public,
+        )
+        assert opened is not None
+        assert opened.msg == "roundtrip-static"
+        assert opened.encoding is None
+
+    def test_open_sealed_message_ecdhe_roundtrip(self, bus_file, clan_keys):
+        """ECDHE seal → write → read → open → plaintext matches."""
+        sender, receiver = clan_keys
+        msg = create_message(src="alpha", dst="beta", type="event", msg="roundtrip-ecdhe")
+        write_sealed_message(bus_file, msg, sender, receiver.dh_public, ecdhe=True)
+
+        raw = read_bus(bus_file)
+        opened = open_sealed_message(
+            raw[0], receiver, sender.sign_public, sender.dh_public,
+        )
+        assert opened is not None
+        assert opened.msg == "roundtrip-ecdhe"
+
+    def test_read_bus_sealed_mixed(self, bus_file, clan_keys):
+        """Bus with plaintext + sealed messages, all readable."""
+        sender, receiver = clan_keys
+        plain = create_message(src="alpha", dst="beta", type="state", msg="plain-msg")
+        write_message(bus_file, plain)
+
+        secret = create_message(src="alpha", dst="beta", type="event", msg="encrypted")
+        write_sealed_message(bus_file, secret, sender, receiver.dh_public, ecdhe=True)
+
+        result = read_bus_sealed(
+            bus_file, receiver, sender.sign_public, sender.dh_public,
+        )
+        assert len(result) == 2
+        assert result[0].msg == "plain-msg"
+        assert result[1].msg == "encrypted"
+
+    def test_read_bus_sealed_wrong_keys(self, bus_file, clan_keys):
+        """Sealed message with wrong keys is filtered out."""
+        sender, receiver = clan_keys
+        wrong = ClanKeyPair.generate()
+
+        msg = create_message(src="alpha", dst="beta", type="state", msg="nope")
+        write_sealed_message(bus_file, msg, sender, receiver.dh_public, ecdhe=True)
+
+        result = read_bus_sealed(
+            bus_file, wrong, sender.sign_public, sender.dh_public,
+        )
+        assert len(result) == 0
+
+    def test_sealed_compact_wire_format(self, bus_file, clan_keys):
+        """Write compact=True, verify compact array on disk."""
+        sender, receiver = clan_keys
+        msg = create_message(src="alpha", dst="beta", type="state", msg="compact-wire")
+        write_sealed_message(
+            bus_file, msg, sender, receiver.dh_public, compact=True, ecdhe=True,
+        )
+
+        raw_line = bus_file.read_text(encoding="utf-8").strip()
+        parsed = json.loads(raw_line)
+        # Compact bus format is a JSON array (not object)
+        assert isinstance(parsed, list)
+
+    def test_sealed_verbose_wire_format(self, bus_file, clan_keys):
+        """Write compact=False (default), verify JSON object on disk."""
+        sender, receiver = clan_keys
+        msg = create_message(src="alpha", dst="beta", type="state", msg="verbose-wire")
+        write_sealed_message(
+            bus_file, msg, sender, receiver.dh_public, compact=False, ecdhe=True,
+        )
+
+        raw_line = bus_file.read_text(encoding="utf-8").strip()
+        parsed = json.loads(raw_line)
+        assert isinstance(parsed, dict)
+        assert parsed["encoding"] == ENCODING_SEALED_ECDHE
+
+    def test_envelope_meta_binding(self, bus_file, clan_keys):
+        """Verify AAD includes src/dst/type/ts — tampered meta fails."""
+        sender, receiver = clan_keys
+        msg = create_message(src="alpha", dst="beta", type="alert", msg="aad-test")
+        write_sealed_message(bus_file, msg, sender, receiver.dh_public, ecdhe=False)
+
+        raw = read_bus(bus_file)
+        sealed_msg = raw[0]
+        # Tamper: change src in the outer message
+        tampered = Message(
+            ts=sealed_msg.ts, src="evil", dst=sealed_msg.dst,
+            type=sealed_msg.type, msg=sealed_msg.msg, ttl=sealed_msg.ttl,
+            ack=list(sealed_msg.ack), encoding=sealed_msg.encoding,
+        )
+        opened = open_sealed_message(
+            tampered, receiver, sender.sign_public, sender.dh_public,
+        )
+        # Should fail because envelope_meta (AAD) doesn't match
+        assert opened is None
+
+    def test_nonce_tracker_integration(self, bus_file, clan_keys):
+        """Replay detection works through bus flow."""
+        sender, receiver = clan_keys
+        tracker = NonceTracker()
+
+        msg = create_message(src="alpha", dst="beta", type="state", msg="replay-test")
+        write_sealed_message(bus_file, msg, sender, receiver.dh_public, ecdhe=True)
+
+        raw = read_bus(bus_file)
+        # First open succeeds
+        opened = open_sealed_message(
+            raw[0], receiver, sender.sign_public, sender.dh_public,
+            nonce_tracker=tracker,
+        )
+        assert opened is not None
+        assert opened.msg == "replay-test"
+
+        # Replay (same nonce) fails
+        replayed = open_sealed_message(
+            raw[0], receiver, sender.sign_public, sender.dh_public,
+            nonce_tracker=tracker,
+        )
+        assert replayed is None
