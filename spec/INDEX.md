@@ -21,6 +21,7 @@ Core protocol standards governing message formats, transport, addressing, and se
 |--------|-------|-------------|-------------------|--------|------|
 | [ARC-0001](ARC-0001.md) | HERMES Architecture | Original | IETF draft-rosenberg-ai-protocols (framework); 3GPP TS 23.501 (SBA pattern) | IMPLEMENTED | Core |
 | ARC-0020 | Agent Lifecycle Management | RFC 20 (ASCII) | AGENTS.md (AAIF) agent lifecycle; 3GPP TS 23.501 NF lifecycle | PLANNED | Core |
+| [ARC-0369](ARC-0369.md) | Agent Service Platform | BBF TR-369 (USP) | BBF TR-369 Controller/Agent model; 3GPP TS 23.501 NF lifecycle; USP MTP | DRAFT | Core |
 | [ARC-0768](ARC-0768.md) | Datagram & Reliable Message Semantics | RFC 768 (UDP) | A2A stateless interactions; ECMA-431 (NLIP) interaction modes | IMPLEMENTED | Core |
 | [ARC-0791](ARC-0791.md) | Addressing & Routing | RFC 791 (IP) | ANP DID-based discovery; 3GPP TS 29.510 (NRF) NF discovery | IMPLEMENTED | Core |
 | [ARC-0793](ARC-0793.md) | Reliable Transport | RFC 793 (TCP) | MCP Streamable HTTP; A2A task lifecycle; ECMA-431 session management | IMPLEMENTED | Core |

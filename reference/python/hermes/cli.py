@@ -38,8 +38,20 @@ from .gateway import (
 
 
 def _resolve_clan_dir(args: argparse.Namespace) -> Path:
-    """Resolve the clan directory from CLI args."""
-    return Path(getattr(args, "dir", None) or ".")
+    """Resolve the clan directory from CLI args.
+
+    Priority: --dir flag > ~/.hermes/ (if exists) > current directory.
+    """
+    explicit = getattr(args, "dir", None)
+    if explicit and explicit != ".":
+        return Path(explicit)
+
+    # Check default clan dir before falling back to cwd
+    default = Path.home() / ".hermes"
+    if (default / "gateway.json").exists():
+        return default
+
+    return Path(".")
 
 
 def _load_gateway(clan_dir: Path) -> tuple[GatewayConfig, Gateway, AgoraDirectory]:
