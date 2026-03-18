@@ -14,6 +14,7 @@ from .message import (
     ValidationError,
     extract_cid,
     extract_re,
+    parse_line,
     transport_mode,
     validate_message,
 )
@@ -22,8 +23,9 @@ from .message import (
 def read_bus(bus_path: str | Path) -> list[Message]:
     """Read all valid messages from a bus file.
 
-    Invalid lines are skipped with a warning printed to stderr.
-    Returns messages in file order.
+    Supports both verbose (object) and compact (array) formats per
+    ARC-5322 §14.5 auto-detection. Invalid lines are skipped with a
+    warning printed to stderr. Returns messages in file order.
     """
     bus_path = Path(bus_path)
     if not bus_path.exists():
@@ -35,8 +37,7 @@ def read_bus(bus_path: str | Path) -> list[Message]:
         if not line:
             continue
         try:
-            data = json.loads(line)
-            msg = validate_message(data)
+            msg = parse_line(line)
             messages.append(msg)
         except (json.JSONDecodeError, ValidationError) as e:
             import sys
@@ -45,11 +46,23 @@ def read_bus(bus_path: str | Path) -> list[Message]:
     return messages
 
 
-def write_message(bus_path: str | Path, message: Message) -> None:
-    """Append a single message to the bus file."""
+def write_message(
+    bus_path: str | Path,
+    message: Message,
+    compact: bool = False,
+) -> None:
+    """Append a single message to the bus file.
+
+    Args:
+        bus_path: Path to the bus JSONL file.
+        message: The Message to write.
+        compact: If True, write in compact format (ARC-5322 §14).
+                 Default False (verbose) for backward compatibility.
+    """
     bus_path = Path(bus_path)
+    line = message.to_compact_jsonl() if compact else message.to_jsonl()
     with bus_path.open("a", encoding="utf-8") as f:
-        f.write(message.to_jsonl() + "\n")
+        f.write(line + "\n")
 
 
 def filter_for_namespace(
@@ -95,6 +108,7 @@ def find_expired(messages: list[Message]) -> list[Message]:
 def archive_expired(
     bus_path: str | Path,
     archive_path: str | Path,
+    compact: bool = False,
 ) -> int:
     """Move expired messages from bus to archive.
 
@@ -118,15 +132,17 @@ def archive_expired(
     if not expired:
         return 0
 
+    _serialize = Message.to_compact_jsonl if compact else Message.to_jsonl
+
     # Append expired to archive
     with archive_path.open("a", encoding="utf-8") as f:
         for m in expired:
-            f.write(m.to_jsonl() + "\n")
+            f.write(_serialize(m) + "\n")
 
     # Rewrite bus with only active messages
     with bus_path.open("w", encoding="utf-8") as f:
         for m in active:
-            f.write(m.to_jsonl() + "\n")
+            f.write(_serialize(m) + "\n")
 
     return len(expired)
 
@@ -135,6 +151,7 @@ def ack_message(
     bus_path: str | Path,
     namespace: str,
     match_fn: callable,
+    compact: bool = False,
 ) -> int:
     """ACK messages matching a predicate by adding namespace to their ack array.
 
@@ -160,9 +177,10 @@ def ack_message(
             updated.append(m)
 
     if acked > 0:
+        _serialize = Message.to_compact_jsonl if compact else Message.to_jsonl
         with bus_path.open("w", encoding="utf-8") as f:
             for m in updated:
-                f.write(m.to_jsonl() + "\n")
+                f.write(_serialize(m) + "\n")
 
     return acked
 
