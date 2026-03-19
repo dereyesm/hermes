@@ -65,13 +65,23 @@ def print_clan_status(
     heraldo_alias: str,
     agents: list[dict],
     peers: list[Any],
+    fingerprint: str = "",
+    daemon_pid: int | None = None,
+    daemon_alive: bool = False,
+    bus_messages: int = 0,
+    bus_pending: int = 0,
+    clan_dir: str = "",
 ) -> None:
-    """Print clan status with brand styling."""
+    """Print clan status with brand styling — full dashboard view."""
     if not HAS_RICH:
-        # Fallback to plain text
         print(f"Clan: {clan_id} ({display_name})")
         print(f"Protocol: {protocol_version}")
-        print(f"Heraldo: {heraldo_alias}")
+        if fingerprint:
+            print(f"Fingerprint: {fingerprint}")
+        if daemon_pid:
+            status = "running" if daemon_alive else "stale"
+            print(f"Daemon: {status} (PID {daemon_pid})")
+        print(f"Bus: {bus_messages} messages ({bus_pending} pending)")
         print()
         if agents:
             print(f"Published agents ({len(agents)}):")
@@ -92,7 +102,7 @@ def print_clan_status(
 
     console = Console()
 
-    # Header
+    # Header panel
     title = Text()
     title.append("H E R M E S", style=f"bold {INDIGO}")
     title.append("  ", style="default")
@@ -100,6 +110,42 @@ def print_clan_status(
     title.append(f"  ({display_name})", style=SLATE)
 
     console.print(Panel(title, subtitle=f"protocol {protocol_version}", border_style=TEAL))
+
+    # Info grid — fingerprint, daemon, bus stats
+    info = Table(show_header=False, box=None, padding=(0, 2))
+    info.add_column("Key", style=f"bold {SLATE}", min_width=14)
+    info.add_column("Value", min_width=40)
+
+    if fingerprint:
+        fp_text = Text(fingerprint, style=f"bold {AMBER}")
+        info.add_row("Fingerprint", fp_text)
+
+    if clan_dir:
+        info.add_row("Clan dir", Text(clan_dir, style="dim"))
+
+    # Daemon status
+    if daemon_pid:
+        daemon_text = Text()
+        if daemon_alive:
+            daemon_text.append("● ", style=f"bold {TEAL}")
+            daemon_text.append(f"running (PID {daemon_pid})", style=TEAL)
+        else:
+            daemon_text.append("○ ", style=f"bold {CRIMSON}")
+            daemon_text.append(f"stale (PID {daemon_pid})", style=CRIMSON)
+        info.add_row("Agent Node", daemon_text)
+    else:
+        info.add_row("Agent Node", Text("not running", style="dim"))
+
+    # Bus stats
+    bus_text = Text()
+    bus_text.append(f"{bus_messages}", style=f"bold {TEAL}")
+    bus_text.append(" messages", style="default")
+    if bus_pending > 0:
+        bus_text.append(f"  ({bus_pending} pending)", style=f"bold {AMBER}")
+    info.add_row("Bus", bus_text)
+
+    console.print(info)
+    console.print()
 
     # Agents table
     if agents:
