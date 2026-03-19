@@ -127,7 +127,7 @@ def cmd_init(args: argparse.Namespace) -> int:
 
 
 def cmd_status(args: argparse.Namespace) -> int:
-    """Show gateway status."""
+    """Show gateway status — full dashboard."""
     from .terminal import print_clan_status
 
     clan_dir = _resolve_clan_dir(args)
@@ -138,6 +138,48 @@ def cmd_status(args: argparse.Namespace) -> int:
         return 1
 
     profile = gateway.build_public_profile()
+
+    # Fingerprint (if crypto keys exist — check both keys/ and .keys/)
+    fingerprint = ""
+    for keys_subdir in [config.keys_private.rsplit("/", 1)[0], ".keys"]:
+        keys_dir = clan_dir / keys_subdir
+        key_file = keys_dir / f"{config.clan_id}.key"
+        if key_file.exists():
+            try:
+                from .crypto import ClanKeyPair
+                kp = ClanKeyPair.load(str(keys_dir), config.clan_id)
+                fingerprint = kp.fingerprint()
+            except Exception:
+                pass
+            break
+
+    # Daemon status
+    daemon_pid = None
+    daemon_alive = False
+    pid_file = clan_dir / ".agent-node.pid"
+    if pid_file.exists():
+        try:
+            daemon_pid = int(pid_file.read_text().strip())
+            import os
+            os.kill(daemon_pid, 0)
+            daemon_alive = True
+        except (ValueError, ProcessLookupError, PermissionError):
+            pass
+
+    # Bus stats
+    bus_messages = 0
+    bus_pending = 0
+    bus_path = clan_dir / "bus.jsonl"
+    if bus_path.exists():
+        try:
+            from .bus import read_bus, filter_for_namespace
+            all_msgs = read_bus(bus_path)
+            bus_messages = len(all_msgs)
+            pending = filter_for_namespace(all_msgs, config.clan_id)
+            bus_pending = len(pending)
+        except Exception:
+            pass
+
     print_clan_status(
         clan_id=config.clan_id,
         display_name=config.display_name,
@@ -145,6 +187,12 @@ def cmd_status(args: argparse.Namespace) -> int:
         heraldo_alias=config.heraldo_alias,
         agents=profile.get("agents", []),
         peers=config.peers,
+        fingerprint=fingerprint,
+        daemon_pid=daemon_pid,
+        daemon_alive=daemon_alive,
+        bus_messages=bus_messages,
+        bus_pending=bus_pending,
+        clan_dir=str(clan_dir),
     )
     return 0
 

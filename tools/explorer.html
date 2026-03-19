@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HERMES Protocol Explorer</title>
+<style>
+  :root {
+    --indigo: #1A1A2E;
+    --teal: #00D4AA;
+    --amber: #F5A623;
+    --emerald: #27AE60;
+    --crimson: #E74C3C;
+    --slate: #7F8C8D;
+    --bg: #0D0D1A;
+    --card: #16162A;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    background: var(--bg);
+    color: #e0e0e0;
+    min-height: 100vh;
+  }
+  header {
+    text-align: center;
+    padding: 2rem 1rem 1rem;
+    border-bottom: 1px solid var(--indigo);
+  }
+  header h1 {
+    font-size: 1.4rem;
+    letter-spacing: 0.3em;
+    color: var(--teal);
+  }
+  header p { color: var(--slate); font-size: 0.85rem; margin-top: 0.3rem; }
+
+  /* Drop zone */
+  #drop-zone {
+    margin: 2rem auto;
+    max-width: 600px;
+    padding: 3rem 2rem;
+    border: 2px dashed var(--slate);
+    border-radius: 12px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  #drop-zone:hover, #drop-zone.dragover {
+    border-color: var(--teal);
+    background: rgba(0, 212, 170, 0.05);
+  }
+  #drop-zone p { color: var(--slate); }
+  #drop-zone .icon { font-size: 2rem; margin-bottom: 0.5rem; }
+  #file-input { display: none; }
+
+  /* Stats bar */
+  #stats {
+    display: none;
+    max-width: 900px;
+    margin: 1rem auto;
+    padding: 1rem;
+    background: var(--card);
+    border-radius: 8px;
+    display: none;
+    gap: 2rem;
+    justify-content: center;
+  }
+  #stats.visible { display: flex; }
+  .stat { text-align: center; }
+  .stat .value { font-size: 1.5rem; font-weight: bold; color: var(--teal); }
+  .stat .label { font-size: 0.75rem; color: var(--slate); text-transform: uppercase; }
+
+  /* Sequence diagram */
+  #diagram {
+    max-width: 900px;
+    margin: 1rem auto;
+    padding: 1rem;
+  }
+  .msg-row {
+    display: flex;
+    align-items: center;
+    margin: 0.3rem 0;
+    padding: 0.6rem 1rem;
+    background: var(--card);
+    border-radius: 6px;
+    border-left: 3px solid var(--slate);
+    animation: fadeIn 0.3s ease-in;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .msg-row:hover { background: #1e1e3a; }
+  .msg-row.type-state { border-left-color: cyan; }
+  .msg-row.type-event { border-left-color: var(--teal); }
+  .msg-row.type-alert { border-left-color: var(--crimson); }
+  .msg-row.type-dispatch { border-left-color: var(--amber); }
+  .msg-row.type-quest { border-left-color: var(--amber); }
+  .msg-row.type-data_cross { border-left-color: var(--emerald); }
+  .msg-row.type-dojo_event { border-left-color: #6C5CE7; }
+
+  .msg-ts { color: var(--slate); width: 90px; flex-shrink: 0; font-size: 0.8rem; }
+  .msg-flow { flex-shrink: 0; width: 200px; display: flex; align-items: center; gap: 0.3rem; }
+  .msg-src { color: var(--emerald); font-weight: bold; font-size: 0.85rem; }
+  .msg-arrow { color: var(--slate); }
+  .msg-dst { color: var(--amber); font-weight: bold; font-size: 0.85rem; }
+  .msg-dst.broadcast { color: var(--slate); font-style: italic; }
+  .msg-type {
+    width: 85px; flex-shrink: 0; text-align: center;
+    font-size: 0.75rem; font-weight: bold; text-transform: uppercase;
+    padding: 0.15rem 0.4rem; border-radius: 3px;
+  }
+  .msg-type.state { background: rgba(0,255,255,0.15); color: cyan; }
+  .msg-type.event { background: rgba(0,212,170,0.15); color: var(--teal); }
+  .msg-type.alert { background: rgba(231,76,60,0.15); color: var(--crimson); }
+  .msg-type.dispatch { background: rgba(245,166,35,0.15); color: var(--amber); }
+  .msg-type.quest { background: rgba(245,166,35,0.15); color: var(--amber); }
+  .msg-type.data_cross { background: rgba(39,174,96,0.15); color: var(--emerald); }
+  .msg-type.dojo_event { background: rgba(108,92,231,0.15); color: #6C5CE7; }
+  .msg-text { flex: 1; color: #ccc; font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-left: 0.8rem; }
+  .msg-ack { flex-shrink: 0; margin-left: 0.5rem; font-size: 0.75rem; }
+  .msg-ack.acked { color: var(--teal); }
+  .msg-ack.pending { color: var(--amber); }
+
+  /* Detail panel */
+  #detail {
+    display: none;
+    max-width: 900px;
+    margin: 1rem auto;
+    padding: 1.2rem;
+    background: var(--card);
+    border: 1px solid var(--teal);
+    border-radius: 8px;
+  }
+  #detail.visible { display: block; }
+  #detail pre {
+    background: var(--bg);
+    padding: 1rem;
+    border-radius: 4px;
+    overflow-x: auto;
+    font-size: 0.8rem;
+    line-height: 1.5;
+  }
+  #detail h3 { color: var(--teal); margin-bottom: 0.5rem; font-size: 0.9rem; }
+
+  /* Namespace filter */
+  #filters {
+    display: none;
+    max-width: 900px;
+    margin: 0.5rem auto;
+    padding: 0.5rem 1rem;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+  #filters.visible { display: flex; }
+  .filter-btn {
+    background: var(--card);
+    color: var(--slate);
+    border: 1px solid var(--slate);
+    padding: 0.3rem 0.8rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 0.75rem;
+    transition: all 0.15s;
+  }
+  .filter-btn:hover, .filter-btn.active {
+    border-color: var(--teal);
+    color: var(--teal);
+    background: rgba(0, 212, 170, 0.1);
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(5px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>H E R M E S</h1>
+  <p>Protocol Explorer — drag a bus.jsonl file to visualize message flow</p>
+</header>
+
+<div id="drop-zone" onclick="document.getElementById('file-input').click()">
+  <div class="icon">&#128229;</div>
+  <p>Drop <code>bus.jsonl</code> here or click to browse</p>
+</div>
+<input type="file" id="file-input" accept=".jsonl,.json,.txt">
+
+<div id="stats"></div>
+<div id="filters"></div>
+<div id="diagram"></div>
+<div id="detail"></div>
+
+<script>
+const dropZone = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+const statsEl = document.getElementById('stats');
+const filtersEl = document.getElementById('filters');
+const diagram = document.getElementById('diagram');
+const detail = document.getElementById('detail');
+
+let allMessages = [];
+let activeFilters = new Set();
+
+// Drag & drop
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file) loadFile(file);
+});
+fileInput.addEventListener('change', e => { if (e.target.files[0]) loadFile(e.target.files[0]); });
+
+function loadFile(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    const lines = e.target.result.split('\n').filter(l => l.trim());
+    allMessages = [];
+    for (const line of lines) {
+      try {
+        const msg = JSON.parse(line);
+        if (msg.ts && msg.src && msg.dst && msg.type && msg.msg !== undefined) {
+          allMessages.push(msg);
+        }
+      } catch(e) { /* skip malformed */ }
+    }
+    if (allMessages.length === 0) {
+      dropZone.querySelector('p').textContent = 'No valid HERMES messages found. Try another file.';
+      return;
+    }
+    dropZone.style.display = 'none';
+    renderAll();
+  };
+  reader.readAsText(file);
+}
+
+function renderAll() {
+  renderStats();
+  renderFilters();
+  renderMessages(allMessages);
+}
+
+function renderStats() {
+  const namespaces = new Set();
+  const types = {};
+  let pending = 0;
+  for (const m of allMessages) {
+    namespaces.add(m.src);
+    if (m.dst !== '*') namespaces.add(m.dst);
+    types[m.type] = (types[m.type] || 0) + 1;
+    if (!m.ack || m.ack.length === 0) pending++;
+  }
+  const topType = Object.entries(types).sort((a,b) => b[1]-a[1])[0];
+
+  statsEl.innerHTML = `
+    <div class="stat"><div class="value">${allMessages.length}</div><div class="label">Messages</div></div>
+    <div class="stat"><div class="value">${namespaces.size}</div><div class="label">Namespaces</div></div>
+    <div class="stat"><div class="value">${Object.keys(types).length}</div><div class="label">Types</div></div>
+    <div class="stat"><div class="value">${pending}</div><div class="label">Pending</div></div>
+    <div class="stat"><div class="value">${topType ? topType[0] : '-'}</div><div class="label">Most common</div></div>
+  `;
+  statsEl.classList.add('visible');
+}
+
+function renderFilters() {
+  const namespaces = new Set();
+  for (const m of allMessages) {
+    namespaces.add(m.src);
+    if (m.dst !== '*') namespaces.add(m.dst);
+  }
+  const sorted = [...namespaces].sort();
+
+  filtersEl.innerHTML = '<button class="filter-btn active" data-ns="all">All</button>';
+  for (const ns of sorted) {
+    filtersEl.innerHTML += `<button class="filter-btn" data-ns="${ns}">${ns}</button>`;
+  }
+  filtersEl.classList.add('visible');
+
+  filtersEl.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      filtersEl.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const ns = btn.dataset.ns;
+      if (ns === 'all') {
+        renderMessages(allMessages);
+      } else {
+        renderMessages(allMessages.filter(m => m.src === ns || m.dst === ns || m.dst === '*'));
+      }
+    });
+  });
+}
+
+function renderMessages(messages) {
+  diagram.innerHTML = '';
+  detail.classList.remove('visible');
+
+  for (let i = 0; i < messages.length; i++) {
+    const m = messages[i];
+    const row = document.createElement('div');
+    row.className = `msg-row type-${m.type}`;
+    row.style.animationDelay = `${i * 0.03}s`;
+
+    const isBroadcast = m.dst === '*';
+    const ackList = m.ack || [];
+    const hasAck = ackList.length > 0;
+
+    row.innerHTML = `
+      <span class="msg-ts">${m.ts}</span>
+      <span class="msg-flow">
+        <span class="msg-src">${m.src}</span>
+        <span class="msg-arrow">→</span>
+        <span class="msg-dst ${isBroadcast ? 'broadcast' : ''}">${isBroadcast ? 'broadcast' : m.dst}</span>
+      </span>
+      <span class="msg-type ${m.type}">${m.type}</span>
+      <span class="msg-text">${escapeHtml(m.msg)}</span>
+      <span class="msg-ack ${hasAck ? 'acked' : 'pending'}">${hasAck ? '✓' + ackList.length : '○'}</span>
+    `;
+
+    row.addEventListener('click', () => showDetail(m));
+    diagram.appendChild(row);
+  }
+}
+
+function showDetail(m) {
+  detail.innerHTML = `<h3>Message Detail</h3><pre>${escapeHtml(JSON.stringify(m, null, 2))}</pre>`;
+  detail.classList.add('visible');
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+</script>
+</body>
+</html>
