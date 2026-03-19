@@ -3,8 +3,9 @@
 [![Tests](https://github.com/dereyesm/hermes/actions/workflows/ci.yml/badge.svg)](https://github.com/dereyesm/hermes/actions/workflows/ci.yml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Specs: 18](https://img.shields.io/badge/specs-18%20(17%20IMPL%20%2B%201%20DRAFT)-orange.svg)](spec/INDEX.md)
-[![Tests: 524](https://img.shields.io/badge/tests-524%20passing-brightgreen.svg)](reference/python/tests/)
+[![Specs: 19](https://img.shields.io/badge/specs-19%20(17%20IMPL%20%2B%202%20DRAFT)-orange.svg)](spec/INDEX.md)
+[![Tests: 605](https://img.shields.io/badge/tests-605%20passing-brightgreen.svg)](reference/python/tests/)
+[![Clans: 3](https://img.shields.io/badge/clans-3%20connected-teal.svg)](CLANS.md)
 
 <p align="center">
   <a href="#architecture">
