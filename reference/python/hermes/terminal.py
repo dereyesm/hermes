@@ -104,7 +104,7 @@ def print_clan_status(
 
     # Header panel
     title = Text()
-    title.append("H E R M E S", style=f"bold {INDIGO}")
+    title.append("H E R M E S", style="bold white")
     title.append("  ", style="default")
     title.append(f"{clan_id}", style=f"bold {TEAL}")
     title.append(f"  ({display_name})", style=SLATE)
@@ -149,7 +149,7 @@ def print_clan_status(
 
     # Agents table
     if agents:
-        t = Table(title=f"Agents ({len(agents)})", border_style=SLATE, title_style=f"bold {INDIGO}")
+        t = Table(title=f"Agents ({len(agents)})", border_style=SLATE, title_style="bold white")
         t.add_column("Namespace", style=f"bold {TEAL}", min_width=20)
         t.add_column("Resonance", justify="right", style=AMBER)
         t.add_column("Capabilities", style=SLATE)
@@ -243,7 +243,7 @@ def print_daemon_status(
         t.add_row("Last eval", Text(eval_text, style=SLATE))
 
     title = Text()
-    title.append(" HERMES ", style=f"bold {INDIGO}")
+    title.append(" HERMES ", style="bold white")
     title.append("Agent Node", style=f"bold")
 
     console.print(Panel(t, title=title, border_style=TEAL if alive else CRIMSON))
@@ -279,7 +279,7 @@ def print_inbox(clan_id: str, messages: list[dict]) -> None:
     t = Table(
         title=f"Inbox — {clan_id} ({len(messages)} messages)",
         border_style=SLATE,
-        title_style=f"bold {INDIGO}",
+        title_style="bold white",
     )
     t.add_column("#", justify="right", style="dim", width=3)
     t.add_column("Time", style=SLATE, width=12)
@@ -320,7 +320,7 @@ def print_bus_messages(messages: list[Any], namespace: str | None = None) -> Non
 
     console = Console()
 
-    t = Table(border_style=SLATE, title_style=f"bold {INDIGO}")
+    t = Table(border_style=SLATE, title_style="bold white")
     t.add_column("", width=1)  # ACK mark
     t.add_column("Date", style=SLATE, width=10)
     t.add_column("From", style=f"bold", min_width=12)
