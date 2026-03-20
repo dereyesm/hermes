@@ -161,17 +161,17 @@ class TestInitClan:
         assert (clan_dir / ".agora").is_dir()
         assert (clan_dir / "gateway.json").exists()
 
-    def test_creates_placeholder_keys(self, tmp_path):
+    def test_creates_real_ed25519_keys(self, tmp_path):
         clan_dir = tmp_path / "my-clan"
         init_clan(clan_dir, "clan-test", "Test Clan")
 
-        key_file = clan_dir / ".keys" / "gateway.key"
-        pub_file = clan_dir / ".keys" / "gateway.pub"
+        key_file = clan_dir / ".keys" / "clan-test.key"
+        pub_file = clan_dir / ".keys" / "clan-test.pub"
         assert key_file.exists()
         assert pub_file.exists()
-        # Placeholder keys are hex strings (64 chars = 32 bytes)
-        assert len(key_file.read_text()) == 64
-        assert len(pub_file.read_text()) == 64
+        # Real Ed25519 keys are longer than hex placeholders
+        assert len(key_file.read_text().strip()) > 0
+        assert len(pub_file.read_text().strip()) > 0
 
     def test_creates_gitignore(self, tmp_path):
         clan_dir = tmp_path / "my-clan"
@@ -179,13 +179,13 @@ class TestInitClan:
 
         gitignore = clan_dir / ".keys" / ".gitignore"
         assert gitignore.exists()
-        assert "gateway.key" in gitignore.read_text()
+        assert "*.key" in gitignore.read_text()
 
     def test_does_not_overwrite_existing_keys(self, tmp_path):
         clan_dir = tmp_path / "my-clan"
         keys_dir = clan_dir / ".keys"
         keys_dir.mkdir(parents=True)
-        key_file = keys_dir / "gateway.key"
+        key_file = keys_dir / "clan-test.key"
         key_file.write_text("existing-secret-key")
 
         init_clan(clan_dir, "clan-test", "Test Clan")

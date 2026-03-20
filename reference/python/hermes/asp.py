@@ -2,17 +2,20 @@
 
 F1: Bus Convergence — message classification (internal/outbound/inbound/expired).
 F2: Agent Registration — declarative profiles, registry, dispatch rule matching.
+F3: Dispatch Protocol — trigger evaluation, approval gates, scheduling, command rendering.
 
 Extends the Agent Node (ARC-4601) with structured agent management.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import re
+import time
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime, timedelta
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -435,3 +438,611 @@ def _trigger_matches(trigger: DispatchTrigger, message: Message) -> bool:
         return False
 
     return True
+
+
+# ---------------------------------------------------------------------------
+# F3: Dispatch Protocol — ARC-0369 §8
+# ---------------------------------------------------------------------------
+
+# Priority tiers for trigger evaluation (§8.8)
+_TYPE_PRIORITY = {"alert": 0, "dispatch": 1, "event": 2, "state": 3}
+
+
+class AgentState(str, Enum):
+    """ARC-0369 §9.1 agent lifecycle states."""
+
+    INACTIVE = "inactive"
+    ACTIVE = "active"
+    PENDING = "pending"
+    RUNNING = "running"
+    IDLE = "idle"
+    FAILED = "failed"
+    REMOVED = "removed"
+
+
+class DispatchOutcome(str, Enum):
+    """Outcome of a dispatch attempt per §8.7."""
+
+    DISPATCHED = "dispatched"
+    APPROVAL_PENDING = "approval_pending"
+    APPROVAL_GRANTED = "approval_granted"
+    APPROVAL_TIMEOUT = "approval_timeout"
+    CAPACITY_EXCEEDED = "capacity_exceeded"
+    DISABLED_AGENT = "disabled_agent"
+    NO_RULE_MATCH = "no_rule_match"
+
+
+class QueueOverflow(str, Enum):
+    """§8.4 queue_overflow policy."""
+
+    DROP_NEWEST = "drop-newest"
+    DROP_OLDEST = "drop-oldest"
+
+
+@dataclass(frozen=True)
+class DispatchDecision:
+    """Output of DispatchEngine.evaluate_message() for one (agent, rule) pair.
+
+    The daemon feeds this to its ARC-4601 Dispatcher. F3 produces decisions;
+    ARC-4601 executes them.
+    """
+
+    agent_id: str
+    rule_id: str
+    outcome: DispatchOutcome
+    command: list[str] = field(default_factory=list)
+    trigger_msg: Message | None = None
+    payload: str = ""
+    approval_key: str | None = None
+
+
+@dataclass
+class PendingApproval:
+    """A dispatch awaiting operator approval (§8.5, §11.3).
+
+    Stored in agent-node.state.json under "pending_approvals".
+    """
+
+    agent_id: str
+    rule_id: str
+    trigger_ts: str
+    trigger_msg_hash: str  # SHA-256 hex digest of msg field
+    escalation_ts: str  # ISO datetime when APPROVAL_REQUIRED was written
+    timeout_hours: int
+    payload: str
+
+
+class ConcurrencyTracker:
+    """Tracks active invocation counts per agent to enforce max_concurrent.
+
+    Pure dict, no I/O. The daemon increments/decrements as it
+    spawns and completes dispatch slots.
+    """
+
+    def __init__(self) -> None:
+        self._counts: dict[str, int] = {}
+
+    def increment(self, agent_id: str) -> None:
+        """Increment the active count for an agent."""
+        self._counts[agent_id] = self._counts.get(agent_id, 0) + 1
+
+    def decrement(self, agent_id: str) -> None:
+        """Decrement the active count (floors at 0)."""
+        current = self._counts.get(agent_id, 0)
+        self._counts[agent_id] = max(0, current - 1)
+
+    def active_count(self, agent_id: str) -> int:
+        """Return the current active count for an agent."""
+        return self._counts.get(agent_id, 0)
+
+    def at_capacity(self, agent_id: str, limit: int) -> bool:
+        """Check if agent is at or over its max_concurrent limit.
+
+        A limit of 0 means unlimited.
+        """
+        if limit <= 0:
+            return False
+        return self.active_count(agent_id) >= limit
+
+    def reset(self, agent_id: str) -> None:
+        """Reset the active count for an agent to zero."""
+        self._counts[agent_id] = 0
+
+
+class ApprovalGateManager:
+    """Manages pending approvals: add, check, expire, match operator signals.
+
+    Persists to/from a list of dicts (caller serializes to state JSON).
+    Pure logic — no bus I/O performed here.
+    """
+
+    def __init__(
+        self,
+        default_timeout_hours: int = 24,
+        pending: list[PendingApproval] | None = None,
+    ):
+        self._pending: list[PendingApproval] = list(pending or [])
+        self.default_timeout_hours = default_timeout_hours
+
+    @property
+    def pending(self) -> list[PendingApproval]:
+        """Return a copy of the pending approvals list."""
+        return list(self._pending)
+
+    def add(
+        self,
+        agent_id: str,
+        rule_id: str,
+        trigger: Message,
+        timeout_hours: int | None = None,
+        now: datetime | None = None,
+    ) -> PendingApproval:
+        """Create and store a new pending approval."""
+        if now is None:
+            now = datetime.now()
+
+        msg_hash = hashlib.sha256(trigger.msg.encode("utf-8")).hexdigest()
+
+        pa = PendingApproval(
+            agent_id=agent_id,
+            rule_id=rule_id,
+            trigger_ts=trigger.ts.isoformat(),
+            trigger_msg_hash=msg_hash,
+            escalation_ts=now.isoformat(),
+            timeout_hours=timeout_hours or self.default_timeout_hours,
+            payload=trigger.msg,
+        )
+        self._pending.append(pa)
+        return pa
+
+    def find_expired(self, now: datetime | None = None) -> list[PendingApproval]:
+        """Return approvals whose timeout_hours has elapsed."""
+        if now is None:
+            now = datetime.now()
+
+        expired = []
+        for pa in self._pending:
+            escalation = datetime.fromisoformat(pa.escalation_ts)
+            if now >= escalation + timedelta(hours=pa.timeout_hours):
+                expired.append(pa)
+        return expired
+
+    def remove(self, agent_id: str, rule_id: str) -> None:
+        """Remove a pending approval by agent_id + rule_id."""
+        self._pending = [
+            pa for pa in self._pending
+            if not (pa.agent_id == agent_id and pa.rule_id == rule_id)
+        ]
+
+    def match_approval_signal(self, message: Message) -> PendingApproval | None:
+        """Check if a bus message is an operator approval for a pending gate.
+
+        Matches: type=="dispatch", msg=="APPROVE:<agent_id>:<rule_id>:<ts>"
+        Also verifies ts matches stored trigger_ts (§11.3 integrity check).
+        """
+        if message.type.lower() != "dispatch":
+            return None
+
+        if not message.msg.startswith("APPROVE:"):
+            return None
+
+        parts = message.msg.split(":", 3)
+        if len(parts) < 4:
+            return None
+
+        _, agent_id, rule_id, ts = parts
+
+        for pa in self._pending:
+            if (pa.agent_id == agent_id
+                    and pa.rule_id == rule_id
+                    and pa.trigger_ts == ts):
+                return pa
+
+        return None
+
+    def to_list(self) -> list[dict]:
+        """Serialize to a list of dicts for JSON persistence."""
+        return [
+            {
+                "agent_id": pa.agent_id,
+                "rule_id": pa.rule_id,
+                "trigger_ts": pa.trigger_ts,
+                "trigger_msg_hash": pa.trigger_msg_hash,
+                "escalation_ts": pa.escalation_ts,
+                "timeout_hours": pa.timeout_hours,
+                "payload": pa.payload,
+            }
+            for pa in self._pending
+        ]
+
+    @classmethod
+    def from_list(
+        cls, data: list[dict], default_timeout_hours: int = 24
+    ) -> ApprovalGateManager:
+        """Restore from serialized list."""
+        pending = [
+            PendingApproval(
+                agent_id=d["agent_id"],
+                rule_id=d["rule_id"],
+                trigger_ts=d["trigger_ts"],
+                trigger_msg_hash=d["trigger_msg_hash"],
+                escalation_ts=d["escalation_ts"],
+                timeout_hours=d.get("timeout_hours", default_timeout_hours),
+                payload=d.get("payload", ""),
+            )
+            for d in data
+        ]
+        return cls(default_timeout_hours=default_timeout_hours, pending=pending)
+
+
+class DispatchCommandRenderer:
+    """Renders a dispatch command from a DispatchRule and triggering message.
+
+    Per §8.4 step 2: substitutes {{payload}}, {{agent_id}}, {{rule_id}}
+    in command_template. MUST use list form (never shell=True) — T4 §11.4.
+    """
+
+    def __init__(
+        self,
+        default_command: str = "claude",
+        default_max_turns: int = 10,
+        default_allowed_tools: list[str] | None = None,
+    ):
+        self.default_command = default_command
+        self.default_max_turns = default_max_turns
+        self.default_allowed_tools = default_allowed_tools or []
+
+    def render(
+        self,
+        rule: DispatchRule,
+        profile: AgentProfile,
+        trigger_msg: Message,
+    ) -> list[str]:
+        """Return subprocess argv list (no shell interpolation).
+
+        If rule.command_template is set: parse and substitute.
+        Otherwise use default_command with profile overrides.
+        """
+        if rule.command_template:
+            template = rule.command_template
+            template = template.replace("{{payload}}", trigger_msg.msg)
+            template = template.replace("{{agent_id}}", profile.agent_id)
+            template = template.replace("{{rule_id}}", rule.rule_id)
+            return template.split()
+
+        # Build default command
+        cmd = [self.default_command]
+        max_turns = profile.resource_limits.max_turns or self.default_max_turns
+        cmd.extend(["--max-turns", str(max_turns)])
+
+        tools = (
+            list(profile.resource_limits.allowed_tools)
+            if profile.resource_limits.allowed_tools
+            else self.default_allowed_tools
+        )
+        if tools:
+            cmd.extend(["--allowedTools", ",".join(tools)])
+
+        cmd.extend(["-p", trigger_msg.msg])
+        return cmd
+
+
+class DispatchEngine:
+    """ARC-0369 §8 Dispatch Protocol — pure decision engine.
+
+    Given a bus message and the current registry/state, produces
+    DispatchDecision objects. Does NOT perform I/O or spawn processes.
+    """
+
+    def __init__(
+        self,
+        registry: AgentRegistry,
+        concurrency: ConcurrencyTracker,
+        approval_manager: ApprovalGateManager,
+        renderer: DispatchCommandRenderer,
+        overflow_policy: QueueOverflow = QueueOverflow.DROP_NEWEST,
+    ):
+        self.registry = registry
+        self.concurrency = concurrency
+        self.approval_manager = approval_manager
+        self.renderer = renderer
+        self.overflow_policy = overflow_policy
+
+    def evaluate_message(
+        self,
+        message: Message,
+        now: datetime | None = None,
+    ) -> list[DispatchDecision]:
+        """Evaluate a bus message against all enabled agents.
+
+        Returns one DispatchDecision per matching (agent, rule) pair,
+        in priority order per §8.8: alert > dispatch > event > state.
+        """
+        matches = self.registry.find_matching_rules(message)
+        if not matches:
+            return []
+
+        # Sort by priority tier (§8.8)
+        matches.sort(key=lambda pair: _TYPE_PRIORITY.get(
+            pair[1].trigger.match_type or "", 3
+        ))
+
+        decisions = []
+        for profile, rule in matches:
+            decisions.append(self._evaluate_single(profile, rule, message, now))
+        return decisions
+
+    def check_approval_signal(self, message: Message) -> DispatchDecision | None:
+        """Check if a bus message is an operator approval.
+
+        Returns APPROVAL_GRANTED decision if it matches, None otherwise.
+        """
+        pa = self.approval_manager.match_approval_signal(message)
+        if pa is None:
+            return None
+
+        profile = self.registry.get(pa.agent_id)
+        if profile is None:
+            return None
+
+        # Find the matching rule
+        rule = None
+        for r in profile.dispatch_rules:
+            if r.rule_id == pa.rule_id:
+                rule = r
+                break
+
+        if rule is None:
+            return None
+
+        # Build the original trigger message for rendering
+        trigger_msg = Message(
+            ts=date.fromisoformat(pa.trigger_ts),
+            src="",
+            dst=pa.agent_id,
+            type="dispatch",
+            msg=pa.payload,
+            ttl=7,
+            ack=[],
+        )
+
+        cmd = self.renderer.render(rule, profile, trigger_msg)
+        self.approval_manager.remove(pa.agent_id, pa.rule_id)
+
+        return DispatchDecision(
+            agent_id=pa.agent_id,
+            rule_id=pa.rule_id,
+            outcome=DispatchOutcome.APPROVAL_GRANTED,
+            command=cmd,
+            trigger_msg=trigger_msg,
+            payload=pa.payload,
+        )
+
+    def expire_approvals(
+        self, now: datetime | None = None
+    ) -> list[DispatchDecision]:
+        """Scan pending approvals for timeouts.
+
+        Returns APPROVAL_TIMEOUT decisions for each expired one.
+        """
+        expired = self.approval_manager.find_expired(now)
+        decisions = []
+        for pa in expired:
+            self.approval_manager.remove(pa.agent_id, pa.rule_id)
+            decisions.append(DispatchDecision(
+                agent_id=pa.agent_id,
+                rule_id=pa.rule_id,
+                outcome=DispatchOutcome.APPROVAL_TIMEOUT,
+                payload=pa.payload,
+            ))
+        return decisions
+
+    def _evaluate_single(
+        self,
+        profile: AgentProfile,
+        rule: DispatchRule,
+        message: Message,
+        now: datetime | None = None,
+    ) -> DispatchDecision:
+        """Build a DispatchDecision for one (profile, rule, message) triple."""
+        # Check capacity
+        if self.concurrency.at_capacity(
+            profile.agent_id, profile.resource_limits.max_concurrent
+        ):
+            return DispatchDecision(
+                agent_id=profile.agent_id,
+                rule_id=rule.rule_id,
+                outcome=DispatchOutcome.CAPACITY_EXCEEDED,
+                trigger_msg=message,
+                payload=message.msg,
+            )
+
+        # Approval gate
+        if rule.approval_required:
+            pa = self.approval_manager.add(
+                agent_id=profile.agent_id,
+                rule_id=rule.rule_id,
+                trigger=message,
+                timeout_hours=rule.approval_timeout_hours,
+                now=now,
+            )
+            return DispatchDecision(
+                agent_id=profile.agent_id,
+                rule_id=rule.rule_id,
+                outcome=DispatchOutcome.APPROVAL_PENDING,
+                trigger_msg=message,
+                payload=message.msg,
+                approval_key=f"{pa.agent_id}:{pa.rule_id}:{pa.trigger_ts}",
+            )
+
+        # Direct dispatch
+        cmd = self.renderer.render(rule, profile, message)
+        return DispatchDecision(
+            agent_id=profile.agent_id,
+            rule_id=rule.rule_id,
+            outcome=DispatchOutcome.DISPATCHED,
+            command=cmd,
+            trigger_msg=message,
+            payload=message.msg,
+        )
+
+
+class DispatchScheduler:
+    """Manages scheduled dispatch rules (§8.6).
+
+    Validates cron expressions at load time (§7.4 rule 5, §11.2).
+    Fires synthetic dispatch messages when cron matches.
+    Pure logic — no asyncio. Caller polls due_rules() at intervals.
+    """
+
+    MIN_INTERVAL_SECONDS: int = 300  # 5 minutes (§11.2)
+
+    def __init__(self, registry: AgentRegistry, daemon_namespace: str = "daemon"):
+        self._schedule: dict[str, float] = {}  # "agent_id:rule_id" → last_fire_ts
+        self._registry = registry
+        self._daemon_namespace = daemon_namespace
+
+    def load(self) -> list[str]:
+        """Load scheduled rules from registry. Returns errors for invalid crons."""
+        errors = []
+        self._schedule.clear()
+
+        for profile in self._registry.all_enabled():
+            for rule in profile.dispatch_rules:
+                if rule.trigger.type != "scheduled":
+                    continue
+                err = self.validate_cron(rule.trigger.cron or "")
+                if err:
+                    errors.append(
+                        f"{profile.agent_id}/{rule.rule_id}: {err}"
+                    )
+                else:
+                    key = f"{profile.agent_id}:{rule.rule_id}"
+                    self._schedule.setdefault(key, 0.0)
+        return errors
+
+    def due_rules(
+        self, now: float | None = None
+    ) -> list[tuple[AgentProfile, DispatchRule]]:
+        """Return (profile, rule) pairs whose cron is due.
+
+        Uses a simplified interval model: fires if enough time elapsed
+        since last fire. Marks as fired to prevent re-fire.
+        """
+        if now is None:
+            now = time.time()
+
+        due = []
+        for profile in self._registry.all_enabled():
+            for rule in profile.dispatch_rules:
+                if rule.trigger.type != "scheduled":
+                    continue
+                key = f"{profile.agent_id}:{rule.rule_id}"
+                last_fire = self._schedule.get(key, 0.0)
+
+                if now - last_fire >= self.MIN_INTERVAL_SECONDS:
+                    due.append((profile, rule))
+                    self._schedule[key] = now
+
+        return due
+
+    def synthetic_message(
+        self,
+        profile: AgentProfile,
+        rule: DispatchRule,
+        now: date | None = None,
+    ) -> Message:
+        """Build the synthetic dispatch message for a scheduled rule (§8.6)."""
+        if now is None:
+            now = date.today()
+
+        return Message(
+            ts=now,
+            src=self._daemon_namespace,
+            dst=profile.agent_id,
+            type="dispatch",
+            msg=f"SCHEDULED:{rule.rule_id}:{now.isoformat()}",
+            ttl=1,
+            ack=[],
+        )
+
+    @property
+    def schedule_state(self) -> dict[str, float]:
+        """Return the schedule state for serialization."""
+        return dict(self._schedule)
+
+    def restore_state(self, state: dict[str, float]) -> None:
+        """Restore schedule state from deserialization."""
+        self._schedule.update(state)
+
+    @staticmethod
+    def validate_cron(expr: str, min_interval_minutes: int = 5) -> str | None:
+        """Validate a 5-field cron expression.
+
+        Returns None if valid, or an error string if invalid.
+        Checks: field count, basic value ranges.
+        No external deps — stdlib only.
+        """
+        if not expr or not expr.strip():
+            return "empty cron expression"
+
+        fields = expr.strip().split()
+        if len(fields) != 5:
+            return f"expected 5 fields, got {len(fields)}"
+
+        # Field ranges: minute(0-59), hour(0-23), dom(1-31), month(1-12), dow(0-7)
+        ranges = [
+            ("minute", 0, 59),
+            ("hour", 0, 23),
+            ("day-of-month", 1, 31),
+            ("month", 1, 12),
+            ("day-of-week", 0, 7),
+        ]
+
+        for field_val, (name, low, high) in zip(fields, ranges):
+            err = _validate_cron_field(field_val, name, low, high)
+            if err:
+                return err
+
+        return None
+
+
+def _validate_cron_field(
+    field_val: str, name: str, low: int, high: int
+) -> str | None:
+    """Validate a single cron field. Returns error string or None."""
+    # Handle wildcard
+    if field_val == "*":
+        return None
+
+    # Handle */N step
+    if field_val.startswith("*/"):
+        try:
+            step = int(field_val[2:])
+            if step < 1:
+                return f"{name}: step must be >= 1"
+        except ValueError:
+            return f"{name}: invalid step '{field_val}'"
+        return None
+
+    # Handle comma-separated values and ranges
+    for part in field_val.split(","):
+        if "-" in part:
+            # Range: N-M
+            bounds = part.split("-", 1)
+            try:
+                lo, hi = int(bounds[0]), int(bounds[1])
+                if lo < low or hi > high:
+                    return f"{name}: range {lo}-{hi} out of bounds ({low}-{high})"
+            except ValueError:
+                return f"{name}: invalid range '{part}'"
+        else:
+            # Single value
+            try:
+                val = int(part)
+                if val < low or val > high:
+                    return f"{name}: {val} out of range ({low}-{high})"
+            except ValueError:
+                return f"{name}: invalid value '{part}'"
+
+    return None

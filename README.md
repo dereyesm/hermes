@@ -360,7 +360,7 @@ hermes/
 │   ├── POSITIONING.md
 │   ├── USE-CASES.md
 │   └── diagrams/      #   Visual documentation (13 Mermaid + 14 D2)
-├── reference/python/  # Reference implementation (524 tests)
+├── reference/python/  # Reference implementation (758 tests)
 ├── examples/          # Sample bus, routes, configs
 ├── CHANGELOG.md
 ├── CONTRIBUTING.md
