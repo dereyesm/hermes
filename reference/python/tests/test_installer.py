@@ -119,8 +119,10 @@ class TestGenerateKeypair:
     """Test generate_keypair()."""
 
     def test_generates_new_keys(self, tmp_path):
-        # First init clan so .keys/ exists
-        init_clan_if_needed(tmp_path, "testclan", "Test")
+        # Create .keys/ dir without keys (init_clan now generates real keys,
+        # so we set up manually to test generate_keypair independently)
+        keys_dir = tmp_path / ".keys"
+        keys_dir.mkdir(parents=True)
 
         created, msg, fp = generate_keypair(tmp_path, "testclan")
         assert created is True

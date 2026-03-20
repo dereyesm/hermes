@@ -1,7 +1,7 @@
-"""Tests for HERMES Agent Service Platform — ARC-0369 F1 + F2."""
+"""Tests for HERMES Agent Service Platform — ARC-0369 F1 + F2 + F3."""
 
 import json
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -10,10 +10,20 @@ from hermes.asp import (
     AgentProfile,
     AgentProfileError,
     AgentRegistry,
+    AgentState,
+    ApprovalGateManager,
+    ConcurrencyTracker,
+    DispatchCommandRenderer,
+    DispatchDecision,
+    DispatchEngine,
+    DispatchOutcome,
     DispatchRule,
+    DispatchScheduler,
     DispatchTrigger,
     MessageCategory,
     MessageClassifier,
+    PendingApproval,
+    QueueOverflow,
     ResourceLimits,
     _trigger_matches,
 )
@@ -766,3 +776,622 @@ class TestClassifierRegistryIntegration:
         msg = _msg(src="heraldo", dst="clan-jei", msg_type="dispatch", msg_text="REPORT:x")
         assert mc.classify(msg) == MessageCategory.OUTBOUND
         # Even though content matches a rule, daemon should forward, not dispatch
+
+
+# ─── F3: Dispatch Protocol ──────────────────────────────────────
+
+
+# ─── F3.1: Enums ────────────────────────────────────────────────
+
+
+class TestF3Enums:
+    """Test F3 enum types."""
+
+    def test_agent_state_values(self):
+        assert AgentState.INACTIVE == "inactive"
+        assert AgentState.ACTIVE == "active"
+        assert AgentState.RUNNING == "running"
+        assert AgentState.FAILED == "failed"
+        assert AgentState.REMOVED == "removed"
+        assert len(AgentState) == 7
+
+    def test_dispatch_outcome_values(self):
+        assert DispatchOutcome.DISPATCHED == "dispatched"
+        assert DispatchOutcome.APPROVAL_PENDING == "approval_pending"
+        assert DispatchOutcome.APPROVAL_GRANTED == "approval_granted"
+        assert DispatchOutcome.APPROVAL_TIMEOUT == "approval_timeout"
+        assert DispatchOutcome.CAPACITY_EXCEEDED == "capacity_exceeded"
+        assert len(DispatchOutcome) == 7
+
+    def test_queue_overflow_values(self):
+        assert QueueOverflow.DROP_NEWEST == "drop-newest"
+        assert QueueOverflow.DROP_OLDEST == "drop-oldest"
+
+
+# ─── F3.2: ConcurrencyTracker ───────────────────────────────────
+
+
+class TestConcurrencyTracker:
+    """Tests for ConcurrencyTracker."""
+
+    def test_starts_at_zero(self):
+        ct = ConcurrencyTracker()
+        assert ct.active_count("agent-x") == 0
+
+    def test_increment_decrement(self):
+        ct = ConcurrencyTracker()
+        ct.increment("agent-x")
+        assert ct.active_count("agent-x") == 1
+        ct.increment("agent-x")
+        assert ct.active_count("agent-x") == 2
+        ct.decrement("agent-x")
+        assert ct.active_count("agent-x") == 1
+
+    def test_decrement_floors_at_zero(self):
+        ct = ConcurrencyTracker()
+        ct.decrement("agent-x")
+        assert ct.active_count("agent-x") == 0
+
+    def test_at_capacity_true(self):
+        ct = ConcurrencyTracker()
+        ct.increment("agent-x")
+        assert ct.at_capacity("agent-x", 1) is True
+
+    def test_at_capacity_false(self):
+        ct = ConcurrencyTracker()
+        ct.increment("agent-x")
+        assert ct.at_capacity("agent-x", 2) is False
+
+    def test_at_capacity_unlimited(self):
+        ct = ConcurrencyTracker()
+        ct.increment("agent-x")
+        ct.increment("agent-x")
+        assert ct.at_capacity("agent-x", 0) is False
+
+    def test_independent_agents(self):
+        ct = ConcurrencyTracker()
+        ct.increment("a")
+        ct.increment("b")
+        ct.increment("b")
+        assert ct.active_count("a") == 1
+        assert ct.active_count("b") == 2
+
+    def test_reset(self):
+        ct = ConcurrencyTracker()
+        ct.increment("agent-x")
+        ct.increment("agent-x")
+        ct.reset("agent-x")
+        assert ct.active_count("agent-x") == 0
+
+
+# ─── F3.3: ApprovalGateManager ──────────────────────────────────
+
+
+class TestApprovalGateManager:
+    """Tests for ApprovalGateManager."""
+
+    def _trigger_msg(self) -> Message:
+        return _msg(msg_type="dispatch", msg_text="REPORT:FINANCIAL:q4")
+
+    def test_add_creates_pending(self):
+        mgr = ApprovalGateManager()
+        msg = self._trigger_msg()
+        pa = mgr.add("report-builder", "on-financial", msg)
+        assert pa.agent_id == "report-builder"
+        assert pa.rule_id == "on-financial"
+        assert len(mgr.pending) == 1
+
+    def test_add_hashes_msg(self):
+        import hashlib
+        mgr = ApprovalGateManager()
+        msg = self._trigger_msg()
+        pa = mgr.add("agent", "rule", msg)
+        expected = hashlib.sha256(msg.msg.encode("utf-8")).hexdigest()
+        assert pa.trigger_msg_hash == expected
+
+    def test_find_expired_returns_nothing_for_fresh(self):
+        mgr = ApprovalGateManager()
+        msg = self._trigger_msg()
+        now = datetime(2026, 3, 20, 12, 0)
+        mgr.add("agent", "rule", msg, timeout_hours=24, now=now)
+        assert mgr.find_expired(now + timedelta(hours=1)) == []
+
+    def test_find_expired_returns_past_timeout(self):
+        mgr = ApprovalGateManager()
+        msg = self._trigger_msg()
+        now = datetime(2026, 3, 20, 12, 0)
+        mgr.add("agent", "rule", msg, timeout_hours=12, now=now)
+        expired = mgr.find_expired(now + timedelta(hours=13))
+        assert len(expired) == 1
+        assert expired[0].agent_id == "agent"
+
+    def test_remove(self):
+        mgr = ApprovalGateManager()
+        msg = self._trigger_msg()
+        mgr.add("a", "r1", msg)
+        mgr.add("a", "r2", msg)
+        mgr.remove("a", "r1")
+        assert len(mgr.pending) == 1
+        assert mgr.pending[0].rule_id == "r2"
+
+    def test_match_approval_signal_none_for_wrong_type(self):
+        mgr = ApprovalGateManager()
+        msg = self._trigger_msg()
+        mgr.add("agent", "rule", msg)
+        signal = _msg(msg_type="state", msg_text="APPROVE:agent:rule:2026-03-20")
+        assert mgr.match_approval_signal(signal) is None
+
+    def test_match_approval_signal_none_for_wrong_prefix(self):
+        mgr = ApprovalGateManager()
+        msg = self._trigger_msg()
+        mgr.add("agent", "rule", msg)
+        signal = _msg(msg_type="dispatch", msg_text="NOT_APPROVE:agent:rule:2026-03-20")
+        assert mgr.match_approval_signal(signal) is None
+
+    def test_match_approval_signal_none_for_wrong_agent(self):
+        mgr = ApprovalGateManager()
+        msg = self._trigger_msg()
+        mgr.add("agent", "rule", msg)
+        signal = _msg(msg_type="dispatch", msg_text="APPROVE:wrong:rule:2026-03-20")
+        assert mgr.match_approval_signal(signal) is None
+
+    def test_match_approval_signal_none_for_wrong_ts(self):
+        mgr = ApprovalGateManager()
+        msg = self._trigger_msg()
+        mgr.add("agent", "rule", msg)
+        signal = _msg(msg_type="dispatch", msg_text="APPROVE:agent:rule:1999-01-01")
+        assert mgr.match_approval_signal(signal) is None
+
+    def test_match_approval_signal_success(self):
+        mgr = ApprovalGateManager()
+        msg = self._trigger_msg()
+        mgr.add("agent", "rule", msg)
+        ts = date.today().isoformat()
+        signal = _msg(msg_type="dispatch", msg_text=f"APPROVE:agent:rule:{ts}")
+        pa = mgr.match_approval_signal(signal)
+        assert pa is not None
+        assert pa.agent_id == "agent"
+
+    def test_to_list_from_list_roundtrip(self):
+        mgr = ApprovalGateManager()
+        msg = self._trigger_msg()
+        now = datetime(2026, 3, 20, 14, 0)
+        mgr.add("a", "r1", msg, now=now)
+        mgr.add("b", "r2", msg, timeout_hours=6, now=now)
+        data = mgr.to_list()
+        mgr2 = ApprovalGateManager.from_list(data)
+        assert len(mgr2.pending) == 2
+        assert mgr2.pending[0].agent_id == "a"
+        assert mgr2.pending[1].timeout_hours == 6
+
+    def test_two_approvals_different_rules_same_agent(self):
+        mgr = ApprovalGateManager()
+        msg = self._trigger_msg()
+        mgr.add("agent", "r1", msg)
+        mgr.add("agent", "r2", msg)
+        assert len(mgr.pending) == 2
+
+    def test_default_timeout_propagates(self):
+        mgr = ApprovalGateManager(default_timeout_hours=48)
+        msg = self._trigger_msg()
+        pa = mgr.add("agent", "rule", msg)
+        assert pa.timeout_hours == 48
+
+
+# ─── F3.4: DispatchCommandRenderer ──────────────────────────────
+
+
+class TestDispatchCommandRenderer:
+    """Tests for DispatchCommandRenderer."""
+
+    def _profile(self) -> AgentProfile:
+        return AgentProfile.from_dict(WORKER_PROFILE)
+
+    def _rule(self, template: str | None = None) -> DispatchRule:
+        return DispatchRule(
+            rule_id="test-rule",
+            trigger=DispatchTrigger(type="event-driven", match_type="dispatch"),
+            command_template=template,
+        )
+
+    def test_default_command(self):
+        renderer = DispatchCommandRenderer()
+        cmd = renderer.render(self._rule(), self._profile(), _msg())
+        assert cmd[0] == "claude"
+        assert "--max-turns" in cmd
+
+    def test_max_turns_from_profile(self):
+        renderer = DispatchCommandRenderer()
+        cmd = renderer.render(self._rule(), self._profile(), _msg())
+        idx = cmd.index("--max-turns")
+        assert cmd[idx + 1] == "15"  # from WORKER_PROFILE
+
+    def test_max_turns_default(self):
+        renderer = DispatchCommandRenderer(default_max_turns=20)
+        profile = AgentProfile.from_dict(PLATFORM_PROFILE)  # no max_turns
+        cmd = renderer.render(self._rule(), profile, _msg())
+        idx = cmd.index("--max-turns")
+        assert cmd[idx + 1] == "20"
+
+    def test_allowed_tools_from_profile(self):
+        renderer = DispatchCommandRenderer()
+        cmd = renderer.render(self._rule(), self._profile(), _msg())
+        assert "--allowedTools" in cmd
+        idx = cmd.index("--allowedTools")
+        assert "file-read,file-write" in cmd[idx + 1]
+
+    def test_allowed_tools_absent_when_empty(self):
+        renderer = DispatchCommandRenderer()
+        profile = AgentProfile.from_dict(PLATFORM_PROFILE)  # no allowed_tools
+        cmd = renderer.render(self._rule(), profile, _msg())
+        assert "--allowedTools" not in cmd
+
+    def test_template_substitution_payload(self):
+        renderer = DispatchCommandRenderer()
+        rule = self._rule("echo {{payload}}")
+        msg = _msg(msg_text="hello-world")
+        cmd = renderer.render(rule, self._profile(), msg)
+        assert "hello-world" in cmd
+
+    def test_template_substitution_agent_id(self):
+        renderer = DispatchCommandRenderer()
+        rule = self._rule("run {{agent_id}}")
+        cmd = renderer.render(rule, self._profile(), _msg())
+        assert "report-builder" in cmd
+
+    def test_template_substitution_rule_id(self):
+        renderer = DispatchCommandRenderer()
+        rule = self._rule("dispatch {{rule_id}}")
+        cmd = renderer.render(rule, self._profile(), _msg())
+        assert "test-rule" in cmd
+
+    def test_returns_list_not_string(self):
+        renderer = DispatchCommandRenderer()
+        cmd = renderer.render(self._rule(), self._profile(), _msg())
+        assert isinstance(cmd, list)
+        assert all(isinstance(s, str) for s in cmd)
+
+    def test_unknown_template_vars_left_as_is(self):
+        renderer = DispatchCommandRenderer()
+        rule = self._rule("cmd {{unknown}}")
+        cmd = renderer.render(rule, self._profile(), _msg())
+        assert "{{unknown}}" in cmd
+
+
+# ─── F3.5: DispatchEngine ───────────────────────────────────────
+
+
+class TestDispatchEngine:
+    """Tests for DispatchEngine — the central dispatch coordinator."""
+
+    @pytest.fixture
+    def agents_dir(self, tmp_path):
+        d = tmp_path / "agents"
+        d.mkdir()
+        (d / "report-builder.json").write_text(json.dumps(WORKER_PROFILE))
+        (d / "platform-agent.json").write_text(json.dumps(PLATFORM_PROFILE))
+        return d
+
+    @pytest.fixture
+    def engine(self, agents_dir):
+        reg = AgentRegistry(agents_dir)
+        reg.load_all()
+        ct = ConcurrencyTracker()
+        am = ApprovalGateManager()
+        renderer = DispatchCommandRenderer()
+        return DispatchEngine(reg, ct, am, renderer)
+
+    def test_no_match_returns_empty(self, engine):
+        msg = _msg(msg_type="state", msg_text="irrelevant")
+        assert engine.evaluate_message(msg) == []
+
+    def test_direct_dispatch(self, engine):
+        msg = _msg(msg_type="dispatch", msg_text="REPORT:weekly")
+        decisions = engine.evaluate_message(msg)
+        assert len(decisions) == 1
+        assert decisions[0].outcome == DispatchOutcome.DISPATCHED
+        assert decisions[0].agent_id == "report-builder"
+        assert len(decisions[0].command) > 0
+
+    def test_approval_pending(self, engine):
+        msg = _msg(msg_type="dispatch", msg_text="REPORT:FINANCIAL:q4")
+        decisions = engine.evaluate_message(msg)
+        # Both rules match: on-dispatch and on-financial-dispatch
+        pending = [d for d in decisions if d.outcome == DispatchOutcome.APPROVAL_PENDING]
+        assert len(pending) == 1
+        assert pending[0].approval_key is not None
+
+    def test_capacity_exceeded(self, engine):
+        # Fill up report-builder capacity (max_concurrent=1)
+        engine.concurrency.increment("report-builder")
+        msg = _msg(msg_type="dispatch", msg_text="REPORT:x")
+        decisions = engine.evaluate_message(msg)
+        assert any(d.outcome == DispatchOutcome.CAPACITY_EXCEEDED for d in decisions)
+
+    def test_two_agents_match_same_message(self, engine):
+        msg = _msg(msg_type="alert", msg_text="REPORT:critical")
+        # Only platform-agent matches alert; report-builder matches dispatch only
+        # Change message type to dispatch and prefix to REPORT:
+        msg = _msg(msg_type="dispatch", msg_text="REPORT:test")
+        decisions = engine.evaluate_message(msg)
+        # report-builder on-dispatch matches
+        assert len(decisions) >= 1
+
+    def test_check_approval_signal_none_for_non_approval(self, engine):
+        msg = _msg(msg_type="state", msg_text="hello")
+        assert engine.check_approval_signal(msg) is None
+
+    def test_check_approval_signal_granted(self, engine):
+        # First create a pending approval
+        trigger = _msg(msg_type="dispatch", msg_text="REPORT:FINANCIAL:q4")
+        engine.evaluate_message(trigger)
+
+        ts = date.today().isoformat()
+        signal = _msg(
+            msg_type="dispatch",
+            msg_text=f"APPROVE:report-builder:on-financial-dispatch:{ts}",
+        )
+        decision = engine.check_approval_signal(signal)
+        assert decision is not None
+        assert decision.outcome == DispatchOutcome.APPROVAL_GRANTED
+
+    def test_expire_approvals_empty(self, engine):
+        assert engine.expire_approvals() == []
+
+    def test_expire_approvals_timeout(self, engine):
+        trigger = _msg(msg_type="dispatch", msg_text="REPORT:FINANCIAL:q4")
+        now = datetime(2026, 3, 20, 12, 0)
+        engine.evaluate_message(trigger, now=now)
+
+        # Fast forward past timeout (12 hours for financial rule)
+        future = now + timedelta(hours=13)
+        decisions = engine.expire_approvals(future)
+        timeout_decisions = [
+            d for d in decisions if d.outcome == DispatchOutcome.APPROVAL_TIMEOUT
+        ]
+        assert len(timeout_decisions) >= 1
+
+    def test_evaluate_does_not_mutate_message(self, engine):
+        msg = _msg(msg_type="dispatch", msg_text="REPORT:test")
+        original_msg = msg.msg
+        original_type = msg.type
+        engine.evaluate_message(msg)
+        assert msg.msg == original_msg
+        assert msg.type == original_type
+
+    def test_decision_contains_trigger_msg(self, engine):
+        msg = _msg(msg_type="dispatch", msg_text="REPORT:test")
+        decisions = engine.evaluate_message(msg)
+        assert decisions[0].trigger_msg is msg
+
+    def test_decision_payload_matches(self, engine):
+        msg = _msg(msg_type="dispatch", msg_text="REPORT:test")
+        decisions = engine.evaluate_message(msg)
+        assert decisions[0].payload == "REPORT:test"
+
+    def test_empty_registry_returns_empty(self, tmp_path):
+        d = tmp_path / "empty_agents"
+        d.mkdir()
+        reg = AgentRegistry(d)
+        reg.load_all()
+        engine = DispatchEngine(
+            reg, ConcurrencyTracker(), ApprovalGateManager(),
+            DispatchCommandRenderer(),
+        )
+        msg = _msg(msg_type="dispatch", msg_text="REPORT:test")
+        assert engine.evaluate_message(msg) == []
+
+    def test_disabled_agent_not_dispatched(self, tmp_path):
+        d = tmp_path / "agents"
+        d.mkdir()
+        disabled = dict(WORKER_PROFILE)
+        disabled["enabled"] = False
+        (d / "report-builder.json").write_text(json.dumps(disabled))
+        reg = AgentRegistry(d)
+        reg.load_all()
+        engine = DispatchEngine(
+            reg, ConcurrencyTracker(), ApprovalGateManager(),
+            DispatchCommandRenderer(),
+        )
+        msg = _msg(msg_type="dispatch", msg_text="REPORT:test")
+        assert engine.evaluate_message(msg) == []
+
+    def test_approval_signal_unknown_agent_returns_none(self, engine):
+        signal = _msg(
+            msg_type="dispatch",
+            msg_text="APPROVE:nonexistent:rule:2026-03-20",
+        )
+        assert engine.check_approval_signal(signal) is None
+
+
+# ─── F3.6: DispatchScheduler ────────────────────────────────────
+
+
+class TestDispatchScheduler:
+    """Tests for DispatchScheduler."""
+
+    @pytest.fixture
+    def agents_dir(self, tmp_path):
+        d = tmp_path / "agents"
+        d.mkdir()
+        (d / "mail-scanner.json").write_text(json.dumps(SENSOR_PROFILE))
+        return d
+
+    @pytest.fixture
+    def registry(self, agents_dir):
+        reg = AgentRegistry(agents_dir)
+        reg.load_all()
+        return reg
+
+    def test_validate_cron_valid(self):
+        assert DispatchScheduler.validate_cron("0 */4 * * *") is None
+        assert DispatchScheduler.validate_cron("30 9 * * 1-5") is None
+        assert DispatchScheduler.validate_cron("0 0 1 * *") is None
+
+    def test_validate_cron_empty(self):
+        assert DispatchScheduler.validate_cron("") is not None
+
+    def test_validate_cron_wrong_field_count(self):
+        assert DispatchScheduler.validate_cron("* * * * * *") is not None
+
+    def test_validate_cron_minute_out_of_range(self):
+        assert DispatchScheduler.validate_cron("60 * * * *") is not None
+
+    def test_validate_cron_hour_out_of_range(self):
+        assert DispatchScheduler.validate_cron("0 24 * * *") is not None
+
+    def test_load_returns_no_errors_for_valid(self, registry):
+        sched = DispatchScheduler(registry)
+        errors = sched.load()
+        assert errors == []
+
+    def test_load_returns_errors_for_invalid(self, tmp_path):
+        d = tmp_path / "bad_agents"
+        d.mkdir()
+        bad = dict(SENSOR_PROFILE)
+        bad["dispatch_rules"][0]["trigger"]["cron"] = "bad cron"
+        (d / "mail-scanner.json").write_text(json.dumps(bad))
+        reg = AgentRegistry(d)
+        reg.load_all()
+        sched = DispatchScheduler(reg)
+        errors = sched.load()
+        assert len(errors) == 1
+
+    def test_due_rules_not_before_interval(self, registry):
+        sched = DispatchScheduler(registry)
+        sched.load()
+        now = 1000000.0
+        # First call fires it
+        due = sched.due_rules(now)
+        assert len(due) == 1
+        # Second call too soon
+        due2 = sched.due_rules(now + 10)
+        assert len(due2) == 0
+
+    def test_due_rules_fires_after_interval(self, registry):
+        sched = DispatchScheduler(registry)
+        sched.load()
+        now = 1000000.0
+        sched.due_rules(now)
+        due = sched.due_rules(now + 301)
+        assert len(due) == 1
+
+    def test_synthetic_message_format(self, registry):
+        sched = DispatchScheduler(registry, daemon_namespace="test-daemon")
+        sched.load()
+        profile = registry.all_enabled()[0]
+        rule = profile.dispatch_rules[0]
+        today = date(2026, 3, 20)
+        msg = sched.synthetic_message(profile, rule, now=today)
+        assert msg.type == "dispatch"
+        assert msg.src == "test-daemon"
+        assert msg.dst == "mail-scanner"
+        assert msg.msg.startswith("SCHEDULED:scheduled-scan:")
+
+    def test_schedule_state_roundtrip(self, registry):
+        sched = DispatchScheduler(registry)
+        sched.load()
+        sched.due_rules(1000000.0)
+        state = sched.schedule_state
+        assert len(state) > 0
+
+        sched2 = DispatchScheduler(registry)
+        sched2.load()
+        sched2.restore_state(state)
+        # Should not fire because state was restored
+        due = sched2.due_rules(1000000.0 + 10)
+        assert len(due) == 0
+
+
+# ─── F3.7: Integration ──────────────────────────────────────────
+
+
+class TestF3Integration:
+    """Integration tests combining F3 components."""
+
+    @pytest.fixture
+    def agents_dir(self, tmp_path):
+        d = tmp_path / "agents"
+        d.mkdir()
+        (d / "report-builder.json").write_text(json.dumps(WORKER_PROFILE))
+        (d / "mail-scanner.json").write_text(json.dumps(SENSOR_PROFILE))
+        return d
+
+    def test_full_dispatch_flow(self, agents_dir):
+        """Full flow: registry → engine → dispatch → tracker incremented."""
+        reg = AgentRegistry(agents_dir)
+        reg.load_all()
+        ct = ConcurrencyTracker()
+        engine = DispatchEngine(
+            reg, ct, ApprovalGateManager(), DispatchCommandRenderer()
+        )
+
+        msg = _msg(msg_type="dispatch", msg_text="REPORT:weekly")
+        decisions = engine.evaluate_message(msg)
+        dispatched = [d for d in decisions if d.outcome == DispatchOutcome.DISPATCHED]
+        assert len(dispatched) >= 1
+
+        # Simulate daemon incrementing tracker
+        for d in dispatched:
+            ct.increment(d.agent_id)
+        assert ct.active_count("report-builder") >= 1
+
+    def test_full_approval_flow(self, agents_dir):
+        """Full flow: trigger → approval pending → signal → granted."""
+        reg = AgentRegistry(agents_dir)
+        reg.load_all()
+        ct = ConcurrencyTracker()
+        am = ApprovalGateManager()
+        engine = DispatchEngine(reg, ct, am, DispatchCommandRenderer())
+
+        # Step 1: trigger creates pending
+        trigger = _msg(msg_type="dispatch", msg_text="REPORT:FINANCIAL:q4")
+        decisions = engine.evaluate_message(trigger)
+        pending = [d for d in decisions if d.outcome == DispatchOutcome.APPROVAL_PENDING]
+        assert len(pending) == 1
+        assert len(am.pending) == 1
+
+        # Step 2: operator sends approval
+        ts = date.today().isoformat()
+        signal = _msg(
+            msg_type="dispatch",
+            msg_text=f"APPROVE:report-builder:on-financial-dispatch:{ts}",
+        )
+        granted = engine.check_approval_signal(signal)
+        assert granted is not None
+        assert granted.outcome == DispatchOutcome.APPROVAL_GRANTED
+        assert len(granted.command) > 0
+        assert len(am.pending) == 0
+
+    def test_full_timeout_flow(self, agents_dir):
+        """Full flow: approval pending → timeout → cleanup."""
+        reg = AgentRegistry(agents_dir)
+        reg.load_all()
+        am = ApprovalGateManager()
+        engine = DispatchEngine(
+            reg, ConcurrencyTracker(), am, DispatchCommandRenderer()
+        )
+
+        now = datetime(2026, 3, 20, 12, 0)
+        trigger = _msg(msg_type="dispatch", msg_text="REPORT:FINANCIAL:q4")
+        engine.evaluate_message(trigger, now=now)
+
+        # Fast forward past 12h timeout
+        future = now + timedelta(hours=13)
+        timeouts = engine.expire_approvals(future)
+        assert any(d.outcome == DispatchOutcome.APPROVAL_TIMEOUT for d in timeouts)
+        assert len(am.pending) == 0
+
+    def test_scheduler_produces_synthetic_then_engine_dispatches(self, agents_dir):
+        """Scheduler fires → synthetic message → engine dispatches."""
+        reg = AgentRegistry(agents_dir)
+        reg.load_all()
+        sched = DispatchScheduler(reg, daemon_namespace="test-daemon")
+        sched.load()
+
+        due = sched.due_rules(1000000.0)
+        assert len(due) >= 1
+
+        profile, rule = due[0]
+        synth = sched.synthetic_message(profile, rule, now=date(2026, 3, 20))
+        assert synth.msg.startswith("SCHEDULED:")

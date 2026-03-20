@@ -201,6 +201,9 @@ class NodeState:
     bus_offset: int = 0
     active_dispatches: list[DispatchSlot] = field(default_factory=list)
     last_evaluation: str | None = None
+    # F3 (ARC-0369): dispatch protocol state
+    pending_approvals: list[dict] = field(default_factory=list)
+    scheduler_last_fire: dict[str, float] = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return {
@@ -218,6 +221,8 @@ class NodeState:
                 for d in self.active_dispatches
             ],
             "last_evaluation": self.last_evaluation,
+            "pending_approvals": self.pending_approvals,
+            "scheduler_last_fire": self.scheduler_last_fire,
         }
 
     @classmethod
@@ -238,6 +243,8 @@ class NodeState:
             bus_offset=data.get("bus_offset", 0),
             active_dispatches=dispatches,
             last_evaluation=data.get("last_evaluation"),
+            pending_approvals=data.get("pending_approvals", []),
+            scheduler_last_fire=data.get("scheduler_last_fire", {}),
         )
 
 

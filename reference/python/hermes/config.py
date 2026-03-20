@@ -381,23 +381,31 @@ def init_clan(
     (keys_dir / "peers").mkdir(exist_ok=True)
     (clan_dir / ".agora").mkdir(exist_ok=True)
 
-    # Create placeholder key files (NOT cryptographically secure — Phase 2 uses Ed25519)
-    key_file = keys_dir / "gateway.key"
-    pub_file = keys_dir / "gateway.pub"
+    # Generate real Ed25519 + X25519 keypairs (aligned with hermes install)
+    key_file = keys_dir / f"{clan_id}.key"
+    pub_file = keys_dir / f"{clan_id}.pub"
     if not key_file.exists():
-        placeholder_key = secrets.token_hex(32)
-        placeholder_pub = secrets.token_hex(32)
-        key_file.write_text(placeholder_key)
-        pub_file.write_text(placeholder_pub)
+        try:
+            from .crypto import ClanKeyPair
+            kp = ClanKeyPair.generate()
+            kp.save(str(keys_dir), clan_id)
+        except ImportError:
+            # Fallback if cryptography not installed
+            placeholder_key = secrets.token_hex(32)
+            placeholder_pub = secrets.token_hex(32)
+            key_file.write_text(placeholder_key)
+            pub_file.write_text(placeholder_pub)
 
     # Create .gitignore for keys
     gitignore = keys_dir / ".gitignore"
     if not gitignore.exists():
-        gitignore.write_text("gateway.key\n")
+        gitignore.write_text("*.key\n")
 
     config = GatewayConfig(
         clan_id=clan_id,
         display_name=display_name,
+        keys_private=f".keys/{clan_id}.key",
+        keys_public=f".keys/{clan_id}.pub",
         agora_url=agora_url,
     )
 

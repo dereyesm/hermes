@@ -35,7 +35,7 @@ Guidelines:
 - Keep it minimal — the reference implementation demonstrates the spec, not a production framework
 - Every public function needs a docstring
 - Tests are required for new functionality
-- No external dependencies beyond the standard library
+- External dependencies: `cryptography` (Ed25519/X25519), `tomli-w` (TOML writing), `msgpack` (compact encoding). Keep the list minimal.
 
 ### 3. Add a New Language Implementation
 

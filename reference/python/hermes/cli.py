@@ -566,8 +566,32 @@ def cmd_agent(args: argparse.Namespace) -> int:
             print(f"  [!!] {e}")
         return 1 if errors else 0
 
+    elif agent_cmd == "dispatch-status":
+        state_file = clan_dir / ".agent-node.state.json"
+        if not state_file.exists():
+            print("No agent-node state found. Is the daemon running?", file=sys.stderr)
+            return 1
+
+        state = json.loads(state_file.read_text())
+        pending = state.get("pending_approvals", [])
+        sched = state.get("scheduler_last_fire", {})
+
+        print(f"Dispatch status ({clan_dir}):\n")
+        print(f"  Pending approvals: {len(pending)}")
+        for pa in pending:
+            print(
+                f"    {pa['agent_id']}:{pa['rule_id']} "
+                f"escalated:{pa.get('escalation_ts', '?')} "
+                f"timeout:{pa.get('timeout_hours', '?')}h"
+            )
+
+        print(f"\n  Scheduled rules: {len(sched)}")
+        for key, ts in sched.items():
+            print(f"    {key} last_fire:{ts:.0f}")
+        return 0
+
     else:
-        print("Usage: hermes agent <list|show|validate>", file=sys.stderr)
+        print("Usage: hermes agent <list|show|validate|dispatch-status>", file=sys.stderr)
         return 1
 
 
@@ -658,8 +682,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_send = sub.add_parser("send", help="Send message to peer")
     p_send.add_argument("target_clan", help="Target clan ID")
     p_send.add_argument("message", help="Message payload")
-    p_send.add_argument("--compact", action="store_true",
-                        help="Use compact wire format (ARC-5322 §14)")
+    # Note: --compact not supported for send (uses Agora JSON transport, not bus compact encoding)
     _add_dir_arg(p_send)
 
     # inbox
@@ -740,6 +763,8 @@ def build_parser() -> argparse.ArgumentParser:
     _add_dir_arg(p_agent_show)
     p_agent_validate = agent_sub.add_parser("validate", help="Validate all profiles")
     _add_dir_arg(p_agent_validate)
+    p_agent_dispatch = agent_sub.add_parser("dispatch-status", help="Show dispatch status")
+    _add_dir_arg(p_agent_dispatch)
 
     # daemon (ARC-4601)
     p_daemon = sub.add_parser("daemon", help="Manage Agent Node daemon")

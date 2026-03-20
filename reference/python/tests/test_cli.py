@@ -11,8 +11,8 @@ class TestInit:
         rc = main(["init", "test-clan", "Test Clan", "--dir", str(tmp_path)])
         assert rc == 0
         assert (tmp_path / "gateway.json").exists()
-        assert (tmp_path / ".keys" / "gateway.key").exists()
-        assert (tmp_path / ".keys" / "gateway.pub").exists()
+        assert (tmp_path / ".keys" / "test-clan.key").exists()
+        assert (tmp_path / ".keys" / "test-clan.pub").exists()
         assert (tmp_path / ".keys" / "peers").is_dir()
         assert (tmp_path / ".agora" / "profiles").is_dir()
 
