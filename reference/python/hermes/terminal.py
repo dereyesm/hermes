@@ -90,7 +90,7 @@ def print_clan_status(
                 caps = ", ".join(a.get("capabilities", []))
                 print(f"  {a['alias']:24s} R:{res:6.2f}  [{caps}]")
         else:
-            print("No published agents. Add agents to gateway.json.")
+            print("No published agents. Add agents to your config file.")
         print()
         if peers:
             print(f"Peers ({len(peers)}):")
@@ -159,7 +159,7 @@ def print_clan_status(
             t.add_row(a["alias"], f"{res:.2f}", caps)
         console.print(t)
     else:
-        console.print(f"  [dim]No published agents. Add agents to gateway.json.[/dim]")
+        console.print(f"  [dim]No published agents. Add agents to your config file.[/dim]")
 
     # Peers table
     if peers:

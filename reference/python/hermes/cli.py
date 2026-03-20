@@ -28,7 +28,15 @@ from pathlib import Path
 from typing import Any
 
 from .agora import AgoraDirectory
-from .config import GatewayConfig, PeerConfig, init_clan, load_config, save_config
+from .config import (
+    GatewayConfig,
+    PeerConfig,
+    init_clan,
+    load_config,
+    migrate_json_to_toml,
+    resolve_config_path,
+    save_config,
+)
 from .gateway import (
     AgentMapping,
     Gateway,
@@ -48,7 +56,7 @@ def _resolve_clan_dir(args: argparse.Namespace) -> Path:
 
     # Check default clan dir before falling back to cwd
     default = Path.home() / ".hermes"
-    if (default / "gateway.json").exists():
+    if (default / "config.toml").exists() or (default / "gateway.json").exists():
         return default
 
     return Path(".")
@@ -56,8 +64,7 @@ def _resolve_clan_dir(args: argparse.Namespace) -> Path:
 
 def _load_gateway(clan_dir: Path) -> tuple[GatewayConfig, Gateway, AgoraDirectory]:
     """Load config, build gateway, and connect to Agora."""
-    config_path = clan_dir / "gateway.json"
-    config = load_config(config_path)
+    config = load_config(clan_dir)
 
     # Build translation table from config
     mappings = []
@@ -103,24 +110,28 @@ def cmd_init(args: argparse.Namespace) -> int:
     clan_dir = _resolve_clan_dir(args)
     agora_url = getattr(args, "agora_url", "") or ""
 
+    config_format = getattr(args, "format", "json") or "json"
+
     config = init_clan(
         clan_dir=clan_dir,
         clan_id=args.clan_id,
         display_name=args.display_name,
         agora_url=agora_url,
+        config_format=config_format,
     )
 
     # Initialize Agora directory structure
     agora = AgoraDirectory(clan_dir / config.agora_local_cache)
     agora.ensure_structure()
 
+    config_file = "config.toml" if config_format == "toml" else "gateway.json"
     print(f"Clan '{config.clan_id}' initialized at {clan_dir}")
-    print(f"  Config:  {clan_dir / 'gateway.json'}")
+    print(f"  Config:  {clan_dir / config_file}")
     print(f"  Keys:    {clan_dir / '.keys/'}")
     print(f"  Agora:   {clan_dir / config.agora_local_cache}")
     print()
     print("Next steps:")
-    print("  1. Add agents to gateway.json")
+    print(f"  1. Add agents to {config_file}")
     print("  2. Run: hermes publish    (publish profile to Agora)")
     print("  3. Run: hermes peer add <clan-id>  (connect to peers)")
     return 0
@@ -134,7 +145,7 @@ def cmd_status(args: argparse.Namespace) -> int:
     try:
         config, gateway, agora = _load_gateway(clan_dir)
     except FileNotFoundError:
-        print("Error: No gateway.json found. Run 'hermes init' first.", file=sys.stderr)
+        print("Error: No config found. Run 'hermes init' first.", file=sys.stderr)
         return 1
 
     profile = gateway.build_public_profile()
@@ -203,7 +214,7 @@ def cmd_publish(args: argparse.Namespace) -> int:
     try:
         config, gateway, agora = _load_gateway(clan_dir)
     except FileNotFoundError:
-        print("Error: No gateway.json found.", file=sys.stderr)
+        print("Error: No config found.", file=sys.stderr)
         return 1
 
     profile = gateway.build_public_profile()
@@ -225,7 +236,7 @@ def cmd_peer_add(args: argparse.Namespace) -> int:
     try:
         config, gateway, agora = _load_gateway(clan_dir)
     except FileNotFoundError:
-        print("Error: No gateway.json found.", file=sys.stderr)
+        print("Error: No config found.", file=sys.stderr)
         return 1
 
     peer_id = args.peer_clan_id
@@ -257,7 +268,7 @@ def cmd_peer_add(args: argparse.Namespace) -> int:
         added=date.today().isoformat(),
     )
     config.peers.append(peer)
-    save_config(config, clan_dir / "gateway.json")
+    save_config(config, resolve_config_path(clan_dir))
 
     # Send hello message via Agora inbox
     hello = {
@@ -283,7 +294,7 @@ def cmd_peer_list(args: argparse.Namespace) -> int:
     try:
         config, _, _ = _load_gateway(clan_dir)
     except FileNotFoundError:
-        print("Error: No gateway.json found.", file=sys.stderr)
+        print("Error: No config found.", file=sys.stderr)
         return 1
 
     if not config.peers:
@@ -302,7 +313,7 @@ def cmd_send(args: argparse.Namespace) -> int:
     try:
         config, gateway, agora = _load_gateway(clan_dir)
     except FileNotFoundError:
-        print("Error: No gateway.json found.", file=sys.stderr)
+        print("Error: No config found.", file=sys.stderr)
         return 1
 
     target = args.target_clan
@@ -335,7 +346,7 @@ def cmd_inbox(args: argparse.Namespace) -> int:
     try:
         config, gateway, agora = _load_gateway(clan_dir)
     except FileNotFoundError:
-        print("Error: No gateway.json found.", file=sys.stderr)
+        print("Error: No config found.", file=sys.stderr)
         return 1
 
     messages = agora.read_inbox(config.clan_id)
@@ -352,7 +363,7 @@ def cmd_bus(args: argparse.Namespace) -> int:
     try:
         config, _, _ = _load_gateway(clan_dir)
     except FileNotFoundError:
-        print("Error: No gateway.json found. Run 'hermes init' first.", file=sys.stderr)
+        print("Error: No config found. Run 'hermes init' first.", file=sys.stderr)
         return 1
 
     bus_path = clan_dir / "bus.jsonl"
@@ -396,7 +407,7 @@ def cmd_discover(args: argparse.Namespace) -> int:
     try:
         config, _, agora = _load_gateway(clan_dir)
     except FileNotFoundError:
-        print("Error: No gateway.json found.", file=sys.stderr)
+        print("Error: No config found.", file=sys.stderr)
         return 1
 
     matches = agora.discover(args.capability)
@@ -447,6 +458,26 @@ def cmd_uninstall(args: argparse.Namespace) -> int:
     return 0 if result.success else 1
 
 
+def cmd_config_migrate(args: argparse.Namespace) -> int:
+    """Migrate gateway.json to config.toml."""
+    clan_dir = _resolve_clan_dir(args)
+    json_path = clan_dir / "gateway.json"
+
+    if not json_path.exists():
+        print("Error: No gateway.json to migrate.", file=sys.stderr)
+        return 1
+
+    if (clan_dir / "config.toml").exists():
+        print("config.toml already exists. Migration skipped.")
+        return 0
+
+    toml_path = migrate_json_to_toml(json_path)
+    print(f"Migrated: {json_path} -> {toml_path}")
+    print(f"  gateway.json kept as backup.")
+    print(f"  HERMES will now use config.toml (preferred over gateway.json).")
+    return 0
+
+
 def cmd_hook(args: argparse.Namespace) -> int:
     """Dispatch to hook handlers."""
     from .hooks import (
@@ -489,6 +520,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_init.add_argument("clan_id", help="Unique clan identifier")
     p_init.add_argument("display_name", help="Human-readable clan name")
     p_init.add_argument("--agora-url", default="", help="Agora directory URL")
+    p_init.add_argument("--format", choices=["json", "toml"], default="json",
+                        help="Config format (default: json)")
     _add_dir_arg(p_init)
 
     # status
@@ -536,6 +569,14 @@ def build_parser() -> argparse.ArgumentParser:
     p_discover = sub.add_parser("discover", help="Discover agents by capability")
     p_discover.add_argument("capability", help="Capability path to search")
     _add_dir_arg(p_discover)
+
+    # config
+    p_config = sub.add_parser("config", help="Configuration management")
+    config_sub = p_config.add_subparsers(dest="config_command")
+    p_config_migrate = config_sub.add_parser(
+        "migrate", help="Migrate gateway.json to config.toml"
+    )
+    _add_dir_arg(p_config_migrate)
 
     # install
     p_install = sub.add_parser("install", help="One-command HERMES setup")
@@ -611,6 +652,13 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "hook":
         return cmd_hook(args)
+
+    if args.command == "config":
+        config_commands = {"migrate": cmd_config_migrate}
+        if args.config_command is None:
+            parser.parse_args(["config", "--help"])
+            return 0
+        return config_commands[args.config_command](args)
 
     if args.command == "peer":
         peer_commands = {

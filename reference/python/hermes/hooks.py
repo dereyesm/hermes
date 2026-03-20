@@ -25,16 +25,27 @@ def _default_clan_dir() -> Path:
 
 def _read_bus_pending(clan_dir: Path) -> list[dict]:
     """Read pending bus messages for this clan."""
-    config_path = clan_dir / "gateway.json"
     bus_path = clan_dir / "bus.jsonl"
-
-    if not config_path.exists() or not bus_path.exists():
+    if not bus_path.exists():
         return []
 
+    # Resolve clan_id from TOML or JSON config
+    namespace = ""
+    toml_path = clan_dir / "config.toml"
+    json_path = clan_dir / "gateway.json"
+
     try:
-        with open(config_path, "r", encoding="utf-8") as f:
-            config = json.load(f)
-        namespace = config.get("clan_id", "")
+        if toml_path.exists():
+            import tomllib
+            with open(toml_path, "rb") as f:
+                data = tomllib.load(f)
+            namespace = data.get("clan", {}).get("id", "")
+        elif json_path.exists():
+            with open(json_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            namespace = data.get("clan_id", "")
+        else:
+            return []
 
         messages = []
         with open(bus_path, "r", encoding="utf-8") as f:

@@ -99,24 +99,47 @@ class AgentNodeConfig:
     clan_dir: Path = field(default_factory=lambda: Path("."))
 
 
-def load_agent_config(gateway_json_path: Path) -> AgentNodeConfig:
-    """Load AgentNodeConfig from the agent_node section of gateway.json.
+def load_agent_config(config_path: Path) -> AgentNodeConfig:
+    """Load AgentNodeConfig from config.toml [daemon] or gateway.json agent_node.
 
-    Returns None-equivalent by raising ValueError if agent_node is missing
-    or disabled.
+    Accepts either a file path or a directory (auto-discovers config).
+    Raises ValueError if the daemon/agent_node section is missing or disabled.
     """
-    path = Path(gateway_json_path)
+    path = Path(config_path)
+
+    # If directory, auto-discover
+    if path.is_dir():
+        toml_path = path / "config.toml"
+        json_path = path / "gateway.json"
+        if toml_path.exists():
+            path = toml_path
+        elif json_path.exists():
+            path = json_path
+        else:
+            raise FileNotFoundError(f"No config found in: {config_path}")
+
     if not path.exists():
-        raise FileNotFoundError(f"Gateway config not found: {path}")
+        raise FileNotFoundError(f"Config not found: {path}")
 
-    with open(path, "r", encoding="utf-8") as f:
-        data = json.load(f)
-
-    section = data.get("agent_node")
-    if section is None:
-        raise ValueError("No 'agent_node' section in gateway.json")
-    if not section.get("enabled", False):
-        raise ValueError("Agent node is disabled (enabled=false)")
+    # TOML format
+    if path.suffix == ".toml":
+        import tomllib
+        with open(path, "rb") as f:
+            data = tomllib.load(f)
+        section = data.get("daemon")
+        if section is None:
+            raise ValueError("No 'daemon' section in config.toml")
+        if not section.get("enabled", False):
+            raise ValueError("Daemon is disabled (enabled=false)")
+    else:
+        # JSON format
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        section = data.get("agent_node")
+        if section is None:
+            raise ValueError("No 'agent_node' section in config")
+        if not section.get("enabled", False):
+            raise ValueError("Agent node is disabled (enabled=false)")
 
     clan_dir = path.parent
 
@@ -1079,7 +1102,7 @@ class AgentNode:
 def cmd_daemon_start(clan_dir: Path, foreground: bool = True) -> int:
     """Start the Agent Node daemon."""
     try:
-        config = load_agent_config(clan_dir / "gateway.json")
+        config = load_agent_config(clan_dir)
     except (FileNotFoundError, ValueError) as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1
@@ -1154,7 +1177,7 @@ def cmd_daemon_status(clan_dir: Path) -> int:
 
     config = None
     try:
-        config = load_agent_config(clan_dir / "gateway.json")
+        config = load_agent_config(clan_dir)
     except Exception:
         pass
 

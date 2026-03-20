@@ -79,8 +79,7 @@ def init_clan_if_needed(
 
     Returns (created: bool, message: str).
     """
-    config_path = clan_dir / "gateway.json"
-    if config_path.exists():
+    if (clan_dir / "config.toml").exists() or (clan_dir / "gateway.json").exists():
         return False, f"Clan already initialized at {clan_dir}"
 
     from .config import init_clan
@@ -118,15 +117,40 @@ def generate_keypair(clan_dir: Path, clan_id: str) -> tuple[bool, str, str]:
 
 
 def add_agent_node_section(clan_dir: Path) -> tuple[bool, str]:
-    """Add agent_node block to gateway.json if missing.
+    """Add daemon/agent_node block to config if missing.
 
+    Supports both config.toml ([daemon] section) and gateway.json (agent_node).
     Returns (modified: bool, message: str).
     """
-    config_path = clan_dir / "gateway.json"
-    if not config_path.exists():
-        return False, "No gateway.json found"
+    import tomllib
 
-    with open(config_path, "r", encoding="utf-8") as f:
+    toml_path = clan_dir / "config.toml"
+    json_path = clan_dir / "gateway.json"
+
+    # Prefer TOML
+    if toml_path.exists():
+        with open(toml_path, "rb") as f:
+            data = tomllib.load(f)
+
+        if "daemon" in data:
+            return False, "daemon section already present in config.toml"
+
+        import tomli_w
+        data["daemon"] = {
+            "enabled": True,
+            "namespace": data.get("clan", {}).get("id", "heraldo"),
+            "poll_interval": 2.0,
+            "forward_types": ["alert", "dispatch", "event"],
+        }
+
+        from .config import _atomic_write
+        _atomic_write(toml_path, tomli_w.dumps(data))
+        return True, "daemon section added to config.toml"
+
+    if not json_path.exists():
+        return False, "No config found"
+
+    with open(json_path, "r", encoding="utf-8") as f:
         data = json.load(f)
 
     if "agent_node" in data:
@@ -140,7 +164,7 @@ def add_agent_node_section(clan_dir: Path) -> tuple[bool, str]:
         "forward_types": ["alert", "dispatch", "event"],
     }
 
-    with open(config_path, "w", encoding="utf-8") as f:
+    with open(json_path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
         f.write("\n")
 
@@ -601,7 +625,7 @@ def run_install(
         _print_step(False, msg)
         result.errors.append(msg)
 
-    # 4. Add agent_node to gateway.json
+    # 4. Add daemon/agent_node section to config
     modified, msg = add_agent_node_section(clan_dir)
     if modified:
         _print_step(True, msg)

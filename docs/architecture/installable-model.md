@@ -129,6 +129,89 @@ useradd --system --home-dir /var/lib/hermes --shell /usr/sbin/nologin hermes
 Daemons (messenger, etc.) run as `hermes` user. Interactive sessions run as
 the human user, reading from `~/.hermes/`.
 
+## Config Schema (config.toml)
+
+HERMES uses TOML for its canonical configuration format. The schema maps 1:1 to
+the `GatewayConfig` dataclass in the reference implementation.
+
+```toml
+schema_version = 1
+
+[clan]
+id = "clan-alpha"
+display_name = "Alpha Collective"
+protocol_version = "0.4.2"
+
+[keys]
+private = ".keys/gateway.key"
+public = ".keys/gateway.pub"
+
+[bus]
+active = "bus/active.jsonl"
+archive = "bus/archive.jsonl"
+
+[heraldo]
+alias = "herald"
+capabilities = ["inter-clan-messaging"]
+
+[agora]
+type = "git"
+url = ""
+local_cache = ".agora/"
+
+[inbound]
+max_payload_bytes = 4096
+rate_limit_per_clan = 10
+quarantine_first_contact = true
+auto_accept_hello = true
+
+[outbound]
+default = "deny"
+
+[outbound.rules]
+profile_update = { action = "allow", approval = "operator" }
+attestation = { action = "allow", approval = "operator_per_instance" }
+quest_response = { action = "allow", approval = "operator_per_instance" }
+hello_ack = { action = "allow", approval = "auto" }
+
+[[agents]]
+alias = "scout"
+capabilities = ["research"]
+
+[[peers]]
+clan_id = "clan-jei"
+public_key_file = ".keys/peers/jei.pub"
+status = "established"
+added = "2026-03-01"
+
+[daemon]
+enabled = true
+namespace = "heraldo"
+poll_interval = 2.0
+forward_types = ["alert", "dispatch", "event"]
+```
+
+| Section | Purpose |
+|---------|---------|
+| `schema_version` | Integer, increments on breaking changes |
+| `[clan]` | Identity: id, display name, protocol version |
+| `[keys]` | Paths to Ed25519/X25519 keypair (relative to clan dir) |
+| `[bus]` | Paths to active and archive bus files |
+| `[heraldo]` | Messenger daemon identity |
+| `[agora]` | Discovery directory settings |
+| `[inbound]` / `[outbound]` | Gateway firewall rules (ARC-3022) |
+| `[[agents]]` | Published agent roster |
+| `[[peers]]` | Known peer clans |
+| `[daemon]` | Agent Node daemon configuration (ARC-4601) |
+
+### Migration from gateway.json
+
+Existing installations using `gateway.json` continue to work. HERMES auto-discovers
+the config file, preferring `config.toml` over `gateway.json`.
+
+To migrate: `hermes config migrate` — reads `gateway.json`, writes `config.toml`,
+keeps the JSON file as backup.
+
 ## The Adapter Pattern
 
 Adapters are the bridge between HERMES's canonical structure and what each
