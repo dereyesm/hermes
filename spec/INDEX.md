@@ -40,6 +40,7 @@ Core protocol standards governing message formats, transport, addressing, and se
 | ARC-7519 | Message Authentication | RFC 7519 (JWT) | IETF draft-goswami-agentic-jwt; 3GPP TS 29.510 (NRF) OAuth 2.0 model | PLANNED | Security |
 | ARC-7540 | Multiplexed Bus Channels | RFC 7540 (HTTP/2) | A2A multiplexed task streams; 3GPP TS 23.501 PDU sessions | PLANNED | Extension |
 | [ARC-8446](ARC-8446.md) | Encrypted Bus Protocol | RFC 8446 (TLS 1.3) | ECMA-434 (NLIP) security levels; IETF SLIM (MLS); NIST FIPS 203-205 (PQC) | IMPLEMENTED | Security |
+| [ARC-9001](ARC-9001.md) | Bus Integrity Protocol | — (MVCC/OCC) | SS7 sequence numbering (ITU-T Q.703); Database OCC; 3GPP TS 23.501 NF state | IMPLEMENTED (F1-F2) | Core |
 
 ## ATR -- Agent Telecom Recommendations (ITU-T Lineage)
 

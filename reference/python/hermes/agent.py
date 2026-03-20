@@ -235,6 +235,9 @@ class NodeState:
     scheduler_last_fire: dict[str, float] = field(default_factory=dict)
     # F4 (ARC-0369): agent lifecycle state
     agent_states: dict[str, Any] = field(default_factory=dict)
+    # ARC-9001: bus integrity state
+    seq_state: dict[str, int] = field(default_factory=dict)
+    ownership_claims: dict[str, dict] = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return {
@@ -255,6 +258,8 @@ class NodeState:
             "pending_approvals": self.pending_approvals,
             "scheduler_last_fire": self.scheduler_last_fire,
             "agent_states": self.agent_states,
+            "seq_state": self.seq_state,
+            "ownership_claims": self.ownership_claims,
         }
 
     @classmethod
@@ -278,6 +283,8 @@ class NodeState:
             pending_approvals=data.get("pending_approvals", []),
             scheduler_last_fire=data.get("scheduler_last_fire", {}),
             agent_states=data.get("agent_states", {}),
+            seq_state=data.get("seq_state", {}),
+            ownership_claims=data.get("ownership_claims", {}),
         )
 
 
@@ -934,6 +941,10 @@ class AgentNode:
         self.asp_state_tracker = None
         self.asp_throttler = None
 
+        # ARC-9001: Bus Integrity — opt-in (enabled with ASP)
+        self.seq_tracker = None
+        self.ownership = None
+
     def _init_asp(self, state: NodeState) -> None:
         """Initialize ARC-0369 F3+F4+F5 components."""
         from .asp import (
@@ -986,10 +997,34 @@ class AgentNode:
             max_per_window=self.config.notification_throttle_per_minute,
         )
 
+        # ARC-9001: Bus Integrity (F1 + F2)
+        from .integrity import OwnershipRegistry, SequenceTracker
+
+        if state.seq_state:
+            self.seq_tracker = SequenceTracker.from_dict(state.seq_state)
+        else:
+            self.seq_tracker = SequenceTracker()
+            messages = read_bus(self.config.bus_path)
+            self.seq_tracker.load_from_bus(messages)
+
+        self.ownership = OwnershipRegistry(daemon_id=self.config.namespace)
+        if state.ownership_claims:
+            self.ownership = OwnershipRegistry.from_dict(
+                state.ownership_claims, daemon_id=self.config.namespace,
+            )
+        else:
+            self.ownership.claim_for_daemon({self.config.namespace})
+        for p in self.asp_registry.all_enabled():
+            try:
+                self.ownership.grant_to_agent(p.agent_id)
+            except Exception:
+                pass  # Already claimed by a different agent
+
         logger.info(
-            "ASP initialized: %d agents, %d enabled",
+            "ASP initialized: %d agents, %d enabled, seq sources: %d",
             len(self.asp_registry.all_profiles()),
             len(self.asp_registry.all_enabled()),
+            len(self.seq_tracker.all_sources()),
         )
 
     async def _execute_decision(self, decision) -> None:
@@ -1089,11 +1124,16 @@ class AgentNode:
                     pass
 
     def _persist_asp_state(self) -> None:
-        """Persist ASP state (F3+F4) into NodeState."""
+        """Persist ASP state (F3+F4) + integrity state (ARC-9001) into NodeState."""
         if self.state and self.asp_engine:
             self.state.pending_approvals = self.asp_approval_mgr.to_list()
             self.state.scheduler_last_fire = self.asp_scheduler.schedule_state
             self.state.agent_states = self.asp_state_tracker.to_dict()
+        # ARC-9001: persist integrity state
+        if self.state and self.seq_tracker:
+            self.state.seq_state = self.seq_tracker.to_dict()
+        if self.state and self.ownership:
+            self.state.ownership_claims = self.ownership.to_dict()
 
     async def run(self) -> None:
         """Main event loop. Starts all async tasks."""

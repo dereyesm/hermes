@@ -97,12 +97,28 @@ class MessageClassifier:
         # Otherwise outbound
         return MessageCategory.OUTBOUND
 
-    def verify_source(self, message: Message, registered_agent_ids: set[str] | None = None) -> bool:
-        """Verify source integrity per ARC-0369 §6.3.
+    def verify_source(
+        self,
+        message: Message,
+        registered_agent_ids: set[str] | None = None,
+        ownership: "OwnershipRegistry | None" = None,
+        writer_id: str | None = None,
+    ) -> bool:
+        """Verify source integrity per ARC-0369 §6.3 + ARC-9001 F2.
 
         Returns True if src is a known local namespace or registered agent.
+
+        When ownership and writer_id are both provided, performs stricter
+        ownership-based authorization check (ARC-9001 F2). Falls back to
+        namespace membership check when ownership is not provided.
         """
         src = message.src.lower()
+
+        # ARC-9001 F2: ownership-based authorization (stricter)
+        if ownership is not None and writer_id is not None:
+            return ownership.is_authorized(src, writer_id)
+
+        # ARC-0369 §6.3: namespace membership check (default)
         known = self.local_namespaces | {self.gateway_namespace}
         if registered_agent_ids:
             known |= {aid.lower() for aid in registered_agent_ids}

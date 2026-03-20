@@ -49,11 +49,33 @@ def read_bus(bus_path: str | Path) -> list[Message]:
     return messages
 
 
+def read_bus_with_integrity(
+    bus_path: str | Path,
+    seq_tracker: "SequenceTracker | None" = None,
+) -> tuple[list[Message], list[dict]]:
+    """Read bus and validate sequence integrity (ARC-9001 F1).
+
+    Returns (messages, anomalies) where anomalies is a list of
+    {"type": "gap"|"duplicate", "src": ..., "seq": ..., "expected": ...}.
+
+    If seq_tracker is None, a fresh one is created for the scan.
+    Messages without seq are included in the list but not validated.
+    """
+    from .integrity import SequenceTracker as _ST
+
+    messages = read_bus(bus_path)
+    if seq_tracker is None:
+        seq_tracker = _ST()
+    anomalies = seq_tracker.load_from_bus(messages)
+    return messages, anomalies
+
+
 def write_message(
     bus_path: str | Path,
     message: Message,
     compact: bool = False,
-) -> None:
+    seq_tracker: "SequenceTracker | None" = None,
+) -> Message:
     """Append a single message to the bus file.
 
     Args:
@@ -61,11 +83,30 @@ def write_message(
         message: The Message to write.
         compact: If True, write in compact format (ARC-5322 §14).
                  Default False (verbose) for backward compatibility.
+        seq_tracker: Optional SequenceTracker (ARC-9001 F1). When provided
+                     and message.seq is None, auto-assigns the next sequence
+                     number for message.src.
+
+    Returns:
+        The message as written (may have seq assigned).
     """
+    if seq_tracker is not None and message.seq is None:
+        next_seq = seq_tracker.next_seq(message.src)
+        message = Message(
+            ts=message.ts, src=message.src, dst=message.dst,
+            type=message.type, msg=message.msg, ttl=message.ttl,
+            ack=list(message.ack), encoding=message.encoding,
+            seq=next_seq,
+        )
+        seq_tracker.record(message.src, next_seq)
+    elif seq_tracker is not None and message.seq is not None:
+        seq_tracker.record(message.src, message.seq)
+
     bus_path = Path(bus_path)
     line = message.to_compact_jsonl() if compact else message.to_jsonl()
     with bus_path.open("a", encoding="utf-8") as f:
         f.write(line + "\n")
+    return message
 
 
 def filter_for_namespace(

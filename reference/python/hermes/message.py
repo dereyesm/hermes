@@ -88,6 +88,7 @@ class Message:
     ttl: int
     ack: list[str] = field(default_factory=list)
     encoding: str | None = None
+    seq: int | None = None  # ARC-9001 F1: monotonic sequence per src
 
     def to_dict(self) -> dict:
         """Serialize to a dict suitable for JSON encoding.
@@ -107,6 +108,9 @@ class Message:
         # Only include encoding when it's not the default (raw/None)
         if self.encoding is not None and self.encoding != "raw":
             d["encoding"] = self.encoding
+        # ARC-9001: include seq when present
+        if self.seq is not None:
+            d["seq"] = self.seq
         return d
 
     def to_jsonl(self) -> str:
@@ -155,7 +159,7 @@ def validate_message(data: dict) -> Message:
     """
     # Determine which fields are present; encoding is optional
     required = {"ts", "src", "dst", "type", "msg", "ttl", "ack"}
-    allowed_optional = {"encoding"}
+    allowed_optional = {"encoding", "seq"}
     actual = set(data.keys())
 
     missing = required - actual
@@ -243,9 +247,17 @@ def validate_message(data: dict) -> Message:
             raise ValidationError(f"Duplicate namespace in 'ack': '{ns}'")
         seen.add(ns)
 
+    # seq: optional, positive integer (ARC-9001 F1)
+    seq_raw = data.get("seq", None)
+    if seq_raw is not None:
+        if not isinstance(seq_raw, int) or isinstance(seq_raw, bool):
+            raise ValidationError(f"'seq' must be an integer, got {type(seq_raw).__name__}")
+        if seq_raw < 1:
+            raise ValidationError(f"'seq' must be positive (>= 1), got {seq_raw}")
+
     return Message(
         ts=ts, src=src, dst=dst, type=msg_type, msg=msg, ttl=ttl,
-        ack=list(ack), encoding=encoding_raw,
+        ack=list(ack), encoding=encoding_raw, seq=seq_raw,
     )
 
 
@@ -335,12 +347,14 @@ def create_message(
     ttl: int | None = None,
     ts: date | None = None,
     encoding: str | None = None,
+    seq: int | None = None,
 ) -> Message:
     """Create and validate a new HERMES message.
 
     If ttl is not provided, uses the default for the message type.
     If ts is not provided, uses today's date.
     If encoding is not provided, defaults to raw (field omitted).
+    If seq is not provided, no sequence number is assigned (ARC-9001 F1).
     """
     if ttl is None:
         ttl = DEFAULT_TTLS.get(type, 7)
@@ -358,6 +372,8 @@ def create_message(
     }
     if encoding is not None:
         data["encoding"] = encoding
+    if seq is not None:
+        data["seq"] = seq
     return validate_message(data)
 
 

@@ -230,6 +230,16 @@ hermes agent validate   # validate all profiles
 
 See [ARC-0369](../spec/ARC-0369.md) for the full specification.
 
+## Bus Integrity (ARC-9001)
+
+The **Bus Integrity Protocol** ([`integrity.py`](../reference/python/hermes/integrity.py)) provides message sequencing and write ownership for the HERMES bus:
+
+- **F1 Message Sequencing**: `SequenceTracker` assigns monotonic `seq` numbers per source namespace. Detects gaps (missing messages) and duplicates (replay). Inspired by SS7 FSN/BSN (ITU-T Q.703 §5.2).
+- **F2 Write Ownership**: `OwnershipRegistry` maps namespaces to authorized writers. Only the registered owner can write `src=namespace`. Default: daemon owns all local namespaces; ASP agents get ownership of their namespace.
+- **F3-F6 (PLANNED)**: MVCC write vectors, conflict log, recovery, garbage collection.
+
+See [ARC-9001](../spec/ARC-9001.md) for the full specification.
+
 ## Related Specifications
 
 | Spec | Title | What it covers |
@@ -241,4 +251,5 @@ See [ARC-0369](../spec/ARC-0369.md) for the full specification.
 | [ARC-0791](../spec/ARC-0791.md) | Addressing & Routing | Namespaces and routes |
 | [ARC-1918](../spec/ARC-1918.md) | Private Spaces | Firewall model |
 | [ARC-3022](../spec/ARC-3022.md) | Agent Gateway | NAT, filtering, Agora connection |
+| [ARC-9001](../spec/ARC-9001.md) | Bus Integrity | Sequencing, ownership, MVCC |
 | [ATR-Q.700](../spec/ATR-Q700.md) | OOB Signaling | Design philosophy |
