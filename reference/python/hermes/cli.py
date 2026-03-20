@@ -16,6 +16,7 @@ Usage:
     python -m hermes.cli install --clan-id <id> --display-name <name> [options]
     python -m hermes.cli uninstall [--purge] [--keep-hooks] [--dir PATH]
     python -m hermes.cli hook <pull-on-start|pull-on-prompt|exit-reminder>
+    python -m hermes.cli adapt <adapter-name> [--hermes-dir PATH] [--target-dir PATH]
 """
 
 from __future__ import annotations
@@ -458,6 +459,118 @@ def cmd_uninstall(args: argparse.Namespace) -> int:
     return 0 if result.success else 1
 
 
+def cmd_adapt(args: argparse.Namespace) -> int:
+    """Run an adapter to generate agent-specific config from ~/.hermes/."""
+    from .adapter import list_adapters, run_adapter
+
+    adapter_name = getattr(args, "adapter_name", None)
+    if adapter_name is None:
+        print(f"Available adapters: {', '.join(list_adapters())}", file=sys.stderr)
+        return 1
+
+    hermes_dir = None
+    target_dir = None
+    if getattr(args, "hermes_dir", None):
+        hermes_dir = Path(args.hermes_dir)
+    if getattr(args, "target_dir", None):
+        target_dir = Path(args.target_dir)
+
+    try:
+        result = run_adapter(adapter_name, hermes_dir=hermes_dir, target_dir=target_dir)
+    except KeyError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+    for step in result.steps:
+        marker = "[OK]" if result.success or "error" not in step.lower() else "[!!]"
+        print(f"  {marker} {step}")
+
+    if result.files_written:
+        print(f"\n  Files written: {len(result.files_written)}")
+        for f in result.files_written:
+            print(f"    {f}")
+
+    if result.symlinks_created:
+        print(f"\n  Symlinks created: {len(result.symlinks_created)}")
+        for s in result.symlinks_created:
+            print(f"    {s}")
+
+    if result.errors:
+        print(f"\n  Errors:")
+        for e in result.errors:
+            print(f"    {e}")
+        return 1
+
+    print(f"\n  Adapter '{adapter_name}' completed successfully.")
+    return 0
+
+
+def cmd_agent(args: argparse.Namespace) -> int:
+    """Manage registered agents (ARC-0369)."""
+    from .asp import AgentRegistry
+
+    clan_dir = _resolve_clan_dir(args)
+    agents_dir = clan_dir / "agents"
+
+    agent_cmd = getattr(args, "agent_command", None)
+
+    if agent_cmd == "list":
+        reg = AgentRegistry(agents_dir)
+        reg.load_all()
+        profiles = reg.all_profiles()
+
+        if not profiles:
+            print("No agents registered.")
+            if not agents_dir.is_dir():
+                print(f"  (Create {agents_dir}/ with agent profiles)")
+            return 0
+
+        print(f"Registered agents ({agents_dir}):\n")
+        for p in profiles:
+            status = "enabled" if p.enabled else "DISABLED"
+            rules = len(p.dispatch_rules)
+            caps = ", ".join(p.capabilities) if p.capabilities else "none"
+            print(f"  {p.agent_id:20s} {p.role:10s} {status:8s} rules:{rules}  [{caps}]")
+
+        if reg.errors:
+            print(f"\n  Validation errors ({len(reg.errors)}):")
+            for e in reg.errors:
+                print(f"    {e}")
+        return 0
+
+    elif agent_cmd == "show":
+        agent_id = getattr(args, "agent_id", None)
+        if not agent_id:
+            print("Usage: hermes agent show <agent-id>", file=sys.stderr)
+            return 1
+
+        reg = AgentRegistry(agents_dir)
+        reg.load_all()
+        profile = reg.get(agent_id)
+        if profile is None:
+            print(f"Agent '{agent_id}' not found.", file=sys.stderr)
+            return 1
+
+        import json as _json
+        print(_json.dumps(profile.to_dict(), indent=2))
+        return 0
+
+    elif agent_cmd == "validate":
+        reg = AgentRegistry(agents_dir)
+        reg.load_all()
+
+        valid = len(reg.all_profiles())
+        errors = len(reg.errors)
+        print(f"Validated: {valid} profiles OK, {errors} errors")
+        for e in reg.errors:
+            print(f"  [!!] {e}")
+        return 1 if errors else 0
+
+    else:
+        print("Usage: hermes agent <list|show|validate>", file=sys.stderr)
+        return 1
+
+
 def cmd_config_migrate(args: argparse.Namespace) -> int:
     """Migrate gateway.json to config.toml."""
     clan_dir = _resolve_clan_dir(args)
@@ -570,6 +683,14 @@ def build_parser() -> argparse.ArgumentParser:
     p_discover.add_argument("capability", help="Capability path to search")
     _add_dir_arg(p_discover)
 
+    # adapt
+    p_adapt = sub.add_parser("adapt", help="Generate agent config from ~/.hermes/")
+    p_adapt.add_argument("adapter_name", help="Adapter name (e.g. claude-code)")
+    p_adapt.add_argument("--hermes-dir", default=None, dest="hermes_dir",
+                         help="HERMES directory (default: ~/.hermes/)")
+    p_adapt.add_argument("--target-dir", default=None, dest="target_dir",
+                         help="Target agent directory (default: adapter-specific)")
+
     # config
     p_config = sub.add_parser("config", help="Configuration management")
     config_sub = p_config.add_subparsers(dest="config_command")
@@ -608,6 +729,17 @@ def build_parser() -> argparse.ArgumentParser:
     hook_sub.add_parser("pull-on-start", help="SessionStart hook")
     hook_sub.add_parser("pull-on-prompt", help="UserPromptSubmit hook")
     hook_sub.add_parser("exit-reminder", help="Stop hook")
+
+    # agent (ARC-0369)
+    p_agent = sub.add_parser("agent", help="Manage registered agents (ARC-0369)")
+    agent_sub = p_agent.add_subparsers(dest="agent_command")
+    p_agent_list = agent_sub.add_parser("list", help="List registered agents")
+    _add_dir_arg(p_agent_list)
+    p_agent_show = agent_sub.add_parser("show", help="Show agent profile")
+    p_agent_show.add_argument("agent_id", help="Agent ID to show")
+    _add_dir_arg(p_agent_show)
+    p_agent_validate = agent_sub.add_parser("validate", help="Validate all profiles")
+    _add_dir_arg(p_agent_validate)
 
     # daemon (ARC-4601)
     p_daemon = sub.add_parser("daemon", help="Manage Agent Node daemon")
@@ -648,6 +780,7 @@ def main(argv: list[str] | None = None) -> int:
         "discover": cmd_discover,
         "install": cmd_install,
         "uninstall": cmd_uninstall,
+        "adapt": cmd_adapt,
     }
 
     if args.command == "hook":
@@ -669,6 +802,9 @@ def main(argv: list[str] | None = None) -> int:
             parser.parse_args(["peer", "--help"])
             return 0
         return peer_commands[args.peer_command](args)
+
+    if args.command == "agent":
+        return cmd_agent(args)
 
     if args.command == "daemon":
         from .agent import cmd_daemon_start, cmd_daemon_status, cmd_daemon_stop
