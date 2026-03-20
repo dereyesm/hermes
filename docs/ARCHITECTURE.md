@@ -190,6 +190,43 @@ Hooks are cross-platform (no bash dependency), invoked as `python -m hermes.hook
 
 ![Install Flow](diagrams/d2/install-flow.svg)
 
+## Adapter Pattern — Agent-Agnostic Bridge
+
+The **Adapter** ([`adapter.py`](../reference/python/hermes/adapter.py)) bridges HERMES's canonical filesystem structure (`~/.hermes/`) to each AI assistant's native config format.
+
+**Claude Code Adapter** reads `~/.hermes/config.toml` and generates:
+
+```
+~/.claude/
+├── CLAUDE.md              ← from config.toml + dimension states
+├── skills/                ← symlinks to .hermes/dimensions/*/skills/
+├── rules/                 ← symlinks to .hermes/dimensions/*/rules/ (prefixed by dimension)
+└── sync/
+    └── bus.jsonl          ← symlink to .hermes/bus/active.jsonl
+```
+
+```bash
+hermes adapt claude-code                    # default paths
+hermes adapt claude-code --hermes-dir /opt/hermes --target-dir ~/.claude
+```
+
+Adapters are idempotent (safe to re-run) and follow the contract in [installable-model.md](architecture/installable-model.md). Future adapters: Cursor (`.cursorrules`), generic (template).
+
+## Agent Service Platform (ARC-0369)
+
+The **ASP** ([`asp.py`](../reference/python/hermes/asp.py)) extends the daemon with structured agent management:
+
+- **F1 Bus Convergence**: `MessageClassifier` categorizes every bus message as `internal`, `outbound`, `inbound`, or `expired`. Internal-only namespaces are enforced. Source integrity is verified.
+- **F2 Agent Registration**: `AgentRegistry` loads declarative agent profiles from `agents/*.json`. Each profile declares capabilities, dispatch rules (event-driven or scheduled), resource limits, and approval gates.
+
+```bash
+hermes agent list       # list registered agents
+hermes agent show <id>  # show agent profile JSON
+hermes agent validate   # validate all profiles
+```
+
+See [ARC-0369](../spec/ARC-0369.md) for the full specification.
+
 ## Related Specifications
 
 | Spec | Title | What it covers |

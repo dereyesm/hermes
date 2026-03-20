@@ -261,10 +261,10 @@ Phase 1: Canonical structure
   - Build config.toml schema
   - Migrate bus.jsonl → .hermes/bus/
 
-Phase 2: Claude Code adapter
-  - Build adapter that generates .claude/ from .hermes/
-  - Run both in parallel (dual-write) for validation
-  - Daniel keeps working normally — adapter runs on session start
+Phase 2: Claude Code adapter ✓ DONE (commit 3113395)
+  - adapter.py: ClaudeCodeAdapter reads ~/.hermes/, generates ~/.claude/
+  - CLI: hermes adapt claude-code [--hermes-dir] [--target-dir]
+  - Idempotent, 44 tests. Registered in adapter registry.
 
 Phase 3: Second adapter
   - Build Cursor or generic adapter
@@ -294,8 +294,8 @@ Phase 5: Package & distribute
 
 ## Open Questions
 
-- [ ] Should adapters use symlinks or file copies? (symlinks are simpler but some agents may not follow them)
-- [ ] Config.toml schema — what's the minimum viable config?
+- [x] ~~Should adapters use symlinks or file copies?~~ → Symlinks (Phase 2 adapter uses them, agents follow them fine)
+- [x] ~~Config.toml schema — what's the minimum viable config?~~ → `[clan] id + display_name` (Phase 1 done)
 - [ ] How does `hermes init` detect existing .claude/ state and offer migration?
 - [ ] Multi-agent: can two agents use the same .hermes/ concurrently? (ARC-9001 applies here)
 - [ ] Skill format: keep .md or introduce a structured format (TOML frontmatter + md body)?

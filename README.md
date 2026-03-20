@@ -3,8 +3,8 @@
 [![Tests](https://github.com/dereyesm/hermes/actions/workflows/ci.yml/badge.svg)](https://github.com/dereyesm/hermes/actions/workflows/ci.yml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Specs: 19](https://img.shields.io/badge/specs-19%20(17%20IMPL%20%2B%202%20DRAFT)-orange.svg)](spec/INDEX.md)
-[![Tests: 605](https://img.shields.io/badge/tests-605%20passing-brightgreen.svg)](reference/python/tests/)
+[![Specs: 19](https://img.shields.io/badge/specs-19%20(18%20IMPL%20%2B%201%20DRAFT)-orange.svg)](spec/INDEX.md)
+[![Tests: 758](https://img.shields.io/badge/tests-758%20passing-brightgreen.svg)](reference/python/tests/)
 [![Clans: 3](https://img.shields.io/badge/clans-3%20connected-teal.svg)](CLANS.md)
 
 <p align="center">
@@ -260,7 +260,7 @@ Full index with 30 planned standards: **[spec/INDEX.md](spec/INDEX.md)**
 
 ## Reference Implementation
 
-A Python reference implementation is included for validation and experimentation (**524 tests passing**):
+A Python reference implementation is included for validation and experimentation (**758 tests passing**):
 
 ```bash
 cd reference/python
@@ -279,7 +279,11 @@ Modules:
 - `dojo.py` -- orchestration plane: quest dispatch, skill matching, XP tracking per ARC-2314
 - `config.py` -- clan configuration and peer management
 - `agora.py` -- Agora directory client for clan discovery
+- `adapter.py` -- agent-agnostic adapter bridge (generates agent configs from `~/.hermes/`)
+- `asp.py` -- Agent Service Platform: bus convergence + agent registration per ARC-0369
 - `cli.py` -- command-line interface for clan operations
+- `installer.py` -- cross-platform one-command setup
+- `hooks.py` -- Claude Code hook handlers
 
 See [reference/python/](reference/python/) for details.
 
