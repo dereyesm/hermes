@@ -218,6 +218,9 @@ The **ASP** ([`asp.py`](../reference/python/hermes/asp.py)) extends the daemon w
 
 - **F1 Bus Convergence**: `MessageClassifier` categorizes every bus message as `internal`, `outbound`, `inbound`, or `expired`. Internal-only namespaces are enforced. Source integrity is verified.
 - **F2 Agent Registration**: `AgentRegistry` loads declarative agent profiles from `agents/*.json`. Each profile declares capabilities, dispatch rules (event-driven or scheduled), resource limits, and approval gates.
+- **F3 Dispatch Protocol**: `DispatchEngine` evaluates messages against all enabled agents, producing `DispatchDecision` objects. Includes `ConcurrencyTracker`, `ApprovalGateManager`, `DispatchScheduler`, and `DispatchCommandRenderer`.
+- **F4 Agent Lifecycle**: `AgentStateTracker` tracks per-agent state (INACTIVE→ACTIVE→PENDING→RUNNING→IDLE→FAILED→REMOVED) with legal transition enforcement, dispatch counters, and heartbeat payload.
+- **F5 Notification Flow**: `NotificationThrottler` enforces max 5 notifications/min/source with suppression rules for dispatch results, `data_cross`, and `state` messages.
 
 ```bash
 hermes agent list       # list registered agents

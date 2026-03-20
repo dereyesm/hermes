@@ -604,3 +604,182 @@ class TestCLICommands:
         assert ret == 1
         captured = capsys.readouterr()
         assert "Error" in captured.err
+
+
+# ---------------------------------------------------------------------------
+# ASP Integration Tests (F4-F5)
+# ---------------------------------------------------------------------------
+
+class TestAgentNodeConfigASP:
+    """Tests for ASP-related config fields."""
+
+    def test_asp_defaults(self, sample_config):
+        assert sample_config.asp_enabled is False
+        assert sample_config.agents_dir == "agents"
+        assert sample_config.hot_reload is True
+        assert sample_config.notification_enabled is True
+        assert sample_config.notification_throttle_per_minute == 5
+        assert sample_config.approval_default_timeout_hours == 24
+        assert sample_config.queue_overflow == "drop-newest"
+
+    def test_asp_auto_enable_with_agents_dir(self, tmp_clan, gateway_json):
+        agents_dir = tmp_clan / "agents"
+        agents_dir.mkdir()
+        config = load_agent_config(gateway_json)
+        assert config.asp_enabled is True
+
+    def test_asp_disabled_without_agents_dir(self, gateway_json):
+        config = load_agent_config(gateway_json)
+        assert config.asp_enabled is False
+
+
+class TestNodeStateASP:
+    """Tests for NodeState agent_states field."""
+
+    def test_roundtrip_with_agent_states(self):
+        state = NodeState(
+            pid=123,
+            started_at="2026-03-20T10:00:00",
+            agent_states={
+                "states": {"mail-scanner": "active", "report-builder": "idle"},
+                "dispatch_count": {"mail-scanner": 5},
+                "failure_count": {},
+                "last_dispatch": {},
+            },
+        )
+        data = state.to_dict()
+        restored = NodeState.from_dict(data)
+        assert restored.agent_states["states"]["mail-scanner"] == "active"
+        assert restored.agent_states["states"]["report-builder"] == "idle"
+
+    def test_backward_compat_missing_agent_states(self):
+        data = {"pid": 1, "started_at": "now"}
+        state = NodeState.from_dict(data)
+        assert state.agent_states == {}
+
+
+class TestASPInitialization:
+    """Tests for AgentNode._init_asp()."""
+
+    def test_init_asp_loads_agents(self, tmp_clan, sample_config):
+        # Create agents dir with a profile
+        agents_dir = tmp_clan / "agents"
+        agents_dir.mkdir()
+        profile = {
+            "agent_id": "test-agent",
+            "display_name": "Test Agent",
+            "version": "1.0.0",
+            "role": "sensor",
+            "description": "Test",
+            "capabilities": [],
+            "dispatch_rules": [],
+            "enabled": True,
+        }
+        (agents_dir / "test-agent.json").write_text(json.dumps(profile))
+
+        sample_config.asp_enabled = True
+        sample_config.agents_dir = "agents"
+        node = AgentNode(sample_config)
+        state = NodeState(pid=1, started_at="now")
+        node._init_asp(state)
+
+        assert node.asp_registry is not None
+        assert len(node.asp_registry.all_profiles()) == 1
+        assert node.asp_state_tracker is not None
+        assert node.asp_throttler is not None
+
+    def test_init_asp_sets_active_for_enabled(self, tmp_clan, sample_config):
+        agents_dir = tmp_clan / "agents"
+        agents_dir.mkdir()
+        profile = {
+            "agent_id": "scanner",
+            "display_name": "Scanner",
+            "version": "1.0.0",
+            "role": "sensor",
+            "description": "Scans",
+            "capabilities": [],
+            "dispatch_rules": [],
+            "enabled": True,
+        }
+        (agents_dir / "scanner.json").write_text(json.dumps(profile))
+
+        sample_config.asp_enabled = True
+        node = AgentNode(sample_config)
+        state = NodeState(pid=1, started_at="now")
+        node._init_asp(state)
+
+        from hermes.asp import AgentState
+        assert node.asp_state_tracker.get_state("scanner") == AgentState.ACTIVE
+
+    def test_init_asp_restores_state(self, tmp_clan, sample_config):
+        agents_dir = tmp_clan / "agents"
+        agents_dir.mkdir()
+        profile = {
+            "agent_id": "scanner",
+            "display_name": "Scanner",
+            "version": "1.0.0",
+            "role": "sensor",
+            "description": "Scans",
+            "capabilities": [],
+            "dispatch_rules": [],
+            "enabled": True,
+        }
+        (agents_dir / "scanner.json").write_text(json.dumps(profile))
+
+        sample_config.asp_enabled = True
+        node = AgentNode(sample_config)
+
+        # Create state with prior agent data
+        state = NodeState(
+            pid=1,
+            started_at="now",
+            agent_states={
+                "states": {"scanner": "idle"},
+                "dispatch_count": {"scanner": 3},
+                "failure_count": {},
+                "last_dispatch": {},
+            },
+        )
+        node._init_asp(state)
+
+        # set_active on IDLE → ACTIVE
+        from hermes.asp import AgentState
+        assert node.asp_state_tracker.get_state("scanner") == AgentState.ACTIVE
+        # Dispatch count preserved
+        payload = node.asp_state_tracker.heartbeat_payload()
+        entry = [e for e in payload if e["agent_id"] == "scanner"][0]
+        assert entry["dispatch_count"] == 3
+
+    def test_no_asp_without_flag(self, sample_config):
+        node = AgentNode(sample_config)
+        assert node.asp_registry is None
+        assert node.asp_state_tracker is None
+
+
+class TestPersistASPState:
+    """Tests for _persist_asp_state()."""
+
+    def test_persist_populates_node_state(self, tmp_clan, sample_config):
+        agents_dir = tmp_clan / "agents"
+        agents_dir.mkdir()
+        profile = {
+            "agent_id": "worker",
+            "display_name": "Worker",
+            "version": "1.0.0",
+            "role": "worker",
+            "description": "Works",
+            "capabilities": [],
+            "dispatch_rules": [],
+            "enabled": True,
+        }
+        (agents_dir / "worker.json").write_text(json.dumps(profile))
+
+        sample_config.asp_enabled = True
+        node = AgentNode(sample_config)
+        node.state = NodeState(pid=1, started_at="now")
+        node._init_asp(node.state)
+
+        node._persist_asp_state()
+
+        assert "states" in node.state.agent_states
+        assert node.state.agent_states["states"]["worker"] == "active"

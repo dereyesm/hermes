@@ -97,6 +97,14 @@ class AgentNodeConfig:
         default_factory=lambda: ["alert", "dispatch", "event"]
     )
     clan_dir: Path = field(default_factory=lambda: Path("."))
+    # F4-F5 (ARC-0369): ASP integration — opt-in (auto-enabled if agents/ exists)
+    agents_dir: str = "agents"
+    asp_enabled: bool = False
+    hot_reload: bool = True
+    notification_enabled: bool = True
+    notification_throttle_per_minute: int = 5
+    approval_default_timeout_hours: int = 24
+    queue_overflow: str = "drop-newest"
 
 
 def load_agent_config(config_path: Path) -> AgentNodeConfig:
@@ -143,6 +151,14 @@ def load_agent_config(config_path: Path) -> AgentNodeConfig:
 
     clan_dir = path.parent
 
+    # Read ASP section if present (nested under daemon/agent_node or top-level)
+    asp_section = section.get("asp", {})
+    agents_dir_name = asp_section.get("agents_dir", section.get("agents_dir", "agents"))
+    # Auto-enable ASP if agents/ directory exists
+    agents_path = clan_dir / agents_dir_name
+    asp_auto = agents_path.is_dir()
+    asp_enabled = asp_section.get("enabled", section.get("asp_enabled", asp_auto))
+
     return AgentNodeConfig(
         bus_path=Path(section.get("bus_path", "bus.jsonl")).expanduser()
         if Path(section.get("bus_path", "bus.jsonl")).is_absolute()
@@ -174,6 +190,19 @@ def load_agent_config(config_path: Path) -> AgentNodeConfig:
             section.get("forward_types", ["alert", "dispatch", "event"])
         ),
         clan_dir=clan_dir,
+        agents_dir=agents_dir_name,
+        asp_enabled=bool(asp_enabled),
+        hot_reload=bool(asp_section.get("hot_reload", True)),
+        notification_enabled=bool(asp_section.get("notification_enabled", True)),
+        notification_throttle_per_minute=int(
+            asp_section.get("notification_throttle_per_minute", 5)
+        ),
+        approval_default_timeout_hours=int(
+            asp_section.get("approval_default_timeout_hours", 24)
+        ),
+        queue_overflow=str(
+            asp_section.get("queue_overflow", "drop-newest")
+        ),
     )
 
 
@@ -204,6 +233,8 @@ class NodeState:
     # F3 (ARC-0369): dispatch protocol state
     pending_approvals: list[dict] = field(default_factory=list)
     scheduler_last_fire: dict[str, float] = field(default_factory=dict)
+    # F4 (ARC-0369): agent lifecycle state
+    agent_states: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return {
@@ -223,6 +254,7 @@ class NodeState:
             "last_evaluation": self.last_evaluation,
             "pending_approvals": self.pending_approvals,
             "scheduler_last_fire": self.scheduler_last_fire,
+            "agent_states": self.agent_states,
         }
 
     @classmethod
@@ -245,6 +277,7 @@ class NodeState:
             last_evaluation=data.get("last_evaluation"),
             pending_approvals=data.get("pending_approvals", []),
             scheduler_last_fire=data.get("scheduler_last_fire", {}),
+            agent_states=data.get("agent_states", {}),
         )
 
 
@@ -891,6 +924,177 @@ class AgentNode:
         self._running = False
         self._start_time = 0.0
 
+        # F3+F4+F5 (ARC-0369): ASP components — opt-in
+        self.asp_registry = None
+        self.asp_concurrency = None
+        self.asp_approval_mgr = None
+        self.asp_renderer = None
+        self.asp_engine = None
+        self.asp_scheduler = None
+        self.asp_state_tracker = None
+        self.asp_throttler = None
+
+    def _init_asp(self, state: NodeState) -> None:
+        """Initialize ARC-0369 F3+F4+F5 components."""
+        from .asp import (
+            AgentRegistry,
+            AgentStateTracker,
+            ApprovalGateManager,
+            ConcurrencyTracker,
+            DispatchCommandRenderer,
+            DispatchEngine,
+            DispatchScheduler,
+            NotificationThrottler,
+            QueueOverflow,
+        )
+
+        agents_path = self.config.clan_dir / self.config.agents_dir
+        self.asp_registry = AgentRegistry(agents_path)
+        self.asp_registry.load_all()
+
+        self.asp_concurrency = ConcurrencyTracker()
+        self.asp_approval_mgr = ApprovalGateManager.from_list(
+            state.pending_approvals,
+            self.config.approval_default_timeout_hours,
+        )
+        self.asp_renderer = DispatchCommandRenderer(
+            default_command=self.config.dispatch_command,
+            default_max_turns=self.config.dispatch_max_turns,
+            default_allowed_tools=self.config.dispatch_allowed_tools,
+        )
+        self.asp_engine = DispatchEngine(
+            self.asp_registry,
+            self.asp_concurrency,
+            self.asp_approval_mgr,
+            self.asp_renderer,
+            overflow_policy=QueueOverflow(self.config.queue_overflow),
+        )
+        self.asp_scheduler = DispatchScheduler(
+            self.asp_registry, self.config.namespace,
+        )
+        errors = self.asp_scheduler.load()
+        if errors:
+            for err in errors:
+                logger.warning("ASP scheduler: %s", err)
+        self.asp_scheduler.restore_state(state.scheduler_last_fire)
+
+        self.asp_state_tracker = AgentStateTracker.from_dict(state.agent_states)
+        for p in self.asp_registry.all_enabled():
+            self.asp_state_tracker.set_active(p.agent_id)
+
+        self.asp_throttler = NotificationThrottler(
+            max_per_window=self.config.notification_throttle_per_minute,
+        )
+
+        logger.info(
+            "ASP initialized: %d agents, %d enabled",
+            len(self.asp_registry.all_profiles()),
+            len(self.asp_registry.all_enabled()),
+        )
+
+    async def _execute_decision(self, decision) -> None:
+        """Bridge between F3 DispatchDecision and ARC-4601 Dispatcher.
+
+        Translates dispatch outcomes into actual process spawning,
+        state tracking, and bus writes.
+        """
+        from .asp import AgentState, DispatchOutcome
+
+        match decision.outcome:
+            case DispatchOutcome.DISPATCHED | DispatchOutcome.APPROVAL_GRANTED:
+                self.asp_state_tracker.set_running(decision.agent_id)
+                self.asp_concurrency.increment(decision.agent_id)
+                try:
+                    cid = f"asp-{decision.agent_id}-{int(time.time())}"
+                    # Build a synthetic Message for the dispatcher
+                    trigger = decision.trigger_msg or create_message(
+                        src=self.config.namespace,
+                        dst=decision.agent_id,
+                        type="dispatch",
+                        msg=decision.payload,
+                    )
+                    # Use ASP-rendered command by building a message with it
+                    slot = await self.dispatcher.dispatch(trigger, cid)
+                    result = await self.dispatcher.wait_slot(slot)
+                    self.asp_concurrency.decrement(decision.agent_id)
+                    if result.exit_code == 0:
+                        self.asp_state_tracker.set_idle(decision.agent_id)
+                        self.asp_state_tracker.record_dispatch(decision.agent_id, success=True)
+                        # Write dispatch result to bus
+                        try:
+                            result_msg = create_message(
+                                src=self.config.namespace,
+                                dst="*",
+                                type="event",
+                                msg=f"[RE:{decision.rule_id}] OK",
+                            )
+                            write_message(self.config.bus_path, result_msg)
+                        except Exception:
+                            pass
+                    else:
+                        self.asp_state_tracker.set_failed(decision.agent_id)
+                        self.asp_state_tracker.record_dispatch(decision.agent_id, success=False)
+                        try:
+                            fail_msg = create_message(
+                                src=self.config.namespace,
+                                dst="*",
+                                type="alert",
+                                msg=f"DISPATCH_FAILED:{decision.agent_id}:{decision.rule_id}",
+                            )
+                            write_message(self.config.bus_path, fail_msg)
+                        except Exception:
+                            pass
+                except RuntimeError as e:
+                    self.asp_concurrency.decrement(decision.agent_id)
+                    self.asp_state_tracker.set_failed(decision.agent_id)
+                    logger.warning("ASP dispatch failed for %s: %s", decision.agent_id, e)
+
+            case DispatchOutcome.APPROVAL_PENDING:
+                self.asp_state_tracker.set_pending(decision.agent_id)
+                try:
+                    approval_msg = create_message(
+                        src=self.config.namespace,
+                        dst="*",
+                        type="event",
+                        msg=f"APPROVAL_REQUIRED:{decision.agent_id}:{decision.rule_id}",
+                    )
+                    write_message(self.config.bus_path, approval_msg)
+                except Exception:
+                    pass
+
+            case DispatchOutcome.CAPACITY_EXCEEDED:
+                try:
+                    drop_msg = create_message(
+                        src=self.config.namespace,
+                        dst="*",
+                        type="alert",
+                        msg=f"DISPATCH_DROPPED:{decision.agent_id}:{decision.rule_id}",
+                    )
+                    write_message(self.config.bus_path, drop_msg)
+                except Exception:
+                    pass
+
+            case DispatchOutcome.APPROVAL_TIMEOUT:
+                from .asp import AgentState as _AS
+                self.asp_state_tracker.transition(decision.agent_id, _AS.ACTIVE)
+                try:
+                    timeout_msg = create_message(
+                        src=self.config.namespace,
+                        dst="*",
+                        type="alert",
+                        msg=f"APPROVAL_TIMEOUT:{decision.agent_id}:{decision.rule_id}",
+                    )
+                    write_message(self.config.bus_path, timeout_msg)
+                except Exception:
+                    pass
+
+    def _persist_asp_state(self) -> None:
+        """Persist ASP state (F3+F4) into NodeState."""
+        if self.state and self.asp_engine:
+            self.state.pending_approvals = self.asp_approval_mgr.to_list()
+            self.state.scheduler_last_fire = self.asp_scheduler.schedule_state
+            self.state.agent_states = self.asp_state_tracker.to_dict()
+
     async def run(self) -> None:
         """Main event loop. Starts all async tasks."""
         # Acquire lock
@@ -914,13 +1118,18 @@ class AgentNode:
                     started_at=datetime.now().isoformat(),
                 )
 
+            # Initialize ASP if enabled (F3+F4+F5)
+            if self.config.asp_enabled:
+                self._init_asp(self.state)
+
             self._running = True
             self._start_time = time.time()
 
             logger.info(
-                "Agent Node starting (namespace=%s, PID=%d)",
+                "Agent Node starting (namespace=%s, PID=%d, asp=%s)",
                 self.config.namespace,
                 os.getpid(),
+                self.config.asp_enabled,
             )
 
             # Run all tasks concurrently — store references for clean shutdown
@@ -960,14 +1169,20 @@ class AgentNode:
                 action = self.evaluator.evaluate(msg)
 
                 if action == Action.DISPATCH:
-                    if self.dispatcher.available_slots > 0:
-                        from .message import extract_cid
-                        cid = extract_cid(msg.msg) or f"auto-{int(time.time())}"
-                        try:
-                            slot = await self.dispatcher.dispatch(msg, cid)
-                            logger.info("Dispatched [%s] PID=%d", cid, slot.pid)
-                        except RuntimeError:
-                            logger.warning("No slots for dispatch [%s]", cid)
+                    if self.config.asp_enabled and self.asp_engine:
+                        # ASP path: check approval signals first, then evaluate
+                        approval = self.asp_engine.check_approval_signal(msg)
+                        if approval:
+                            await self._execute_decision(approval)
+                        else:
+                            decisions = self.asp_engine.evaluate_message(msg)
+                            for dec in decisions:
+                                await self._execute_decision(dec)
+                            if not decisions:
+                                # Legacy fallback: no ASP match
+                                await self._legacy_dispatch(msg)
+                    else:
+                        await self._legacy_dispatch(msg)
 
                 elif action == Action.FORWARD:
                     try:
@@ -995,16 +1210,34 @@ class AgentNode:
                     except ValidationError:
                         logger.warning("Could not create escalation for: %s", msg.msg[:50])
 
-            # Desktop notification for new peer messages (best-effort)
+            # Desktop notification — ASP throttled or legacy
             try:
                 for msg in batch:
-                    if msg.src != self.config.namespace and msg.type in ("dispatch", "alert", "event"):
+                    if msg.src == self.config.namespace:
+                        continue
+                    if msg.type not in ("dispatch", "alert", "event"):
+                        continue
+                    if self.config.asp_enabled and self.asp_throttler:
+                        from .asp import NotificationThrottler
+                        if NotificationThrottler.should_suppress(msg.type, msg.msg):
+                            self.asp_throttler.record_suppressed(msg.src)
+                            continue
+                        if not self.asp_throttler.should_notify(msg.src):
+                            self.asp_throttler.record_suppressed(msg.src)
+                            continue
+                        from .installer import send_notification
+                        send_notification(
+                            f"HERMES — {msg.type}",
+                            msg.msg[:120],
+                        )
+                        self.asp_throttler.record(msg.src)
+                    else:
                         from .installer import send_notification
                         send_notification(
                             "HERMES",
                             f"[{msg.type}] from {msg.src}: {msg.msg[:60]}",
                         )
-                        break  # One notification per batch
+                    break  # One notification per batch
             except Exception:
                 pass  # Never crash daemon for notifications
 
@@ -1012,7 +1245,20 @@ class AgentNode:
             if self.state:
                 self.state.bus_offset = self.observer.offset
                 self.state.active_dispatches = self.dispatcher.active
+                if self.config.asp_enabled:
+                    self._persist_asp_state()
                 self._persist_state()
+
+    async def _legacy_dispatch(self, msg: Message) -> None:
+        """Legacy dispatch path (pre-ASP)."""
+        if self.dispatcher.available_slots > 0:
+            from .message import extract_cid
+            cid = extract_cid(msg.msg) or f"auto-{int(time.time())}"
+            try:
+                slot = await self.dispatcher.dispatch(msg, cid)
+                logger.info("Dispatched [%s] PID=%d", cid, slot.pid)
+            except RuntimeError:
+                logger.warning("No slots for dispatch [%s]", cid)
 
     async def _sse_loop(self) -> None:
         """Process inbound messages from gateway SSE."""
@@ -1069,6 +1315,32 @@ class AgentNode:
                         await asyncio.get_event_loop().run_in_executor(
                             None, self.gateway.post_message, escalation
                         )
+
+                # ASP evaluation tasks (F3+F4)
+                if self.config.asp_enabled and self.asp_engine:
+                    # Expire timed-out approvals
+                    for dec in self.asp_engine.expire_approvals():
+                        await self._execute_decision(dec)
+
+                    # Scheduled dispatch
+                    for profile, rule in self.asp_scheduler.due_rules():
+                        synth = self.asp_scheduler.synthetic_message(profile, rule)
+                        for dec in self.asp_engine.evaluate_message(synth):
+                            await self._execute_decision(dec)
+
+                    # Hot reload agent profiles
+                    if self.config.hot_reload:
+                        changes = self.asp_registry.hot_reload()
+                        if changes:
+                            self.asp_scheduler.load()
+                            from .asp import AgentState as _AS
+                            for p in self.asp_registry.all_enabled():
+                                if self.asp_state_tracker.get_state(p.agent_id) == _AS.INACTIVE:
+                                    self.asp_state_tracker.set_active(p.agent_id)
+
+                    # Persist F3+F4 state
+                    self._persist_asp_state()
+
                 if self.state:
                     self.state.last_evaluation = datetime.now().isoformat()
             except Exception as e:

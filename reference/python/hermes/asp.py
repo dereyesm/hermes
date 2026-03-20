@@ -3,6 +3,8 @@
 F1: Bus Convergence — message classification (internal/outbound/inbound/expired).
 F2: Agent Registration — declarative profiles, registry, dispatch rule matching.
 F3: Dispatch Protocol — trigger evaluation, approval gates, scheduling, command rendering.
+F4: Agent Lifecycle — per-agent state tracking with transition history.
+F5: Notification Flow — throttled notifications with suppression rules.
 
 Extends the Agent Node (ARC-4601) with structured agent management.
 """
@@ -1046,3 +1048,200 @@ def _validate_cron_field(
                 return f"{name}: invalid value '{part}'"
 
     return None
+
+
+# ---------------------------------------------------------------------------
+# F4: Agent Lifecycle — ARC-0369 §9
+# ---------------------------------------------------------------------------
+
+# Legal transitions per §9.1
+_LEGAL_TRANSITIONS: dict[AgentState, set[AgentState]] = {
+    AgentState.INACTIVE: {AgentState.ACTIVE},
+    AgentState.ACTIVE: {AgentState.PENDING, AgentState.RUNNING, AgentState.REMOVED},
+    AgentState.PENDING: {AgentState.RUNNING, AgentState.ACTIVE},
+    AgentState.RUNNING: {AgentState.IDLE, AgentState.FAILED},
+    AgentState.IDLE: {AgentState.ACTIVE, AgentState.REMOVED},
+    AgentState.FAILED: {AgentState.ACTIVE, AgentState.REMOVED},
+    AgentState.REMOVED: set(),
+}
+
+
+class AgentStateTracker:
+    """Tracks per-agent lifecycle state with transition history (§9).
+
+    Pure logic — no I/O. The daemon calls transition methods as dispatch
+    events occur. Serializes to/from dict for state persistence.
+    """
+
+    def __init__(self) -> None:
+        self._states: dict[str, AgentState] = {}
+        self._last_dispatch: dict[str, str] = {}  # agent_id → ISO datetime
+        self._dispatch_count: dict[str, int] = {}
+        self._failure_count: dict[str, int] = {}
+
+    def transition(
+        self, agent_id: str, new_state: AgentState
+    ) -> AgentState | None:
+        """Transition an agent to a new state.
+
+        Returns the old state if the transition is legal, None if illegal.
+        Agents not yet tracked are treated as INACTIVE.
+        """
+        old_state = self._states.get(agent_id, AgentState.INACTIVE)
+        legal = _LEGAL_TRANSITIONS.get(old_state, set())
+        if new_state not in legal:
+            logger.warning(
+                "Illegal transition for %s: %s → %s", agent_id, old_state, new_state
+            )
+            return None
+        self._states[agent_id] = new_state
+        return old_state
+
+    def get_state(self, agent_id: str) -> AgentState:
+        """Return current state for an agent (INACTIVE if unknown)."""
+        return self._states.get(agent_id, AgentState.INACTIVE)
+
+    def set_active(self, agent_id: str) -> None:
+        """Mark agent as ACTIVE (profile loaded or recovery)."""
+        current = self.get_state(agent_id)
+        if current in (AgentState.INACTIVE, AgentState.IDLE, AgentState.FAILED):
+            self._states[agent_id] = AgentState.ACTIVE
+
+    def set_running(self, agent_id: str) -> None:
+        """Mark agent as RUNNING (dispatch started)."""
+        self.transition(agent_id, AgentState.RUNNING)
+
+    def set_idle(self, agent_id: str) -> None:
+        """Mark agent as IDLE (dispatch completed)."""
+        self.transition(agent_id, AgentState.IDLE)
+
+    def set_failed(self, agent_id: str) -> None:
+        """Mark agent as FAILED (dispatch error/timeout)."""
+        self.transition(agent_id, AgentState.FAILED)
+
+    def set_pending(self, agent_id: str) -> None:
+        """Mark agent as PENDING (approval gate)."""
+        self.transition(agent_id, AgentState.PENDING)
+
+    def set_removed(self, agent_id: str) -> None:
+        """Mark agent as REMOVED (profile deleted/disabled)."""
+        self.transition(agent_id, AgentState.REMOVED)
+
+    def record_dispatch(self, agent_id: str, success: bool) -> None:
+        """Record a dispatch attempt for metrics."""
+        self._dispatch_count[agent_id] = self._dispatch_count.get(agent_id, 0) + 1
+        self._last_dispatch[agent_id] = datetime.now().isoformat()
+        if not success:
+            self._failure_count[agent_id] = self._failure_count.get(agent_id, 0) + 1
+
+    def heartbeat_payload(self) -> list[dict]:
+        """Return §9.2 heartbeat payload — agent state summary."""
+        agents = []
+        for agent_id, state in sorted(self._states.items()):
+            agents.append({
+                "agent_id": agent_id,
+                "state": state.value,
+                "dispatch_count": self._dispatch_count.get(agent_id, 0),
+                "failure_count": self._failure_count.get(agent_id, 0),
+                "last_dispatch": self._last_dispatch.get(agent_id),
+            })
+        return agents
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize for state persistence."""
+        return {
+            "states": {k: v.value for k, v in self._states.items()},
+            "last_dispatch": dict(self._last_dispatch),
+            "dispatch_count": dict(self._dispatch_count),
+            "failure_count": dict(self._failure_count),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> AgentStateTracker:
+        """Restore from serialized dict. Tolerates missing keys."""
+        tracker = cls()
+        for agent_id, state_str in data.get("states", {}).items():
+            try:
+                tracker._states[agent_id] = AgentState(state_str)
+            except ValueError:
+                logger.warning("Unknown state '%s' for agent '%s'", state_str, agent_id)
+        tracker._last_dispatch = dict(data.get("last_dispatch", {}))
+        tracker._dispatch_count = {
+            k: int(v) for k, v in data.get("dispatch_count", {}).items()
+        }
+        tracker._failure_count = {
+            k: int(v) for k, v in data.get("failure_count", {}).items()
+        }
+        return tracker
+
+
+# ---------------------------------------------------------------------------
+# F5: Notification Flow — ARC-0369 §10
+# ---------------------------------------------------------------------------
+
+
+class NotificationThrottler:
+    """Rate-limited notification dispatcher per §10.1-§10.5.
+
+    Enforces max notifications per source per time window and suppression
+    rules for message types that should never trigger notifications.
+    Pure logic — does not send notifications (caller handles platform).
+    """
+
+    def __init__(
+        self,
+        window_seconds: int = 60,
+        max_per_window: int = 5,
+    ):
+        self.window_seconds = window_seconds
+        self.max_per_window = max_per_window
+        self._history: dict[str, list[float]] = {}  # src → timestamps
+        self._suppressed_count: dict[str, int] = {}
+
+    @staticmethod
+    def should_suppress(msg_type: str, msg_text: str) -> bool:
+        """Check §10.1 suppression rules — MUST NOT notify for these.
+
+        Rules:
+        - msg_text starts with "[RE:" → dispatch result, suppress
+        - msg_type == "data_cross" → cross-dim data, suppress
+        - msg_type == "state" → normal state, suppress
+        """
+        if msg_text.startswith("[RE:"):
+            return True
+        if msg_type == "data_cross":
+            return True
+        if msg_type == "state":
+            return True
+        return False
+
+    def should_notify(self, src: str, now: float | None = None) -> bool:
+        """Check if a notification from this source is within rate limit.
+
+        Returns True if under the limit, False if throttled.
+        Does NOT record — call record() separately after sending.
+        """
+        if now is None:
+            now = time.time()
+
+        history = self._history.get(src, [])
+        cutoff = now - self.window_seconds
+        recent = [t for t in history if t > cutoff]
+        return len(recent) < self.max_per_window
+
+    def record(self, src: str, now: float | None = None) -> None:
+        """Record that a notification was sent for this source."""
+        if now is None:
+            now = time.time()
+        self._history.setdefault(src, []).append(now)
+        # Prune old entries beyond 2x window to prevent unbounded growth
+        cutoff = now - self.window_seconds * 2
+        self._history[src] = [t for t in self._history[src] if t > cutoff]
+
+    def record_suppressed(self, src: str) -> None:
+        """Record that a notification was suppressed for this source."""
+        self._suppressed_count[src] = self._suppressed_count.get(src, 0) + 1
+
+    def suppressed_summary(self) -> list[tuple[str, int]]:
+        """Return (src, count) pairs for suppressed notifications."""
+        return sorted(self._suppressed_count.items())

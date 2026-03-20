@@ -1,4 +1,4 @@
-"""Tests for HERMES Agent Service Platform — ARC-0369 F1 + F2 + F3."""
+"""Tests for HERMES Agent Service Platform — ARC-0369 F1 + F2 + F3 + F4 + F5."""
 
 import json
 from datetime import date, datetime, timedelta
@@ -11,6 +11,7 @@ from hermes.asp import (
     AgentProfileError,
     AgentRegistry,
     AgentState,
+    AgentStateTracker,
     ApprovalGateManager,
     ConcurrencyTracker,
     DispatchCommandRenderer,
@@ -22,6 +23,7 @@ from hermes.asp import (
     DispatchTrigger,
     MessageCategory,
     MessageClassifier,
+    NotificationThrottler,
     PendingApproval,
     QueueOverflow,
     ResourceLimits,
@@ -1395,3 +1397,245 @@ class TestF3Integration:
         profile, rule = due[0]
         synth = sched.synthetic_message(profile, rule, now=date(2026, 3, 20))
         assert synth.msg.startswith("SCHEDULED:")
+
+
+# ─── F4: AgentStateTracker ──────────────────────────────────────
+
+
+class TestAgentStateTrackerBasic:
+    """Basic lifecycle state tracking tests (ARC-0369 §9)."""
+
+    def test_unknown_agent_is_inactive(self):
+        tracker = AgentStateTracker()
+        assert tracker.get_state("unknown") == AgentState.INACTIVE
+
+    def test_inactive_to_active(self):
+        tracker = AgentStateTracker()
+        old = tracker.transition("agent-a", AgentState.ACTIVE)
+        assert old == AgentState.INACTIVE
+        assert tracker.get_state("agent-a") == AgentState.ACTIVE
+
+    def test_active_to_running(self):
+        tracker = AgentStateTracker()
+        tracker.transition("agent-a", AgentState.ACTIVE)
+        old = tracker.transition("agent-a", AgentState.RUNNING)
+        assert old == AgentState.ACTIVE
+        assert tracker.get_state("agent-a") == AgentState.RUNNING
+
+    def test_running_to_idle(self):
+        tracker = AgentStateTracker()
+        tracker.transition("agent-a", AgentState.ACTIVE)
+        tracker.transition("agent-a", AgentState.RUNNING)
+        old = tracker.transition("agent-a", AgentState.IDLE)
+        assert old == AgentState.RUNNING
+        assert tracker.get_state("agent-a") == AgentState.IDLE
+
+    def test_running_to_failed(self):
+        tracker = AgentStateTracker()
+        tracker.transition("agent-a", AgentState.ACTIVE)
+        tracker.transition("agent-a", AgentState.RUNNING)
+        old = tracker.transition("agent-a", AgentState.FAILED)
+        assert old == AgentState.RUNNING
+        assert tracker.get_state("agent-a") == AgentState.FAILED
+
+    def test_failed_to_active_recovery(self):
+        tracker = AgentStateTracker()
+        tracker.transition("agent-a", AgentState.ACTIVE)
+        tracker.transition("agent-a", AgentState.RUNNING)
+        tracker.transition("agent-a", AgentState.FAILED)
+        old = tracker.transition("agent-a", AgentState.ACTIVE)
+        assert old == AgentState.FAILED
+
+    def test_active_to_pending(self):
+        tracker = AgentStateTracker()
+        tracker.transition("agent-a", AgentState.ACTIVE)
+        old = tracker.transition("agent-a", AgentState.PENDING)
+        assert old == AgentState.ACTIVE
+
+    def test_pending_to_running(self):
+        tracker = AgentStateTracker()
+        tracker.transition("agent-a", AgentState.ACTIVE)
+        tracker.transition("agent-a", AgentState.PENDING)
+        old = tracker.transition("agent-a", AgentState.RUNNING)
+        assert old == AgentState.PENDING
+
+    def test_pending_timeout_to_active(self):
+        tracker = AgentStateTracker()
+        tracker.transition("agent-a", AgentState.ACTIVE)
+        tracker.transition("agent-a", AgentState.PENDING)
+        old = tracker.transition("agent-a", AgentState.ACTIVE)
+        assert old == AgentState.PENDING
+
+
+class TestAgentStateTrackerIllegal:
+    """Illegal transition rejection tests."""
+
+    def test_inactive_to_running_illegal(self):
+        tracker = AgentStateTracker()
+        result = tracker.transition("agent-a", AgentState.RUNNING)
+        assert result is None
+        assert tracker.get_state("agent-a") == AgentState.INACTIVE
+
+    def test_running_to_active_illegal(self):
+        tracker = AgentStateTracker()
+        tracker.transition("agent-a", AgentState.ACTIVE)
+        tracker.transition("agent-a", AgentState.RUNNING)
+        result = tracker.transition("agent-a", AgentState.ACTIVE)
+        assert result is None
+        assert tracker.get_state("agent-a") == AgentState.RUNNING
+
+    def test_removed_is_terminal(self):
+        tracker = AgentStateTracker()
+        tracker.transition("agent-a", AgentState.ACTIVE)
+        tracker.transition("agent-a", AgentState.REMOVED)
+        result = tracker.transition("agent-a", AgentState.ACTIVE)
+        assert result is None
+        assert tracker.get_state("agent-a") == AgentState.REMOVED
+
+
+class TestAgentStateTrackerHelpers:
+    """set_* helper methods and counters."""
+
+    def test_set_active_from_inactive(self):
+        tracker = AgentStateTracker()
+        tracker.set_active("agent-a")
+        assert tracker.get_state("agent-a") == AgentState.ACTIVE
+
+    def test_set_active_from_idle(self):
+        tracker = AgentStateTracker()
+        tracker.transition("agent-a", AgentState.ACTIVE)
+        tracker.transition("agent-a", AgentState.RUNNING)
+        tracker.transition("agent-a", AgentState.IDLE)
+        tracker.set_active("agent-a")
+        assert tracker.get_state("agent-a") == AgentState.ACTIVE
+
+    def test_set_active_noop_when_already_active(self):
+        tracker = AgentStateTracker()
+        tracker.set_active("agent-a")
+        tracker.set_active("agent-a")  # should not crash
+        assert tracker.get_state("agent-a") == AgentState.ACTIVE
+
+    def test_record_dispatch_success(self):
+        tracker = AgentStateTracker()
+        tracker.set_active("agent-a")
+        tracker.record_dispatch("agent-a", success=True)
+        payload = tracker.heartbeat_payload()
+        entry = [e for e in payload if e["agent_id"] == "agent-a"][0]
+        assert entry["dispatch_count"] == 1
+        assert entry["failure_count"] == 0
+        assert entry["last_dispatch"] is not None
+
+    def test_record_dispatch_failure(self):
+        tracker = AgentStateTracker()
+        tracker.set_active("agent-a")
+        tracker.record_dispatch("agent-a", success=False)
+        payload = tracker.heartbeat_payload()
+        entry = [e for e in payload if e["agent_id"] == "agent-a"][0]
+        assert entry["dispatch_count"] == 1
+        assert entry["failure_count"] == 1
+
+
+class TestAgentStateTrackerSerialization:
+    """to_dict / from_dict roundtrip tests."""
+
+    def test_roundtrip_empty(self):
+        tracker = AgentStateTracker()
+        data = tracker.to_dict()
+        restored = AgentStateTracker.from_dict(data)
+        assert restored.heartbeat_payload() == []
+
+    def test_roundtrip_with_state(self):
+        tracker = AgentStateTracker()
+        tracker.set_active("agent-a")
+        tracker.set_active("agent-b")
+        tracker.record_dispatch("agent-a", success=True)
+        tracker.record_dispatch("agent-b", success=False)
+
+        data = tracker.to_dict()
+        restored = AgentStateTracker.from_dict(data)
+        assert restored.get_state("agent-a") == AgentState.ACTIVE
+        assert restored.get_state("agent-b") == AgentState.ACTIVE
+
+        payload = restored.heartbeat_payload()
+        assert len(payload) == 2
+        a_entry = [e for e in payload if e["agent_id"] == "agent-a"][0]
+        assert a_entry["dispatch_count"] == 1
+        b_entry = [e for e in payload if e["agent_id"] == "agent-b"][0]
+        assert b_entry["failure_count"] == 1
+
+    def test_from_dict_empty(self):
+        restored = AgentStateTracker.from_dict({})
+        assert restored.get_state("any") == AgentState.INACTIVE
+
+    def test_from_dict_unknown_state_skipped(self):
+        data = {"states": {"agent-x": "bogus_state"}}
+        restored = AgentStateTracker.from_dict(data)
+        # Unknown state is skipped — agent defaults to INACTIVE
+        assert restored.get_state("agent-x") == AgentState.INACTIVE
+
+
+# ─── F5: NotificationThrottler ──────────────────────────────────
+
+
+class TestNotificationThrottlerSuppression:
+    """Suppression rule tests (ARC-0369 §10.1)."""
+
+    def test_suppress_dispatch_result(self):
+        assert NotificationThrottler.should_suppress("dispatch", "[RE:rule-1] done") is True
+
+    def test_suppress_data_cross(self):
+        assert NotificationThrottler.should_suppress("data_cross", "expense data") is True
+
+    def test_suppress_state(self):
+        assert NotificationThrottler.should_suppress("state", "sync done") is True
+
+    def test_no_suppress_alert(self):
+        assert NotificationThrottler.should_suppress("alert", "disk full") is False
+
+    def test_no_suppress_dispatch(self):
+        assert NotificationThrottler.should_suppress("dispatch", "REPORT:weekly") is False
+
+    def test_no_suppress_event(self):
+        assert NotificationThrottler.should_suppress("event", "user login") is False
+
+
+class TestNotificationThrottlerRateLimit:
+    """Rate limiting tests (ARC-0369 §10.2)."""
+
+    def test_within_limit(self):
+        throttler = NotificationThrottler(max_per_window=5)
+        assert throttler.should_notify("src-a", now=1000.0) is True
+
+    def test_at_limit(self):
+        throttler = NotificationThrottler(max_per_window=3, window_seconds=60)
+        for i in range(3):
+            throttler.record("src-a", now=1000.0 + i)
+        assert throttler.should_notify("src-a", now=1002.0) is False
+
+    def test_window_expiry(self):
+        throttler = NotificationThrottler(max_per_window=2, window_seconds=60)
+        throttler.record("src-a", now=1000.0)
+        throttler.record("src-a", now=1001.0)
+        # At limit
+        assert throttler.should_notify("src-a", now=1002.0) is False
+        # After window expires
+        assert throttler.should_notify("src-a", now=1062.0) is True
+
+    def test_independent_sources(self):
+        throttler = NotificationThrottler(max_per_window=1)
+        throttler.record("src-a", now=1000.0)
+        assert throttler.should_notify("src-a", now=1001.0) is False
+        assert throttler.should_notify("src-b", now=1001.0) is True
+
+    def test_suppressed_summary(self):
+        throttler = NotificationThrottler()
+        throttler.record_suppressed("src-a")
+        throttler.record_suppressed("src-a")
+        throttler.record_suppressed("src-b")
+        summary = throttler.suppressed_summary()
+        assert ("src-a", 2) in summary
+        assert ("src-b", 1) in summary
+
+    def test_suppressed_summary_empty(self):
+        throttler = NotificationThrottler()
+        assert throttler.suppressed_summary() == []
