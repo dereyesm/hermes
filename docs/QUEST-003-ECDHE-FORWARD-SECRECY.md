@@ -4,7 +4,7 @@
 |---|---|
 | ID | QUEST-003 |
 | Title | Per-Message Forward Secrecy via Ephemeral Diffie-Hellman (ECDHE) |
-| Status | **PHASE 1 COMPLETE** |
+| Status | **PHASE 2 IN PROGRESS** |
 | Clans | momoshod, jei |
 | Spec | ARC-8446 Section 11.2 |
 | Created | 2026-03-16 |
@@ -215,7 +215,7 @@ as the primary detection mechanism, with `enc` as a secondary signal.
 |---|---|---|
 | Proposal review | 2026-03-17 | Both clans | DONE |
 | Phase 1 (local tests) | 2026-03-19 | Each clan independently | **DANI COMPLETE (2026-03-18)** |
-| Phase 2 (bilateral exchange) | 2026-03-22 | Both clans | Pending |
+| Phase 2 (bilateral exchange) | 2026-03-22 | Both clans | **DANI→JEI: decrypt OK + ACK sent (2026-03-21). Awaiting JEI decrypt of DANI-HERMES-009** |
 | Phase 3 (documentation + enforce) | 2026-03-24 | Both clans | Pending |
 
 ## Security Considerations
@@ -241,6 +241,27 @@ as the primary detection mechanism, with `enc` as a secondary signal.
 | Static key compromised today, attacker intercepts future messages | Future messages decrypted | Future messages decrypted (until revocation) |
 | Relay fully compromised, no key compromise | Messages safe | Messages safe |
 | Ephemeral key somehow recovered from memory | N/A | That single message decrypted |
+
+## Phase 2 Interop Findings (2026-03-21)
+
+DANI decrypted JEI-HERMES-015 successfully. Three implementation divergences
+detected between DANI (ARC-8446) and JEI (v3 independent implementation):
+
+| Parameter | ARC-8446 (DANI) | JEI v3 | Impact |
+|---|---|---|---|
+| HKDF info | `HERMES-ARC8446-ECDHE-v1` | `HERMES-ARC8446-v3-ECDHE` | Key derivation differs |
+| AAD scope | Includes `eph_pub` in canonical JSON | Metadata only (no `eph_pub`) | AAD binding weaker in JEI |
+| Signature scope | `sign(ciphertext \|\| eph_pub)` | `sign(eph_pub \|\| ciphertext)` | Concatenation order reversed |
+
+**Analysis:**
+- All three divergences are parameter-level, not algorithmic. The underlying
+  cryptographic primitives (X25519, HKDF-SHA256, AES-256-GCM, Ed25519) are
+  identical.
+- DANI responded (DANI-HERMES-009) using JEI's v3 parameters to prove bilateral
+  interop. Both directions must work for Phase 2 to close.
+- **Phase 3 alignment proposal:** Converge on ARC-8446 v1.2 spec with canonical
+  parameters. Include `eph_pub` in AAD (defense in depth). Use `ct||eph_pub`
+  signature scope (matches TLS 1.3 Finished message pattern).
 
 ## References
 
