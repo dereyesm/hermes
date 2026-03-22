@@ -944,6 +944,8 @@ class AgentNode:
         # ARC-9001: Bus Integrity — opt-in (enabled with ASP)
         self.seq_tracker = None
         self.ownership = None
+        self.wv_tracker = None      # F3: Write vector tracking
+        self.conflict_log = None    # F4: Conflict forensic log
 
     def _init_asp(self, state: NodeState) -> None:
         """Initialize ARC-0369 F3+F4+F5 components."""
@@ -997,8 +999,13 @@ class AgentNode:
             max_per_window=self.config.notification_throttle_per_minute,
         )
 
-        # ARC-9001: Bus Integrity (F1 + F2)
-        from .integrity import OwnershipRegistry, SequenceTracker
+        # ARC-9001: Bus Integrity (F1-F4)
+        from .integrity import (
+            ConflictLog,
+            OwnershipRegistry,
+            SequenceTracker,
+            WriteVectorTracker,
+        )
 
         if state.seq_state:
             self.seq_tracker = SequenceTracker.from_dict(state.seq_state)
@@ -1006,6 +1013,13 @@ class AgentNode:
             self.seq_tracker = SequenceTracker()
             messages = read_bus(self.config.bus_path)
             self.seq_tracker.load_from_bus(messages)
+
+        # F3: Write vector tracker (builds on seq_tracker)
+        self.wv_tracker = WriteVectorTracker(self.seq_tracker)
+
+        # F4: Conflict log (bus-conflicts.jsonl alongside bus.jsonl)
+        conflict_log_path = self.config.bus_path.parent / "bus-conflicts.jsonl"
+        self.conflict_log = ConflictLog(conflict_log_path)
 
         self.ownership = OwnershipRegistry(daemon_id=self.config.namespace)
         if state.ownership_claims:
@@ -1063,7 +1077,8 @@ class AgentNode:
                                 type="event",
                                 msg=f"[RE:{decision.rule_id}] OK",
                             )
-                            write_message(self.config.bus_path, result_msg)
+                            write_message(self.config.bus_path, result_msg,
+                                         seq_tracker=self.seq_tracker, wv_tracker=self.wv_tracker)
                         except Exception:
                             pass
                     else:
@@ -1076,7 +1091,8 @@ class AgentNode:
                                 type="alert",
                                 msg=f"DISPATCH_FAILED:{decision.agent_id}:{decision.rule_id}",
                             )
-                            write_message(self.config.bus_path, fail_msg)
+                            write_message(self.config.bus_path, fail_msg,
+                                         seq_tracker=self.seq_tracker, wv_tracker=self.wv_tracker)
                         except Exception:
                             pass
                 except RuntimeError as e:
@@ -1093,7 +1109,8 @@ class AgentNode:
                         type="event",
                         msg=f"APPROVAL_REQUIRED:{decision.agent_id}:{decision.rule_id}",
                     )
-                    write_message(self.config.bus_path, approval_msg)
+                    write_message(self.config.bus_path, approval_msg,
+                                 seq_tracker=self.seq_tracker, wv_tracker=self.wv_tracker)
                 except Exception:
                     pass
 
@@ -1105,7 +1122,8 @@ class AgentNode:
                         type="alert",
                         msg=f"DISPATCH_DROPPED:{decision.agent_id}:{decision.rule_id}",
                     )
-                    write_message(self.config.bus_path, drop_msg)
+                    write_message(self.config.bus_path, drop_msg,
+                                 seq_tracker=self.seq_tracker, wv_tracker=self.wv_tracker)
                 except Exception:
                     pass
 
@@ -1119,7 +1137,8 @@ class AgentNode:
                         type="alert",
                         msg=f"APPROVAL_TIMEOUT:{decision.agent_id}:{decision.rule_id}",
                     )
-                    write_message(self.config.bus_path, timeout_msg)
+                    write_message(self.config.bus_path, timeout_msg,
+                                 seq_tracker=self.seq_tracker, wv_tracker=self.wv_tracker)
                 except Exception:
                     pass
 
@@ -1315,7 +1334,8 @@ class AgentNode:
                     for m in existing
                 )
                 if not is_dup:
-                    write_message(self.config.bus_path, msg)
+                    write_message(self.config.bus_path, msg,
+                                 seq_tracker=self.seq_tracker, wv_tracker=self.wv_tracker)
                     logger.info("SSE → bus: %s", msg.msg[:50])
             except (ValidationError, Exception) as e:
                 logger.debug("SSE event skipped: %s", e)
