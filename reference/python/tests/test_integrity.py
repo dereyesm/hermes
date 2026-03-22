@@ -1,4 +1,4 @@
-"""Tests for ARC-9001 Bus Integrity Protocol — F1 Sequencing + F2 Ownership."""
+"""Tests for ARC-9001 Bus Integrity Protocol — F1-F4."""
 
 from __future__ import annotations
 
@@ -8,11 +8,16 @@ import pytest
 
 from hermes.integrity import (
     BusIntegrityChecker,
+    ConflictLog,
+    ConflictRecord,
+    ConflictResolution,
     OwnershipClaim,
     OwnershipRegistry,
     OwnershipViolation,
     SequenceState,
     SequenceTracker,
+    WriteVector,
+    WriteVectorTracker,
 )
 from hermes.message import Message, create_message
 
@@ -491,3 +496,597 @@ class TestReadBusWithIntegrity:
         assert len(msgs) == 2
         assert len(anomalies) == 1
         assert anomalies[0]["type"] == "gap"
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# F3: WriteVector
+# ═══════════════════════════════════════════════════════════════════════
+
+
+def _msg_w(src: str = "eng", dst: str = "*", seq: int | None = None,
+           w: dict | None = None) -> Message:
+    """Create a test message with optional write vector."""
+    return create_message(src=src, dst=dst, type="state", msg="test", seq=seq, w=w)
+
+
+class TestWriteVectorBasic:
+    """WriteVector creation, serialization, comparison."""
+
+    def test_create_empty(self):
+        wv = WriteVector()
+        assert wv.state == {}
+        assert wv.to_dict() == {}
+
+    def test_create_with_state(self):
+        wv = WriteVector(state={"eng": 5, "ops": 3})
+        assert wv.state["eng"] == 5
+        assert wv.state["ops"] == 3
+
+    def test_to_dict_roundtrip(self):
+        original = WriteVector(state={"eng": 5, "ops": 3})
+        restored = WriteVector.from_dict(original.to_dict())
+        assert restored.state == original.state
+
+    def test_from_dict(self):
+        wv = WriteVector.from_dict({"a": 1, "b": 2})
+        assert wv.state == {"a": 1, "b": 2}
+
+    def test_frozen(self):
+        wv = WriteVector(state={"eng": 5})
+        with pytest.raises(AttributeError):
+            wv.state = {}  # type: ignore
+
+
+class TestWriteVectorDominates:
+    """Dominance relation (partial order)."""
+
+    def test_dominates_greater_on_all(self):
+        a = WriteVector(state={"eng": 5, "ops": 3})
+        b = WriteVector(state={"eng": 3, "ops": 2})
+        assert a.dominates(b) is True
+
+    def test_dominates_equal_not_dominant(self):
+        a = WriteVector(state={"eng": 5})
+        b = WriteVector(state={"eng": 5})
+        assert a.dominates(b) is False
+
+    def test_not_dominates_when_less_on_one(self):
+        a = WriteVector(state={"eng": 5, "ops": 1})
+        b = WriteVector(state={"eng": 3, "ops": 3})
+        assert a.dominates(b) is False
+
+    def test_empty_does_not_dominate_empty(self):
+        a = WriteVector()
+        b = WriteVector()
+        assert a.dominates(b) is False
+
+    def test_nonempty_dominates_empty(self):
+        a = WriteVector(state={"eng": 1})
+        b = WriteVector()
+        assert a.dominates(b) is True
+
+    def test_missing_keys_treated_as_zero(self):
+        a = WriteVector(state={"eng": 5, "ops": 3})
+        b = WriteVector(state={"eng": 3})
+        # a has ops:3 > b's implied ops:0, and eng:5 > eng:3
+        assert a.dominates(b) is True
+
+    def test_missing_key_in_self_blocks_dominance(self):
+        a = WriteVector(state={"eng": 5})
+        b = WriteVector(state={"eng": 3, "ops": 1})
+        # a has ops:0 < b's ops:1
+        assert a.dominates(b) is False
+
+
+class TestWriteVectorConcurrent:
+    """Concurrent detection (neither dominates)."""
+
+    def test_concurrent_cross_greater(self):
+        a = WriteVector(state={"eng": 5, "ops": 1})
+        b = WriteVector(state={"eng": 3, "ops": 3})
+        assert a.concurrent_with(b) is True
+
+    def test_not_concurrent_when_dominates(self):
+        a = WriteVector(state={"eng": 5, "ops": 3})
+        b = WriteVector(state={"eng": 3, "ops": 2})
+        assert a.concurrent_with(b) is False
+
+    def test_not_concurrent_when_equal(self):
+        a = WriteVector(state={"eng": 5})
+        b = WriteVector(state={"eng": 5})
+        assert a.concurrent_with(b) is False
+
+    def test_concurrent_disjoint_keys(self):
+        a = WriteVector(state={"eng": 5})
+        b = WriteVector(state={"ops": 3})
+        # a has eng:5>0 but ops:0<3 — concurrent
+        assert a.concurrent_with(b) is True
+
+    def test_concurrent_is_symmetric(self):
+        a = WriteVector(state={"eng": 5, "ops": 1})
+        b = WriteVector(state={"eng": 3, "ops": 3})
+        assert a.concurrent_with(b) == b.concurrent_with(a)
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# F3: WriteVectorTracker
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestWriteVectorTracker:
+    """Write vector generation and conflict detection."""
+
+    def test_current_vector_empty_tracker(self):
+        st = SequenceTracker()
+        wvt = WriteVectorTracker(st)
+        assert wvt.current_vector().state == {}
+
+    def test_current_vector_after_records(self):
+        st = SequenceTracker()
+        st.record("eng", 3)
+        st.record("ops", 1)
+        wvt = WriteVectorTracker(st)
+        cv = wvt.current_vector()
+        assert cv.state == {"eng": 3, "ops": 1}
+
+    def test_record_adds_to_window(self):
+        st = SequenceTracker()
+        wvt = WriteVectorTracker(st)
+        wvt.record("eng", 1, WriteVector(state={"eng": 0}))
+        assert wvt.recent_count == 1
+
+    def test_window_sliding(self):
+        st = SequenceTracker()
+        wvt = WriteVectorTracker(st, window_size=3)
+        for i in range(5):
+            wvt.record("eng", i + 1, WriteVector(state={"eng": i}))
+        assert wvt.recent_count == 3
+
+    def test_no_conflict_same_source(self):
+        st = SequenceTracker()
+        st.record("eng", 1)
+        wvt = WriteVectorTracker(st)
+        wvt.record("eng", 1, WriteVector(state={"eng": 0}))
+        # Same source — never conflicts with itself
+        conflicts = wvt.detect_conflicts("eng", 2, WriteVector(state={"eng": 1}))
+        assert conflicts == []
+
+    def test_no_conflict_ordered_sources(self):
+        st = SequenceTracker()
+        st.record("eng", 1)
+        wvt = WriteVectorTracker(st)
+        # eng writes first, sees nothing
+        wvt.record("eng", 1, WriteVector(state={}))
+        # ops writes second, sees eng:1 — dominates eng's vector
+        conflicts = wvt.detect_conflicts("ops", 1, WriteVector(state={"eng": 1}))
+        assert conflicts == []
+
+    def test_conflict_concurrent_sources(self):
+        st = SequenceTracker()
+        wvt = WriteVectorTracker(st)
+        # eng writes seeing ops:0 (implied)
+        wvt.record("eng", 1, WriteVector(state={"eng": 0}))
+        # ops writes seeing eng:0 (implied) — concurrent!
+        conflicts = wvt.detect_conflicts("ops", 1, WriteVector(state={"ops": 0}))
+        assert len(conflicts) == 1
+        assert conflicts[0]["type"] == "concurrent"
+        assert conflicts[0]["src1"] == "ops"
+        assert conflicts[0]["src2"] == "eng"
+
+    def test_multiple_conflicts(self):
+        st = SequenceTracker()
+        wvt = WriteVectorTracker(st)
+        # Three sources write without seeing each other
+        wvt.record("eng", 1, WriteVector(state={"eng": 0}))
+        wvt.record("ops", 1, WriteVector(state={"ops": 0}))
+        # finance writes seeing nothing — concurrent with both
+        conflicts = wvt.detect_conflicts(
+            "finance", 1, WriteVector(state={"finance": 0})
+        )
+        assert len(conflicts) == 2
+
+    def test_no_conflict_after_causal_ordering(self):
+        st = SequenceTracker()
+        st.record("eng", 1)
+        st.record("ops", 1)
+        wvt = WriteVectorTracker(st)
+        wvt.record("eng", 1, WriteVector(state={"eng": 0}))
+        wvt.record("ops", 1, WriteVector(state={"eng": 1, "ops": 0}))
+        # finance writes seeing both — no conflict
+        conflicts = wvt.detect_conflicts(
+            "finance", 1, WriteVector(state={"eng": 1, "ops": 1})
+        )
+        assert conflicts == []
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# F4: ConflictLog
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestConflictRecord:
+    """ConflictRecord serialization."""
+
+    def test_to_dict_minimal(self):
+        r = ConflictRecord(
+            detected_at="2026-03-22T10:00:00",
+            type="gap",
+            src="eng",
+        )
+        d = r.to_dict()
+        assert d["type"] == "gap"
+        assert d["src"] == "eng"
+        assert "seq" not in d
+        assert "expected" not in d
+
+    def test_to_dict_full(self):
+        r = ConflictRecord(
+            detected_at="2026-03-22T10:00:00",
+            type="concurrent",
+            src="eng",
+            seq=5,
+            expected=4,
+            resolution="logged",
+            messages=["eng:5", "ops:3"],
+            details="test",
+        )
+        d = r.to_dict()
+        assert d["seq"] == 5
+        assert d["expected"] == 4
+        assert len(d["messages"]) == 2
+        assert d["details"] == "test"
+
+    def test_roundtrip(self):
+        original = ConflictRecord(
+            detected_at="2026-03-22T10:00:00",
+            type="duplicate",
+            src="eng",
+            seq=3,
+            expected=4,
+        )
+        restored = ConflictRecord.from_dict(original.to_dict())
+        assert restored.type == original.type
+        assert restored.src == original.src
+        assert restored.seq == original.seq
+
+
+class TestConflictLog:
+    """ConflictLog file operations."""
+
+    def test_record_creates_file(self, tmp_path):
+        log = ConflictLog(tmp_path / "conflicts.jsonl")
+        record = log.record_anomaly("gap", "eng", seq=5, expected=4)
+        assert record.type == "gap"
+        assert log.path.exists()
+
+    def test_read_empty(self, tmp_path):
+        log = ConflictLog(tmp_path / "conflicts.jsonl")
+        assert log.read_all() == []
+
+    def test_read_nonexistent(self, tmp_path):
+        log = ConflictLog(tmp_path / "nonexistent.jsonl")
+        assert log.read_all() == []
+
+    def test_record_and_read(self, tmp_path):
+        log = ConflictLog(tmp_path / "conflicts.jsonl")
+        log.record_anomaly("gap", "eng", seq=5, expected=4)
+        log.record_anomaly("duplicate", "ops", seq=2)
+        records = log.read_all()
+        assert len(records) == 2
+        assert records[0].type == "gap"
+        assert records[1].type == "duplicate"
+
+    def test_record_concurrent(self, tmp_path):
+        log = ConflictLog(tmp_path / "conflicts.jsonl")
+        record = log.record_concurrent("eng", 5, "ops", 3)
+        assert record.type == "concurrent"
+        assert "eng:5" in record.messages
+        assert "ops:3" in record.messages
+
+    def test_count(self, tmp_path):
+        log = ConflictLog(tmp_path / "conflicts.jsonl")
+        assert log.count() == 0
+        log.record_anomaly("gap", "eng")
+        log.record_anomaly("gap", "ops")
+        assert log.count() == 2
+
+    def test_append_only(self, tmp_path):
+        log = ConflictLog(tmp_path / "conflicts.jsonl")
+        log.record_anomaly("gap", "eng")
+        log.record_anomaly("gap", "ops")
+        # Re-open and add more
+        log2 = ConflictLog(tmp_path / "conflicts.jsonl")
+        log2.record_anomaly("duplicate", "finance")
+        assert log2.count() == 3
+
+
+class TestConflictResolution:
+    """ConflictResolution enum."""
+
+    def test_values(self):
+        assert ConflictResolution.LAST_WRITER_WINS == "last_writer_wins"
+        assert ConflictResolution.MANUAL == "manual"
+        assert ConflictResolution.MERGE == "merge"
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# F3+F4: BusIntegrityChecker Extended
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestBusIntegrityCheckerMVCC:
+    """BusIntegrityChecker with F3 write vectors and F4 conflict log."""
+
+    def _make_checker(self, tmp_path=None):
+        st = SequenceTracker()
+        ow = OwnershipRegistry()
+        wvt = WriteVectorTracker(st)
+        cl = ConflictLog(tmp_path / "conflicts.jsonl") if tmp_path else None
+        return BusIntegrityChecker(st, ow, wv_tracker=wvt, conflict_log=cl)
+
+    def test_generate_write_vector(self):
+        checker = self._make_checker()
+        wv = checker.generate_write_vector()
+        assert wv is not None
+        assert wv.state == {}
+
+    def test_generate_write_vector_none_without_tracker(self):
+        st = SequenceTracker()
+        ow = OwnershipRegistry()
+        checker = BusIntegrityChecker(st, ow)
+        assert checker.generate_write_vector() is None
+
+    def test_check_write_no_conflict(self):
+        checker = self._make_checker()
+        msg = _msg("eng", seq=1)
+        wv = WriteVector(state={})
+        violations = checker.check_write(msg, "daemon", seq=1, w=wv)
+        assert violations == []
+
+    def test_check_write_concurrent_detected(self, tmp_path):
+        checker = self._make_checker(tmp_path)
+        # Record that eng wrote at seq=1 seeing nothing
+        checker.wv.record("eng", 1, WriteVector(state={"eng": 0}))
+        checker.seq.record("eng", 1)
+        # ops tries to write at seq=1 also seeing nothing — concurrent
+        msg = _msg("ops", seq=1)
+        wv = WriteVector(state={"ops": 0})
+        violations = checker.check_write(msg, "daemon", seq=1, w=wv)
+        assert any("concurrent" in v for v in violations)
+
+    def test_conflict_logged_on_write(self, tmp_path):
+        checker = self._make_checker(tmp_path)
+        checker.wv.record("eng", 1, WriteVector(state={"eng": 0}))
+        checker.seq.record("eng", 1)
+        msg = _msg("ops", seq=1)
+        wv = WriteVector(state={"ops": 0})
+        checker.check_write(msg, "daemon", seq=1, w=wv)
+        # Conflict should be in the log
+        assert checker.conflict_log.count() == 1
+        records = checker.conflict_log.read_all()
+        assert records[0].type == "concurrent"
+
+    def test_check_read_logs_gap(self, tmp_path):
+        checker = self._make_checker(tmp_path)
+        checker.seq.record("eng", 1)
+        msg = _msg("eng", seq=5)
+        anomalies = checker.check_read(msg, seq=5)
+        assert any("gap" in a for a in anomalies)
+        assert checker.conflict_log.count() == 1
+
+    def test_check_read_logs_duplicate(self, tmp_path):
+        checker = self._make_checker(tmp_path)
+        checker.seq.record("eng", 5)
+        msg = _msg("eng", seq=3)
+        anomalies = checker.check_read(msg, seq=3)
+        assert any("duplicate" in a for a in anomalies)
+        assert checker.conflict_log.count() == 1
+
+    def test_check_read_records_write_vector(self, tmp_path):
+        checker = self._make_checker(tmp_path)
+        msg = _msg_w("eng", seq=1, w={"eng": 0})
+        checker.check_read(msg, seq=1)
+        assert checker.wv.recent_count == 1
+
+    def test_check_read_detects_concurrent_in_w(self, tmp_path):
+        checker = self._make_checker(tmp_path)
+        # First message from eng
+        msg1 = _msg_w("eng", seq=1, w={"eng": 0})
+        checker.check_read(msg1, seq=1)
+        checker.seq.record("eng", 1)
+        # Second message from ops, concurrent with eng
+        msg2 = _msg_w("ops", seq=1, w={"ops": 0})
+        anomalies = checker.check_read(msg2, seq=1)
+        assert any("concurrent" in a for a in anomalies)
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# F3+F4: Bus Integration
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestBusWriteWithWriteVector:
+    """write_message() with wv_tracker."""
+
+    def test_auto_assigns_w(self, tmp_path):
+        from hermes.bus import write_message, read_bus
+        bus = tmp_path / "bus.jsonl"
+        st = SequenceTracker()
+        wvt = WriteVectorTracker(st)
+        msg = _msg("eng")
+        written = write_message(bus, msg, seq_tracker=st, wv_tracker=wvt)
+        assert written.w is not None
+        assert written.w == {}  # Empty state at first write
+        assert written.seq == 1
+
+    def test_preserves_explicit_w(self, tmp_path):
+        from hermes.bus import write_message
+        bus = tmp_path / "bus.jsonl"
+        st = SequenceTracker()
+        wvt = WriteVectorTracker(st)
+        msg = _msg_w("eng", w={"ops": 5})
+        written = write_message(bus, msg, seq_tracker=st, wv_tracker=wvt)
+        assert written.w == {"ops": 5}
+
+    def test_w_roundtrip_json(self, tmp_path):
+        from hermes.bus import write_message, read_bus
+        bus = tmp_path / "bus.jsonl"
+        st = SequenceTracker()
+        st.record("ops", 3)
+        wvt = WriteVectorTracker(st)
+        msg = _msg("eng")
+        write_message(bus, msg, seq_tracker=st, wv_tracker=wvt)
+        msgs = read_bus(bus)
+        assert len(msgs) == 1
+        assert msgs[0].w == {"ops": 3}
+        assert msgs[0].seq == 1
+
+    def test_w_not_in_compact(self, tmp_path):
+        from hermes.bus import write_message, read_bus
+        bus = tmp_path / "bus.jsonl"
+        st = SequenceTracker()
+        wvt = WriteVectorTracker(st)
+        msg = _msg("eng")
+        write_message(bus, msg, compact=True, seq_tracker=st, wv_tracker=wvt)
+        # Compact format drops seq and w
+        raw = bus.read_text()
+        assert raw.startswith("[")  # Compact array
+        msgs = read_bus(bus)
+        assert len(msgs) == 1
+        # Compact doesn't carry seq or w
+        assert msgs[0].seq is None
+        assert msgs[0].w is None
+
+    def test_records_in_tracker(self, tmp_path):
+        from hermes.bus import write_message
+        bus = tmp_path / "bus.jsonl"
+        st = SequenceTracker()
+        wvt = WriteVectorTracker(st)
+        write_message(bus, _msg("eng"), seq_tracker=st, wv_tracker=wvt)
+        assert wvt.recent_count == 1
+
+    def test_multiple_writes_build_vector(self, tmp_path):
+        from hermes.bus import write_message, read_bus
+        bus = tmp_path / "bus.jsonl"
+        st = SequenceTracker()
+        wvt = WriteVectorTracker(st)
+        write_message(bus, _msg("eng"), seq_tracker=st, wv_tracker=wvt)
+        write_message(bus, _msg("ops"), seq_tracker=st, wv_tracker=wvt)
+        msgs = read_bus(bus)
+        # Second message should see eng:1
+        assert msgs[1].w == {"eng": 1}
+        assert msgs[1].seq == 1  # ops first write
+
+    def test_without_tracker_no_w(self, tmp_path):
+        from hermes.bus import write_message, read_bus
+        bus = tmp_path / "bus.jsonl"
+        st = SequenceTracker()
+        msg = _msg("eng")
+        write_message(bus, msg, seq_tracker=st)
+        msgs = read_bus(bus)
+        assert msgs[0].w is None
+
+
+class TestBusReadWithMVCC:
+    """read_bus_with_integrity() with wv_tracker and conflict_log."""
+
+    def test_detects_concurrent_on_read(self, tmp_path):
+        from hermes.bus import write_message, read_bus_with_integrity
+        bus = tmp_path / "bus.jsonl"
+        # Write two messages with concurrent write vectors manually
+        write_message(bus, _msg_w("eng", seq=1, w={"eng": 0}))
+        write_message(bus, _msg_w("ops", seq=1, w={"ops": 0}))
+        wvt = WriteVectorTracker(SequenceTracker())
+        cl = ConflictLog(tmp_path / "conflicts.jsonl")
+        msgs, anomalies = read_bus_with_integrity(
+            bus, wv_tracker=wvt, conflict_log=cl,
+        )
+        assert len(msgs) == 2
+        concurrent = [a for a in anomalies if a.get("type") == "concurrent"]
+        assert len(concurrent) == 1
+        assert cl.count() == 1
+
+    def test_no_concurrent_when_ordered(self, tmp_path):
+        from hermes.bus import write_message, read_bus_with_integrity
+        bus = tmp_path / "bus.jsonl"
+        write_message(bus, _msg_w("eng", seq=1, w={}))
+        write_message(bus, _msg_w("ops", seq=1, w={"eng": 1}))
+        wvt = WriteVectorTracker(SequenceTracker())
+        msgs, anomalies = read_bus_with_integrity(bus, wv_tracker=wvt)
+        concurrent = [a for a in anomalies if a.get("type") == "concurrent"]
+        assert concurrent == []
+
+    def test_conflict_log_created_on_first_conflict(self, tmp_path):
+        from hermes.bus import write_message, read_bus_with_integrity
+        bus = tmp_path / "bus.jsonl"
+        cl_path = tmp_path / "conflicts.jsonl"
+        assert not cl_path.exists()
+        write_message(bus, _msg_w("eng", seq=1, w={"eng": 0}))
+        write_message(bus, _msg_w("ops", seq=1, w={"ops": 0}))
+        cl = ConflictLog(cl_path)
+        read_bus_with_integrity(bus, wv_tracker=WriteVectorTracker(SequenceTracker()), conflict_log=cl)
+        assert cl_path.exists()
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# Message `w` field validation
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestMessageWField:
+    """Message w field in ARC-5322."""
+
+    def test_create_with_w(self):
+        msg = create_message(src="eng", dst="*", type="state", msg="test",
+                             w={"eng": 1, "ops": 2})
+        assert msg.w == {"eng": 1, "ops": 2}
+
+    def test_create_without_w(self):
+        msg = create_message(src="eng", dst="*", type="state", msg="test")
+        assert msg.w is None
+
+    def test_to_dict_includes_w(self):
+        msg = create_message(src="eng", dst="*", type="state", msg="test",
+                             w={"eng": 1})
+        d = msg.to_dict()
+        assert "w" in d
+        assert d["w"] == {"eng": 1}
+
+    def test_to_dict_excludes_w_when_none(self):
+        msg = create_message(src="eng", dst="*", type="state", msg="test")
+        d = msg.to_dict()
+        assert "w" not in d
+
+    def test_validate_rejects_bad_w_type(self):
+        from hermes.message import validate_message, ValidationError
+        data = {
+            "ts": "2026-03-22", "src": "eng", "dst": "*", "type": "state",
+            "msg": "test", "ttl": 7, "ack": [], "w": "not_a_dict",
+        }
+        with pytest.raises(ValidationError, match="dict"):
+            validate_message(data)
+
+    def test_validate_rejects_bad_w_value_type(self):
+        from hermes.message import validate_message, ValidationError
+        data = {
+            "ts": "2026-03-22", "src": "eng", "dst": "*", "type": "state",
+            "msg": "test", "ttl": 7, "ack": [], "w": {"eng": "five"},
+        }
+        with pytest.raises(ValidationError, match="integers"):
+            validate_message(data)
+
+    def test_validate_rejects_negative_w_value(self):
+        from hermes.message import validate_message, ValidationError
+        data = {
+            "ts": "2026-03-22", "src": "eng", "dst": "*", "type": "state",
+            "msg": "test", "ttl": 7, "ack": [], "w": {"eng": -1},
+        }
+        with pytest.raises(ValidationError, match="non-negative"):
+            validate_message(data)
+
+    def test_compact_format_no_w(self):
+        msg = create_message(src="eng", dst="*", type="state", msg="test",
+                             w={"eng": 1})
+        compact = msg.to_compact()
+        # Compact should NOT include w (verbose-only)
+        assert len(compact) == 7  # ts, src, dst, type, msg, ttl, ack

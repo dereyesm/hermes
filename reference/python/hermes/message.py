@@ -89,6 +89,7 @@ class Message:
     ack: list[str] = field(default_factory=list)
     encoding: str | None = None
     seq: int | None = None  # ARC-9001 F1: monotonic sequence per src
+    w: dict[str, int] | None = None  # ARC-9001 F3: write vector (causal state)
 
     def to_dict(self) -> dict:
         """Serialize to a dict suitable for JSON encoding.
@@ -111,6 +112,9 @@ class Message:
         # ARC-9001: include seq when present
         if self.seq is not None:
             d["seq"] = self.seq
+        # ARC-9001 F3: include write vector when present
+        if self.w is not None:
+            d["w"] = dict(self.w)
         return d
 
     def to_jsonl(self) -> str:
@@ -159,7 +163,7 @@ def validate_message(data: dict) -> Message:
     """
     # Determine which fields are present; encoding is optional
     required = {"ts", "src", "dst", "type", "msg", "ttl", "ack"}
-    allowed_optional = {"encoding", "seq"}
+    allowed_optional = {"encoding", "seq", "w"}
     actual = set(data.keys())
 
     missing = required - actual
@@ -255,9 +259,22 @@ def validate_message(data: dict) -> Message:
         if seq_raw < 1:
             raise ValidationError(f"'seq' must be positive (>= 1), got {seq_raw}")
 
+    # w: optional, write vector dict (ARC-9001 F3)
+    w_raw = data.get("w", None)
+    if w_raw is not None:
+        if not isinstance(w_raw, dict):
+            raise ValidationError(f"'w' must be a dict, got {type(w_raw).__name__}")
+        for k, v in w_raw.items():
+            if not isinstance(k, str):
+                raise ValidationError(f"'w' keys must be strings, got {type(k).__name__}")
+            if not isinstance(v, int) or isinstance(v, bool):
+                raise ValidationError(f"'w' values must be integers, got {type(v).__name__} for key '{k}'")
+            if v < 0:
+                raise ValidationError(f"'w' values must be non-negative, got {v} for key '{k}'")
+
     return Message(
         ts=ts, src=src, dst=dst, type=msg_type, msg=msg, ttl=ttl,
-        ack=list(ack), encoding=encoding_raw, seq=seq_raw,
+        ack=list(ack), encoding=encoding_raw, seq=seq_raw, w=w_raw,
     )
 
 
@@ -348,6 +365,7 @@ def create_message(
     ts: date | None = None,
     encoding: str | None = None,
     seq: int | None = None,
+    w: dict[str, int] | None = None,
 ) -> Message:
     """Create and validate a new HERMES message.
 
@@ -355,6 +373,7 @@ def create_message(
     If ts is not provided, uses today's date.
     If encoding is not provided, defaults to raw (field omitted).
     If seq is not provided, no sequence number is assigned (ARC-9001 F1).
+    If w is not provided, no write vector is assigned (ARC-9001 F3).
     """
     if ttl is None:
         ttl = DEFAULT_TTLS.get(type, 7)
@@ -374,6 +393,8 @@ def create_message(
         data["encoding"] = encoding
     if seq is not None:
         data["seq"] = seq
+    if w is not None:
+        data["w"] = w
     return validate_message(data)
 
 

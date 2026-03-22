@@ -52,21 +52,44 @@ def read_bus(bus_path: str | Path) -> list[Message]:
 def read_bus_with_integrity(
     bus_path: str | Path,
     seq_tracker: "SequenceTracker | None" = None,
+    wv_tracker: "WriteVectorTracker | None" = None,
+    conflict_log: "ConflictLog | None" = None,
 ) -> tuple[list[Message], list[dict]]:
-    """Read bus and validate sequence integrity (ARC-9001 F1).
+    """Read bus and validate sequence + causal integrity (ARC-9001 F1+F3).
 
     Returns (messages, anomalies) where anomalies is a list of
-    {"type": "gap"|"duplicate", "src": ..., "seq": ..., "expected": ...}.
+    {"type": "gap"|"duplicate"|"concurrent", "src": ..., "seq": ..., ...}.
 
     If seq_tracker is None, a fresh one is created for the scan.
     Messages without seq are included in the list but not validated.
+    When wv_tracker is provided, messages with `w` field are checked for
+    causal conflicts. Detected conflicts are logged to conflict_log if available.
     """
-    from .integrity import SequenceTracker as _ST
+    from .integrity import SequenceTracker as _ST, WriteVector as _WV
 
     messages = read_bus(bus_path)
     if seq_tracker is None:
         seq_tracker = _ST()
     anomalies = seq_tracker.load_from_bus(messages)
+
+    # F3: Validate write vectors and detect concurrent writes
+    if wv_tracker is not None:
+        for msg in messages:
+            w_data = getattr(msg, "w", None)
+            seq = getattr(msg, "seq", None)
+            if w_data is not None and seq is not None:
+                wv = _WV.from_dict(w_data)
+                conflicts = wv_tracker.detect_conflicts(msg.src, seq, wv)
+                for c in conflicts:
+                    anomalies.append(c)
+                    # F4: Log conflict
+                    if conflict_log is not None:
+                        conflict_log.record_concurrent(
+                            c["src1"], c["seq1"], c["src2"], c["seq2"],
+                        )
+                ts_str = msg.ts.isoformat() if hasattr(msg.ts, "isoformat") else ""
+                wv_tracker.record(msg.src, seq, wv, ts_str)
+
     return messages, anomalies
 
 
@@ -75,6 +98,7 @@ def write_message(
     message: Message,
     compact: bool = False,
     seq_tracker: "SequenceTracker | None" = None,
+    wv_tracker: "WriteVectorTracker | None" = None,
 ) -> Message:
     """Append a single message to the bus file.
 
@@ -86,21 +110,52 @@ def write_message(
         seq_tracker: Optional SequenceTracker (ARC-9001 F1). When provided
                      and message.seq is None, auto-assigns the next sequence
                      number for message.src.
+        wv_tracker: Optional WriteVectorTracker (ARC-9001 F3). When provided
+                    and message.w is None, auto-assigns the current write vector.
+                    After writing, records the message for conflict detection.
 
     Returns:
-        The message as written (may have seq assigned).
+        The message as written (may have seq and/or w assigned).
     """
+    # F3: Auto-assign write vector before seq (captures pre-write state)
+    w = message.w
+    if wv_tracker is not None and w is None:
+        w = wv_tracker.current_vector().to_dict()
+
     if seq_tracker is not None and message.seq is None:
         next_seq = seq_tracker.next_seq(message.src)
         message = Message(
             ts=message.ts, src=message.src, dst=message.dst,
             type=message.type, msg=message.msg, ttl=message.ttl,
             ack=list(message.ack), encoding=message.encoding,
-            seq=next_seq,
+            seq=next_seq, w=w,
         )
         seq_tracker.record(message.src, next_seq)
     elif seq_tracker is not None and message.seq is not None:
         seq_tracker.record(message.src, message.seq)
+        if w is not None and message.w is None:
+            message = Message(
+                ts=message.ts, src=message.src, dst=message.dst,
+                type=message.type, msg=message.msg, ttl=message.ttl,
+                ack=list(message.ack), encoding=message.encoding,
+                seq=message.seq, w=w,
+            )
+    elif w is not None and message.w is None:
+        message = Message(
+            ts=message.ts, src=message.src, dst=message.dst,
+            type=message.type, msg=message.msg, ttl=message.ttl,
+            ack=list(message.ack), encoding=message.encoding,
+            seq=message.seq, w=w,
+        )
+
+    # F3: Record in tracker after write
+    if wv_tracker is not None and message.seq is not None:
+        from .integrity import WriteVector as _WV
+        wv = _WV.from_dict(message.w) if message.w is not None else _WV()
+        wv_tracker.record(
+            message.src, message.seq, wv,
+            message.ts.isoformat() if hasattr(message.ts, "isoformat") else "",
+        )
 
     bus_path = Path(bus_path)
     line = message.to_compact_jsonl() if compact else message.to_jsonl()

@@ -1,4 +1,4 @@
-"""ARC-9001: Bus Integrity Protocol — F1 Message Sequencing + F2 Write Ownership.
+"""ARC-9001: Bus Integrity Protocol — F1-F4 Reference Implementation.
 
 Provides bus-level integrity guarantees for the HERMES protocol:
 
@@ -10,13 +10,25 @@ F2 (OwnershipRegistry): Maps namespaces to authorized writers.
    Enforces that only the registered owner can write src=namespace.
    Reference: 3GPP TS 23.501 §6.2.6 NF registration/ownership.
 
-F3-F6 (MVCC, Conflict Log, Recovery, GC): PLANNED — see spec/ARC-9001.md.
+F3 (WriteVector + WriteVectorTracker): Causal ordering across namespaces.
+   Write vectors capture the writer's view of the bus at write time.
+   Conflict detection via vector clock semantics.
+   Reference: Kung & Robinson (1981), Lamport vector clocks.
+
+F4 (ConflictLog): Append-only forensic log for integrity violations.
+   Records gaps, duplicates, ownership breaches, and concurrent writes.
+   File: bus-conflicts.jsonl, independent of bus archival.
+
+F5-F6 (Recovery, GC): PLANNED — see spec/ARC-9001.md.
 """
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime
+from enum import Enum
+from pathlib import Path
 
 
 # ---------------------------------------------------------------------------
@@ -290,28 +302,305 @@ class OwnershipRegistry:
 
 
 # ---------------------------------------------------------------------------
+# F3: Multi-Version Concurrency Control (Write Vectors)
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class WriteVector:
+    """Causal state snapshot at write time (ARC-9001 F3).
+
+    Captures {src: last_seen_seq} for all sources the writer has observed.
+    Two write vectors are concurrent if neither dominates the other
+    (vector clock semantics — Lamport, Kung & Robinson 1981).
+    """
+
+    state: dict[str, int] = field(default_factory=dict)
+
+    def dominates(self, other: WriteVector) -> bool:
+        """Return True if self >= other on all keys and > on at least one.
+
+        Missing keys are treated as 0 (writer hasn't seen that source).
+        """
+        all_keys = set(self.state) | set(other.state)
+        if not all_keys:
+            return False
+        at_least_one_greater = False
+        for k in all_keys:
+            s = self.state.get(k, 0)
+            o = other.state.get(k, 0)
+            if s < o:
+                return False
+            if s > o:
+                at_least_one_greater = True
+        return at_least_one_greater
+
+    def concurrent_with(self, other: WriteVector) -> bool:
+        """Return True if neither vector dominates the other.
+
+        Equal vectors are NOT concurrent (they represent the same state).
+        """
+        if self.state == other.state:
+            return False
+        return not self.dominates(other) and not other.dominates(self)
+
+    def to_dict(self) -> dict[str, int]:
+        """Serialize for JSON embedding in message `w` field."""
+        return dict(self.state)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, int]) -> WriteVector:
+        """Restore from serialized form."""
+        return cls(state=dict(data))
+
+
+class WriteVectorTracker:
+    """Tracks write vectors for conflict detection (ARC-9001 F3).
+
+    Pure logic, no I/O. Builds on SequenceTracker to generate and validate
+    write vectors. Maintains a sliding window of recent messages for
+    conflict comparison.
+    """
+
+    def __init__(
+        self,
+        seq_tracker: SequenceTracker,
+        window_size: int = 100,
+    ) -> None:
+        self._seq = seq_tracker
+        self._window_size = window_size
+        # Recent messages: (src, seq, WriteVector, ts_iso)
+        self._recent: list[tuple[str, int, WriteVector, str]] = []
+
+    def current_vector(self) -> WriteVector:
+        """Snapshot the current seq_tracker state as a write vector.
+
+        This represents the writer's view of the bus right now.
+        """
+        return WriteVector(state=self._seq.to_dict())
+
+    def record(self, src: str, seq: int, w: WriteVector, ts: str = "") -> None:
+        """Record a message's write vector for conflict detection.
+
+        Maintains a sliding window of the most recent messages.
+        """
+        self._recent.append((src, seq, w, ts))
+        if len(self._recent) > self._window_size:
+            self._recent = self._recent[-self._window_size:]
+
+    def detect_conflicts(
+        self,
+        src: str,
+        seq: int,
+        w: WriteVector,
+    ) -> list[dict]:
+        """Check if a message's write vector conflicts with recent messages.
+
+        Returns list of conflict descriptors:
+          {"type": "concurrent", "src1": ..., "seq1": ..., "src2": ..., "seq2": ...}
+
+        Only checks messages from different sources (same-source messages
+        are ordered by seq and cannot conflict).
+        """
+        conflicts = []
+        for r_src, r_seq, r_w, _ts in self._recent:
+            if r_src == src:
+                continue  # Same source: ordered by seq, no conflict possible
+            if w.concurrent_with(r_w):
+                conflicts.append({
+                    "type": "concurrent",
+                    "src1": src,
+                    "seq1": seq,
+                    "src2": r_src,
+                    "seq2": r_seq,
+                })
+        return conflicts
+
+    @property
+    def recent_count(self) -> int:
+        """Number of messages in the sliding window."""
+        return len(self._recent)
+
+
+# ---------------------------------------------------------------------------
+# F4: Conflict Log
+# ---------------------------------------------------------------------------
+
+class ConflictResolution(str, Enum):
+    """Resolution strategy for detected conflicts (ARC-9001 F3)."""
+
+    LAST_WRITER_WINS = "last_writer_wins"
+    MANUAL = "manual"
+    MERGE = "merge"
+
+
+@dataclass(frozen=True)
+class ConflictRecord:
+    """A single conflict/anomaly record for the forensic log."""
+
+    detected_at: str  # ISO datetime
+    type: str  # "gap" | "duplicate" | "ownership" | "concurrent"
+    src: str
+    seq: int | None = None
+    expected: int | None = None
+    resolution: str = "logged"
+    messages: list[str] = field(default_factory=list)
+    details: str = ""
+
+    def to_dict(self) -> dict:
+        d: dict = {
+            "detected_at": self.detected_at,
+            "type": self.type,
+            "src": self.src,
+        }
+        if self.seq is not None:
+            d["seq"] = self.seq
+        if self.expected is not None:
+            d["expected"] = self.expected
+        d["resolution"] = self.resolution
+        if self.messages:
+            d["messages"] = list(self.messages)
+        if self.details:
+            d["details"] = self.details
+        return d
+
+    @classmethod
+    def from_dict(cls, data: dict) -> ConflictRecord:
+        return cls(
+            detected_at=data["detected_at"],
+            type=data["type"],
+            src=data["src"],
+            seq=data.get("seq"),
+            expected=data.get("expected"),
+            resolution=data.get("resolution", "logged"),
+            messages=data.get("messages", []),
+            details=data.get("details", ""),
+        )
+
+
+class ConflictLog:
+    """Append-only conflict log for forensics (ARC-9001 F4).
+
+    Writes to bus-conflicts.jsonl. Independent of bus archival lifecycle.
+    POSIX append atomicity — no locking needed for short writes.
+    """
+
+    def __init__(self, log_path: str | Path) -> None:
+        self._path = Path(log_path)
+
+    @property
+    def path(self) -> Path:
+        return self._path
+
+    def record_anomaly(
+        self,
+        anomaly_type: str,
+        src: str,
+        seq: int | None = None,
+        expected: int | None = None,
+        resolution: str = "logged",
+        messages: list[str] | None = None,
+        details: str = "",
+    ) -> ConflictRecord:
+        """Record an anomaly to the conflict log.
+
+        Returns the ConflictRecord written.
+        """
+        record = ConflictRecord(
+            detected_at=datetime.now().isoformat(timespec="seconds"),
+            type=anomaly_type,
+            src=src,
+            seq=seq,
+            expected=expected,
+            resolution=resolution,
+            messages=messages or [],
+            details=details,
+        )
+        with self._path.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(record.to_dict(), ensure_ascii=False) + "\n")
+        return record
+
+    def record_concurrent(
+        self,
+        src1: str,
+        seq1: int,
+        src2: str,
+        seq2: int,
+        resolution: str = "logged",
+    ) -> ConflictRecord:
+        """Record a concurrent-write conflict between two messages."""
+        return self.record_anomaly(
+            anomaly_type="concurrent",
+            src=src1,
+            seq=seq1,
+            messages=[f"{src1}:{seq1}", f"{src2}:{seq2}"],
+            resolution=resolution,
+            details=f"Concurrent write vectors: {src1}@{seq1} vs {src2}@{seq2}",
+        )
+
+    def read_all(self) -> list[ConflictRecord]:
+        """Read all records from the conflict log."""
+        if not self._path.exists():
+            return []
+        records = []
+        for line in self._path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                records.append(ConflictRecord.from_dict(json.loads(line)))
+            except (json.JSONDecodeError, KeyError):
+                continue
+        return records
+
+    def count(self) -> int:
+        """Count records without fully parsing."""
+        if not self._path.exists():
+            return 0
+        return sum(
+            1 for line in self._path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        )
+
+
+# ---------------------------------------------------------------------------
 # Integration Helper
 # ---------------------------------------------------------------------------
 
 class BusIntegrityChecker:
-    """Combines SequenceTracker + OwnershipRegistry for bus validation.
+    """Combines SequenceTracker + OwnershipRegistry + F3/F4 for bus validation.
 
     Provides a single check_write() / check_read() entry point.
+    F3: WriteVectorTracker for causal ordering (optional).
+    F4: ConflictLog for forensic recording (optional).
     """
 
     def __init__(
         self,
         seq_tracker: SequenceTracker,
         ownership: OwnershipRegistry,
+        wv_tracker: WriteVectorTracker | None = None,
+        conflict_log: ConflictLog | None = None,
     ) -> None:
         self.seq = seq_tracker
         self.ownership = ownership
+        self.wv = wv_tracker
+        self.conflict_log = conflict_log
+
+    def generate_write_vector(self) -> WriteVector | None:
+        """Generate a write vector from current seq_tracker state.
+
+        Returns None if no WriteVectorTracker is configured.
+        """
+        if self.wv is None:
+            return None
+        return self.wv.current_vector()
 
     def check_write(
         self,
         message,
         writer_id: str,
         seq: int | None = None,
+        w: WriteVector | None = None,
     ) -> list[str]:
         """Validate a message before writing to bus.
 
@@ -319,6 +608,7 @@ class BusIntegrityChecker:
         Checks:
         1. Ownership: writer_id authorized for message.src
         2. Sequence: seq is next expected for message.src (if seq provided)
+        3. Write vector: no concurrent conflicts (if w provided and tracker available)
         """
         violations: list[str] = []
         if not self.ownership.is_authorized(message.src, writer_id):
@@ -339,6 +629,19 @@ class BusIntegrityChecker:
                     f"sequence: gap for src='{message.src}' "
                     f"(expected={gap[0]}, got={gap[1]})"
                 )
+        # F3: Write vector conflict check
+        if w is not None and self.wv is not None and seq is not None:
+            conflicts = self.wv.detect_conflicts(message.src, seq, w)
+            for c in conflicts:
+                violations.append(
+                    f"concurrent: {c['src1']}@{c['seq1']} conflicts with "
+                    f"{c['src2']}@{c['seq2']}"
+                )
+                # F4: Log conflict if log is available
+                if self.conflict_log is not None:
+                    self.conflict_log.record_concurrent(
+                        c["src1"], c["seq1"], c["src2"], c["seq2"],
+                    )
         return violations
 
     def check_read(self, message, seq: int | None = None) -> list[str]:
@@ -346,16 +649,41 @@ class BusIntegrityChecker:
 
         Returns list of anomaly descriptions.
         Checks sequence gap/duplicate detection.
+        Logs anomalies to conflict log if available.
         """
         anomalies: list[str] = []
         if seq is not None:
             if self.seq.detect_duplicate(message.src, seq):
-                anomalies.append(
-                    f"duplicate: seq={seq} for src='{message.src}'"
-                )
+                desc = f"duplicate: seq={seq} for src='{message.src}'"
+                anomalies.append(desc)
+                if self.conflict_log is not None:
+                    self.conflict_log.record_anomaly(
+                        "duplicate", message.src, seq=seq,
+                        expected=self.seq.next_seq(message.src),
+                    )
             gap = self.seq.detect_gap(message.src, seq)
             if gap is not None:
-                anomalies.append(
-                    f"gap: src='{message.src}' expected={gap[0]} got={gap[1]}"
+                desc = f"gap: src='{message.src}' expected={gap[0]} got={gap[1]}"
+                anomalies.append(desc)
+                if self.conflict_log is not None:
+                    self.conflict_log.record_anomaly(
+                        "gap", message.src, seq=seq, expected=gap[0],
+                    )
+        # F3: Record write vector if present
+        w_data = getattr(message, "w", None)
+        if w_data is not None and self.wv is not None and seq is not None:
+            w = WriteVector.from_dict(w_data) if isinstance(w_data, dict) else w_data
+            conflicts = self.wv.detect_conflicts(message.src, seq, w)
+            for c in conflicts:
+                desc = (
+                    f"concurrent: {c['src1']}@{c['seq1']} conflicts with "
+                    f"{c['src2']}@{c['seq2']}"
                 )
+                anomalies.append(desc)
+                if self.conflict_log is not None:
+                    self.conflict_log.record_concurrent(
+                        c["src1"], c["seq1"], c["src2"], c["seq2"],
+                    )
+            ts_str = message.ts.isoformat() if hasattr(message, "ts") else ""
+            self.wv.record(message.src, seq, w, ts_str)
         return anomalies
