@@ -11,7 +11,7 @@
 | **Proposer** | Clan DANI |
 | **Participants** | Clan DANI, Clan JEI |
 | **Spec Basis** | Anthropic Claude Code official documentation |
-| **Status** | PROPOSED |
+| **Status** | **COMPLETE** (bilateral scores exchanged 2026-03-22) |
 | **Created** | 2026-03-18 |
 
 ## Objective
@@ -28,7 +28,7 @@ Anthropic's official Claude Code documentation.
 | Phase | Target | Deliverable | Status |
 |-------|--------|-------------|--------|
 | 1 | 2026-03-18 | Checklist + DANI self-assessment | **DONE** |
-| 2 | 2026-03-22 | JEI self-assessment + bilateral comparison | PENDING |
+| 2 | 2026-03-22 | JEI self-assessment + bilateral comparison | **DONE** (JEI-HERMES-017) |
 | 3 | 2026-03-24 | Dashboard widget + gap remediation plan | PENDING |
 
 ---
@@ -215,6 +215,35 @@ Anthropic's official Claude Code documentation.
 | ~~LOW~~ | ~~6.6 Model pinning~~ | ~~Consistency~~ | ~~Low~~ | CLOSED 2026-03-18 |
 | LOW | 13.1-13.2 IDE/keybindings | Ergonomics | Medium | OPEN |
 | LOW | 14.1 Session naming | Organization | Low | OPEN |
+
+---
+
+## JEI Assessment Summary (2026-03-22)
+
+Received via JEI-HERMES-017 (ECDHE-encrypted relay, decrypted by DANI).
+
+| Metric | Value |
+|--------|-------|
+| **Overall score** | ~54% |
+| **Memory (C2)** | 100% |
+| **Settings (C6)** | 21% |
+| **Worktrees (C9)** | 0% |
+| **Improvement focus** | Worktrees + settings depth |
+
+### Bilateral Comparison
+
+| Category | DANI | JEI | Delta |
+|----------|------|-----|-------|
+| Overall | 76% | ~54% | +22pp |
+| Memory | 100% | 100% | 0 |
+| Settings | 86% | 21% | +65pp |
+| Worktrees | 0% | 0% | 0 |
+
+**Key observations:**
+- Memory is the strongest category for both clans (100% each)
+- Worktrees is the weakest for both (0% each) — shared gap
+- Settings is the biggest divergence (+65pp) — DANI's advantage area
+- QUEST-004 closed by JEI as Phase 0 input for QUEST-005
 
 ---
 

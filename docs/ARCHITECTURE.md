@@ -236,7 +236,9 @@ The **Bus Integrity Protocol** ([`integrity.py`](../reference/python/hermes/inte
 
 - **F1 Message Sequencing**: `SequenceTracker` assigns monotonic `seq` numbers per source namespace. Detects gaps (missing messages) and duplicates (replay). Inspired by SS7 FSN/BSN (ITU-T Q.703 §5.2).
 - **F2 Write Ownership**: `OwnershipRegistry` maps namespaces to authorized writers. Only the registered owner can write `src=namespace`. Default: daemon owns all local namespaces; ASP agents get ownership of their namespace.
-- **F3-F6 (PLANNED)**: MVCC write vectors, conflict log, recovery, garbage collection.
+- **F3 MVCC Write Vectors**: `WriteVector` captures the writer's causal view of the bus (`{src: last_seen_seq}`). `WriteVectorTracker` uses a sliding window to detect concurrent writes (vector clock semantics). The `w` field in messages is verbose-JSON only (compact unchanged).
+- **F4 Conflict Log**: `ConflictLog` records integrity violations (gaps, duplicates, ownership breaches, concurrent writes) to `bus-conflicts.jsonl`. Append-only, independent of bus archival. Provides forensic data for security audits.
+- **F5-F6 (PLANNED)**: Recovery protocol, garbage collection.
 
 See [ARC-9001](../spec/ARC-9001.md) for the full specification.
 

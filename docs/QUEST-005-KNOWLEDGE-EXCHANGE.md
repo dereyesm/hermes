@@ -4,7 +4,7 @@
 |---|---|
 | ID | QUEST-005 |
 | Title | Bilateral Knowledge Exchange — Clan DANI x Clan JEI |
-| Status | **PROPOSED** |
+| Status | **ACCEPTED** (JEI-HERMES-016, 2026-03-22) |
 | Clans | momoshod, jei |
 | Depends | QUEST-004 (baseline assessment), QUEST-003 Phase 2 (E2E channel) |
 | Created | 2026-03-21 |
@@ -184,7 +184,7 @@ If the bilateral exchange succeeds, formalize the pattern as:
 
 | Phase | Target | Owner | Status |
 |---|---|---|---|
-| Phase 1: QUEST-004 close | 2026-03-22 — 2026-03-28 | Both clans | Pending |
+| Phase 1: QUEST-004 close | 2026-03-22 — 2026-03-28 | Both clans | **DONE** (JEI ~54%, DANI 76%) |
 | Phase 2: Prompt chain design | 2026-03-24 — 2026-03-31 | DANI (lead) | Pending |
 | Phase 3: Sovereign execution | 2026-03-29 — 2026-04-05 | Each clan | Pending |
 | Phase 4: Bilateral merge | 2026-04-05 — 2026-04-12 | Both clans | Pending |

@@ -9,6 +9,50 @@ This project follows a versioning scheme where:
 
 ---
 
+## [Unreleased] — ARC-9001 F3-F4 MVCC + Conflict Log (2026-03-22)
+
+### Bus Integrity — Causal Ordering & Forensics
+
+This release completes ARC-9001 through F4, adding MVCC write vectors for
+causal ordering across namespaces and an append-only conflict log for forensic
+analysis. The bus can now detect concurrent writes from multiple agents/relays
+and record integrity violations independently of bus archival.
+
+### Added
+
+- **ARC-9001 F3: MVCC Write Vectors** (IMPLEMENTED)
+  - `WriteVector` dataclass: causal state snapshot `{src: last_seen_seq}`
+  - `WriteVectorTracker`: sliding window conflict detection (default 100 msgs)
+  - Vector clock semantics: dominates / concurrent / ordered classification
+  - Message `w` field (verbose JSON only — compact format unchanged)
+  - `write_message()` auto-assigns `w` when `wv_tracker` provided
+  - `read_bus_with_integrity()` validates causal ordering
+  - Reference: Kung & Robinson (1981), Lamport vector clocks
+
+- **ARC-9001 F4: Conflict Log** (IMPLEMENTED)
+  - `ConflictRecord` dataclass: forensic metadata per anomaly
+  - `ConflictLog`: append-only `bus-conflicts.jsonl` (independent lifecycle)
+  - Records: gaps, duplicates, ownership violations, concurrent writes
+  - `BusIntegrityChecker` extended with F3/F4 support
+  - All parameters optional — backward compatible with F1/F2-only callers
+
+- **Agent daemon F3-F4 wiring** (agent.py)
+  - `WriteVectorTracker` + `ConflictLog` initialized in `_init_asp()`
+  - All 6 `write_message()` call sites pass `seq_tracker` + `wv_tracker`
+  - Conflict log at `bus-conflicts.jsonl` alongside `bus.jsonl`
+
+### QUEST Progress
+
+- **QUEST-004 COMPLETE**: JEI self-assessment received (JEI-HERMES-017, ~54%)
+- **QUEST-005 ACCEPTED**: JEI accepts Knowledge Exchange Protocol (JEI-HERMES-016)
+- QUEST-SKILL-EVO: experience.md created for 3 HERMES skills (pilot)
+
+### Tests
+
+- 985 total (+64 from F3-F4), 0 regressions
+
+---
+
 ## [Unreleased] — Compact Wire Format + ATR-G.711 (2026-03-17)
 
 ### Wire Efficiency & Payload Encoding
