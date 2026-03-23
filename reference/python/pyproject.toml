@@ -28,6 +28,7 @@ dependencies = [
     "cryptography>=41.0",
     "rich>=13.0",
     "tomli-w>=1.0",
+    "websockets>=13.0",
 ]
 
 [project.optional-dependencies]
