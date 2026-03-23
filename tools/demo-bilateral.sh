@@ -91,8 +91,8 @@ json.dump(jei_pub, open('$DANI_DIR/.keys/peers/jei.pub', 'w'), indent=2)
 os.makedirs('$JEI_DIR/.keys/peers', exist_ok=True)
 json.dump(dani_pub, open('$JEI_DIR/.keys/peers/dani.pub', 'w'), indent=2)
 print('Keys exchanged: DANI <-> JEI')
-print(f'  DANI fingerprint: {dani_pub.get(\"fingerprint\", \"n/a\")}')
-print(f'  JEI  fingerprint: {jei_pub.get(\"fingerprint\", \"n/a\")}')
+print('  DANI fingerprint: ' + dani_pub.get('fingerprint', 'n/a'))
+print('  JEI  fingerprint: ' + jei_pub.get('fingerprint', 'n/a'))
 \""
 
 sleep 0.5
