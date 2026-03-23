@@ -246,11 +246,24 @@ def _build_aad_ecdhe(envelope_meta: dict, eph_pub_hex: str) -> bytes:
     before canonical JSON serialization. Keys are sorted alphabetically,
     so eph_pub falls between dst and src naturally.
 
-    Reference: ARC-8446 §11.2 (QUEST-003).
+    Reference: ARC-8446 §11.2.8 Canonical Parameters (v1.2).
     """
     extended = dict(envelope_meta)
     extended["eph_pub"] = eph_pub_hex
     return json.dumps(extended, sort_keys=True, separators=(",", ":")).encode("utf-8")
+
+
+def _build_aad_no_eph(envelope_meta: dict) -> bytes:
+    """Build AAD without ephemeral public key (JEI v3 compat).
+
+    During migration period (ARC-8446 §11.2.9), receivers accept messages
+    where AAD was constructed without the eph_pub field.
+    """
+    return json.dumps(envelope_meta, sort_keys=True, separators=(",", ":")).encode("utf-8")
+
+
+# JEI v3 HKDF info string (DEPRECATED — ARC-8446 v1.2 §11.2.9)
+_ECDHE_HKDF_INFO_JEI_V3 = b"HERMES-ARC8446-v3-ECDHE"
 
 
 def seal_bus_message(
@@ -386,11 +399,18 @@ def open_bus_message(
     is_ecdhe = "eph_pub" in sealed
 
     if is_ecdhe:
-        # ECDHE path: verify extended signature (ciphertext + eph_pub)
+        # ECDHE path: verify extended signature (ciphertext + eph_pub) — canonical
         eph_pub_bytes = bytes.fromhex(sealed["eph_pub"])
-        if not verify_signature(
+        sig_canonical = verify_signature(
             peer_sign_public, ciphertext_bytes + eph_pub_bytes, sealed["signature"]
-        ):
+        )
+        # Fallback: JEI v3 reversed order (eph_pub + ciphertext) — ARC-8446 §11.2.9
+        sig_reversed = False
+        if not sig_canonical:
+            sig_reversed = verify_signature(
+                peer_sign_public, eph_pub_bytes + ciphertext_bytes, sealed["signature"]
+            )
+        if not sig_canonical and not sig_reversed:
             return None
     else:
         # Static path: verify standard signature (ciphertext only)
@@ -411,25 +431,48 @@ def open_bus_message(
     if is_ecdhe:
         # ECDHE: derive shared secret from my static DH + ephemeral public
         eph_public = X25519PublicKey.from_public_bytes(bytes.fromhex(sealed["eph_pub"]))
-        shared_secret = derive_shared_secret_ecdhe(my_keys.dh_private, eph_public)
 
-        # Build ECDHE AAD (with eph_pub included)
-        if envelope_meta is not None:
-            aad = _build_aad_ecdhe(envelope_meta, sealed["eph_pub"])
-        else:
-            aad = _build_aad_ecdhe({}, sealed["eph_pub"])
+        # Build candidate AAD and HKDF variants for decryption attempts
+        # Canonical (ARC-8446 v1.2): eph_pub in AAD + canonical HKDF info
+        meta = envelope_meta if envelope_meta is not None else {}
+        aad_with_eph = _build_aad_ecdhe(meta, sealed["eph_pub"])
+        aad_without_eph = _build_aad_no_eph(meta)
 
-        # AAD consistency check
-        if "aad" in sealed:
-            if sealed["aad"] != aad.hex():
-                return None
+        # Try decryption in priority order (canonical first, then fallbacks)
+        # Each attempt = (hkdf_info, aad_bytes, description)
+        attempts = [
+            # 1. Canonical ARC-8446 v1.2
+            (b"HERMES-ARC8446-ECDHE-v1", aad_with_eph),
+            # 2. Canonical HKDF + AAD without eph_pub (JEI AAD divergence)
+            (b"HERMES-ARC8446-ECDHE-v1", aad_without_eph),
+            # 3. JEI v3 HKDF + AAD without eph_pub (full JEI v3 compat)
+            (_ECDHE_HKDF_INFO_JEI_V3, aad_without_eph),
+            # 4. JEI v3 HKDF + canonical AAD (unlikely but complete)
+            (_ECDHE_HKDF_INFO_JEI_V3, aad_with_eph),
+        ]
 
-        try:
-            return decrypt_message(
-                shared_secret, sealed["nonce"], sealed["ciphertext"], aad=aad
-            )
-        except Exception:
-            return None
+        # Only use stored AAD as fallback when caller didn't provide envelope_meta
+        # (prevents bypassing AAD validation when meta is explicitly given)
+        if "aad" in sealed and envelope_meta is None:
+            stored_aad = bytes.fromhex(sealed["aad"])
+            for hkdf_info in [b"HERMES-ARC8446-ECDHE-v1", _ECDHE_HKDF_INFO_JEI_V3]:
+                candidate = (hkdf_info, stored_aad)
+                if candidate not in attempts:
+                    attempts.append(candidate)
+
+        for hkdf_info, aad in attempts:
+            try:
+                raw_shared = my_keys.dh_private.exchange(eph_public)
+                hkdf = HKDF(
+                    algorithm=hashes.SHA256(), length=32, salt=None, info=hkdf_info,
+                )
+                shared_secret = hkdf.derive(raw_shared)
+                return decrypt_message(
+                    shared_secret, sealed["nonce"], sealed["ciphertext"], aad=aad
+                )
+            except Exception:
+                continue
+        return None
     else:
         # Static path (original behavior, unchanged)
         aad = _build_aad(envelope_meta)

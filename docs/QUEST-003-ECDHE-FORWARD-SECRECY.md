@@ -263,9 +263,50 @@ detected between DANI (ARC-8446) and JEI (v3 independent implementation):
   parameters. Include `eph_pub` in AAD (defense in depth). Use `ct||eph_pub`
   signature scope (matches TLS 1.3 Finished message pattern).
 
+## Phase 3 Alignment (2026-03-22)
+
+ARC-8446 updated to v1.2 with canonical parameters and migration path.
+
+### Changes implemented
+
+1. **ARC-8446 §11.2.8 Canonical Parameters**: Normative MUST-level requirements
+   for HKDF info (`HERMES-ARC8446-ECDHE-v1`), AAD (with `eph_pub`), and
+   signature scope (`ciphertext || eph_pub`).
+
+2. **ARC-8446 §11.2.9 Migration**: 30-day receiver-side fallback for
+   non-canonical implementations. Senders MUST use canonical. Receivers try
+   canonical first, then fall back to JEI v3 variants.
+
+3. **crypto.py backward-compatible decryption**: `open_bus_message()` now tries
+   4 parameter combinations (canonical first, then JEI v3 fallbacks). Sender
+   behavior unchanged — always canonical.
+
+4. **Interop test suite**: 5 new tests in `test_crypto.py` (TestECDHEInterop):
+   - Full JEI v3 divergence (all 3 parameters)
+   - JEI v3 with envelope metadata
+   - Signature-only divergence
+   - Canonical no-regression
+   - Security: wrong keys still fail with fallbacks
+
+### Verification
+
+- JEI-HERMES-016 (previously undecryptable) now decrypts via fallback
+- JEI-HERMES-017 (QUEST-004 results) decrypts via canonical path
+- Full test suite: 990 passed, 0 failed (up from 921)
+
+### Status
+
+Phase 3 DANI side: **DONE**. JEI needs to:
+1. Read ARC-8446 v1.2 §11.2.8 canonical parameters
+2. Update their implementation to use canonical parameters
+3. Verify with `hermes crypto validate-ecdhe` (planned CLI)
+4. Non-canonical parameters deprecated — 30-day migration window from today
+
 ## References
 
-- ARC-8446 Section 11.2 (ECDHE specification)
+- ARC-8446 Section 11.2 (ECDHE specification, v1.2)
+- ARC-8446 Section 11.2.8 (Canonical Parameters)
+- ARC-8446 Section 11.2.9 (Migration from Non-Canonical)
 - ARC-8446 Section 9.5 (Forward secrecy rationale)
 - RFC 8446 Section 1.2 (TLS 1.3 forward secrecy goals)
 - RFC 7748 (X25519 key agreement)

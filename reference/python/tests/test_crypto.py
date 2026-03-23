@@ -6,7 +6,9 @@ import tempfile
 from datetime import date, timedelta
 
 import pytest
+from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
 from hermes.crypto import (
@@ -627,6 +629,113 @@ class TestECDHE:
         )
         assert plain_ecdhe == "ecdhe msg"
         assert plain_static == "static msg"
+
+
+class TestECDHEInterop:
+    """Tests for ECDHE interop with JEI v3 divergent parameters (ARC-8446 v1.2 §11.2.9)."""
+
+    def _seal_jei_v3(self, sender, receiver_dh_pub, plaintext, envelope_meta=None):
+        """Simulate JEI v3 ECDHE sealing with all 3 divergences:
+        1. HKDF info: HERMES-ARC8446-v3-ECDHE (instead of ECDHE-v1)
+        2. AAD: without eph_pub (metadata only)
+        3. Signature: eph_pub || ciphertext (reversed order)
+        """
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM as _AESGCM
+
+        eph_private = X25519PrivateKey.generate()
+        eph_public = eph_private.public_key()
+        eph_pub_hex = eph_public.public_bytes(Encoding.Raw, PublicFormat.Raw).hex()
+        eph_pub_bytes = bytes.fromhex(eph_pub_hex)
+
+        # Divergence 1: JEI HKDF info
+        raw_shared = eph_private.exchange(receiver_dh_pub)
+        hkdf = HKDF(algorithm=hashes.SHA256(), length=32, salt=None,
+                     info=b"HERMES-ARC8446-v3-ECDHE")
+        shared_secret = hkdf.derive(raw_shared)
+
+        # Divergence 2: AAD without eph_pub
+        meta = envelope_meta or {}
+        aad = json.dumps(meta, sort_keys=True, separators=(",", ":")).encode("utf-8")
+
+        # Encrypt
+        nonce = os.urandom(12)
+        aesgcm = _AESGCM(shared_secret)
+        ct = aesgcm.encrypt(nonce, plaintext.encode("utf-8"), aad)
+
+        # Divergence 3: Signature reversed order (eph_pub || ciphertext)
+        sig = sign_message(sender.sign_private, eph_pub_bytes + ct)
+
+        return {
+            "ciphertext": ct.hex(),
+            "nonce": nonce.hex(),
+            "signature": sig,
+            "sender_sign_pub": sender.sign_public.public_bytes(
+                Encoding.Raw, PublicFormat.Raw
+            ).hex(),
+            "aad": aad.hex(),
+            "eph_pub": eph_pub_hex,
+            "enc": "ECDHE-X25519-AES256GCM",
+        }
+
+    def test_ecdhe_interop_jei_v3_full(self):
+        """Decrypt a message sealed with all 3 JEI v3 divergences."""
+        dani = ClanKeyPair.generate()
+        jei = ClanKeyPair.generate()
+
+        sealed = self._seal_jei_v3(jei, dani.dh_public, "jei v3 full interop")
+
+        result = open_bus_message(dani, jei.sign_public, jei.dh_public, sealed)
+        assert result == "jei v3 full interop"
+
+    def test_ecdhe_interop_jei_v3_with_meta(self):
+        """Decrypt JEI v3 message with envelope metadata."""
+        dani = ClanKeyPair.generate()
+        jei = ClanKeyPair.generate()
+        meta = {"src": "jei", "dst": "momoshod", "type": "quest", "ts": "2026-03-22"}
+
+        sealed = self._seal_jei_v3(jei, dani.dh_public, "jei v3 with meta", envelope_meta=meta)
+
+        result = open_bus_message(dani, jei.sign_public, jei.dh_public, sealed)
+        assert result == "jei v3 with meta"
+
+    def test_ecdhe_canonical_still_works(self):
+        """Canonical ECDHE messages still decrypt (no regression)."""
+        dani = ClanKeyPair.generate()
+        jei = ClanKeyPair.generate()
+        meta = {"src": "momoshod", "dst": "jei", "type": "quest", "ts": "2026-03-22"}
+
+        sealed = seal_bus_message_ecdhe(dani, jei.dh_public, "canonical msg", envelope_meta=meta)
+        result = open_bus_message(jei, dani.sign_public, dani.dh_public, sealed, envelope_meta=meta)
+        assert result == "canonical msg"
+
+    def test_ecdhe_interop_sig_only_divergence(self):
+        """Message with only reversed signature order (HKDF+AAD canonical)."""
+        dani = ClanKeyPair.generate()
+        jei = ClanKeyPair.generate()
+        meta = {"src": "jei", "dst": "momoshod", "type": "quest", "ts": "2026-03-22"}
+
+        # Seal canonically then swap signature
+        sealed = seal_bus_message_ecdhe(jei, dani.dh_public, "sig swap test", envelope_meta=meta)
+
+        # Re-sign with reversed order
+        ct_bytes = bytes.fromhex(sealed["ciphertext"])
+        eph_bytes = bytes.fromhex(sealed["eph_pub"])
+        sealed["signature"] = sign_message(jei.sign_private, eph_bytes + ct_bytes)
+
+        result = open_bus_message(dani, jei.sign_public, jei.dh_public, sealed, envelope_meta=meta)
+        assert result == "sig swap test"
+
+    def test_ecdhe_interop_bad_key_still_fails(self):
+        """Interop fallbacks don't weaken security — wrong keys still fail."""
+        dani = ClanKeyPair.generate()
+        jei = ClanKeyPair.generate()
+        evil = ClanKeyPair.generate()
+
+        sealed = self._seal_jei_v3(jei, dani.dh_public, "secret message")
+
+        # Evil clan tries to open — should fail even with fallbacks
+        result = open_bus_message(evil, jei.sign_public, jei.dh_public, sealed)
+        assert result is None
 
 
 class TestCompactSealedEnvelope:
