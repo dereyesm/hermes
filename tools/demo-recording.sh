@@ -54,7 +54,7 @@ echo "  ┌───────────────────────
 echo "  │  HERMES — Inter-Agent Communication         │"
 echo "  │  Protocol in 90 seconds                     │"
 echo "  │                                             │"
-echo "  │  v0.4.2-alpha · 865 tests · 19 specs       │"
+echo "  │  v0.4.2-alpha · 1035 tests · 20 specs      │"
 echo "  │  E2E encrypted · file-based · sovereign     │"
 echo "  └─────────────────────────────────────────────┘"
 echo ""
@@ -101,7 +101,7 @@ from hermes.message import create_message
 from hermes.bus import write_message
 msg = create_message(
     src='engineering', dst='ops',
-    type='dispatch', msg='REPORT:Build green. 865 tests. 0 regressions.'
+    type='dispatch', msg='REPORT:Build green. 1035 tests. 0 regressions.'
 )
 write_message('$DEMO_DIR/bus.jsonl', msg)
 print('Dispatch written to bus.')

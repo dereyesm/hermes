@@ -10,6 +10,7 @@ from hermes.adapter import (
     AdaptResult,
     AdapterBase,
     ClaudeCodeAdapter,
+    CursorAdapter,
     _safe_symlink,
     _write_file_if_changed,
     get_adapter,
@@ -526,3 +527,281 @@ class TestAdaptResult:
         assert len(r.steps) == 2
         assert len(r.files_written) == 1
         assert len(r.symlinks_created) == 2
+
+
+# ─── CursorAdapter fixtures ────────────────────────────────────
+
+
+@pytest.fixture
+def cursor_target_dir(tmp_path):
+    """Create target directory for Cursor output (project root)."""
+    tdir = tmp_path / "my-project"
+    tdir.mkdir()
+    return tdir
+
+
+# ─── CursorAdapter basic ───────────────────────────────────────
+
+
+class TestCursorAdapterBasic:
+    """Basic CursorAdapter tests with minimal config."""
+
+    def test_adapt_success(self, hermes_dir, cursor_target_dir):
+        adapter = CursorAdapter(hermes_dir=hermes_dir, target_dir=cursor_target_dir)
+        result = adapter.adapt()
+        assert result.success is True
+        assert result.adapter_name == "cursor"
+        assert len(result.steps) >= 2
+
+    def test_generates_cursorrules(self, hermes_dir, cursor_target_dir):
+        adapter = CursorAdapter(hermes_dir=hermes_dir, target_dir=cursor_target_dir)
+        adapter.adapt()
+        cursorrules = cursor_target_dir / ".cursorrules"
+        assert cursorrules.exists()
+        content = cursorrules.read_text()
+        assert "clan-test" in content
+        assert "Test Clan" in content
+
+    def test_cursorrules_contains_identity(self, hermes_dir, cursor_target_dir):
+        adapter = CursorAdapter(hermes_dir=hermes_dir, target_dir=cursor_target_dir)
+        adapter.adapt()
+        content = (cursor_target_dir / ".cursorrules").read_text()
+        assert "Clan ID" in content
+        assert "Protocol Version" in content
+
+    def test_cursorrules_auto_generated_notice(self, hermes_dir, cursor_target_dir):
+        adapter = CursorAdapter(hermes_dir=hermes_dir, target_dir=cursor_target_dir)
+        adapter.adapt()
+        content = (cursor_target_dir / ".cursorrules").read_text()
+        assert "Auto-generated" in content
+        assert "hermes adapt cursor" in content
+
+    def test_cursorrules_has_markers(self, hermes_dir, cursor_target_dir):
+        adapter = CursorAdapter(hermes_dir=hermes_dir, target_dir=cursor_target_dir)
+        adapter.adapt()
+        content = (cursor_target_dir / ".cursorrules").read_text()
+        assert CursorAdapter.HEADER_MARKER in content
+        assert CursorAdapter.FOOTER_MARKER in content
+
+
+# ─── CursorAdapter skills compilation ──────────────────────────
+
+
+class TestCursorAdapterSkills:
+    """Skill compilation tests."""
+
+    def test_compiles_skills_into_cursorrules(self, hermes_dir_with_dims, cursor_target_dir):
+        adapter = CursorAdapter(
+            hermes_dir=hermes_dir_with_dims, target_dir=cursor_target_dir
+        )
+        adapter.adapt()
+        content = (cursor_target_dir / ".cursorrules").read_text()
+        assert "## Skills" in content
+        assert "Consejo Skill" in content
+        assert "Palas Skill" in content
+        assert "Niky CEO" in content
+
+    def test_skills_grouped_by_dimension(self, hermes_dir_with_dims, cursor_target_dir):
+        adapter = CursorAdapter(
+            hermes_dir=hermes_dir_with_dims, target_dir=cursor_target_dir
+        )
+        adapter.adapt()
+        content = (cursor_target_dir / ".cursorrules").read_text()
+        assert "Dimension: global" in content
+        assert "Dimension: nymyka" in content
+
+    def test_no_skills_section_when_empty(self, hermes_dir, cursor_target_dir):
+        adapter = CursorAdapter(hermes_dir=hermes_dir, target_dir=cursor_target_dir)
+        adapter.adapt()
+        content = (cursor_target_dir / ".cursorrules").read_text()
+        assert "## Skills" not in content
+
+
+# ─── CursorAdapter rules compilation ───────────────────────────
+
+
+class TestCursorAdapterRules:
+    """Rule compilation tests."""
+
+    def test_compiles_rules_into_cursorrules(self, hermes_dir_with_dims, cursor_target_dir):
+        adapter = CursorAdapter(
+            hermes_dir=hermes_dir_with_dims, target_dir=cursor_target_dir
+        )
+        adapter.adapt()
+        content = (cursor_target_dir / ".cursorrules").read_text()
+        assert "## Rules" in content
+        assert "Firewall rules" in content
+        assert "SOPs" in content
+
+    def test_rules_grouped_by_dimension(self, hermes_dir_with_dims, cursor_target_dir):
+        adapter = CursorAdapter(
+            hermes_dir=hermes_dir_with_dims, target_dir=cursor_target_dir
+        )
+        adapter.adapt()
+        content = (cursor_target_dir / ".cursorrules").read_text()
+        # Rules only exist in nymyka dimension in fixture
+        assert "Dimension: nymyka" in content
+
+    def test_no_rules_section_when_empty(self, hermes_dir, cursor_target_dir):
+        adapter = CursorAdapter(hermes_dir=hermes_dir, target_dir=cursor_target_dir)
+        adapter.adapt()
+        content = (cursor_target_dir / ".cursorrules").read_text()
+        assert "## Rules" not in content
+
+
+# ─── CursorAdapter bus ──────────────────────────────────────────
+
+
+class TestCursorAdapterBus:
+    """Bus symlink tests for Cursor."""
+
+    def test_links_bus(self, hermes_dir_with_bus, cursor_target_dir):
+        adapter = CursorAdapter(
+            hermes_dir=hermes_dir_with_bus, target_dir=cursor_target_dir
+        )
+        result = adapter.adapt()
+        bus_link = cursor_target_dir / ".cursor" / "bus.jsonl"
+        assert bus_link.is_symlink()
+        assert "test message" in bus_link.read_text()
+
+    def test_no_bus_no_error(self, hermes_dir, cursor_target_dir):
+        # hermes_dir has no bus file — should not fail
+        adapter = CursorAdapter(hermes_dir=hermes_dir, target_dir=cursor_target_dir)
+        result = adapter.adapt()
+        assert result.success is True
+        assert "Bus symlink unchanged" in result.steps
+
+
+# ─── CursorAdapter peers ───────────────────────────────────────
+
+
+class TestCursorAdapterPeers:
+    """Peer display in .cursorrules."""
+
+    def test_cursorrules_includes_peers(self, hermes_dir_with_peers, cursor_target_dir):
+        adapter = CursorAdapter(
+            hermes_dir=hermes_dir_with_peers, target_dir=cursor_target_dir
+        )
+        adapter.adapt()
+        content = (cursor_target_dir / ".cursorrules").read_text()
+        assert "clan-jei" in content
+        assert "established" in content
+
+    def test_no_peers_section_when_empty(self, hermes_dir, cursor_target_dir):
+        adapter = CursorAdapter(hermes_dir=hermes_dir, target_dir=cursor_target_dir)
+        adapter.adapt()
+        content = (cursor_target_dir / ".cursorrules").read_text()
+        assert "## Peers" not in content
+
+
+# ─── CursorAdapter idempotency ──────────────────────────────────
+
+
+class TestCursorAdapterIdempotency:
+    """Cursor adapter is safe to run multiple times."""
+
+    def test_run_twice_no_errors(self, hermes_dir_with_dims, cursor_target_dir):
+        adapter = CursorAdapter(
+            hermes_dir=hermes_dir_with_dims, target_dir=cursor_target_dir
+        )
+        r1 = adapter.adapt()
+        r2 = adapter.adapt()
+        assert r1.success is True
+        assert r2.success is True
+
+    def test_run_twice_unchanged(self, hermes_dir_with_dims, cursor_target_dir):
+        adapter = CursorAdapter(
+            hermes_dir=hermes_dir_with_dims, target_dir=cursor_target_dir
+        )
+        adapter.adapt()
+        r2 = adapter.adapt()
+        assert ".cursorrules unchanged" in r2.steps
+
+    def test_preserves_user_content(self, hermes_dir, cursor_target_dir):
+        """User content outside HERMES markers is preserved."""
+        cursorrules = cursor_target_dir / ".cursorrules"
+        # Write file with user content + HERMES markers
+        cursorrules.write_text(
+            "# My Project Rules\n\nCustom rule 1.\n\n"
+            "<!-- HERMES:BEGIN -->\nold hermes content\n<!-- HERMES:END -->\n\n"
+            "# More User Rules\n\nCustom rule 2.\n"
+        )
+        adapter = CursorAdapter(hermes_dir=hermes_dir, target_dir=cursor_target_dir)
+        adapter.adapt()
+        content = cursorrules.read_text()
+        # User content preserved
+        assert "My Project Rules" in content
+        assert "Custom rule 1" in content
+        assert "More User Rules" in content
+        assert "Custom rule 2" in content
+        # HERMES content updated
+        assert "clan-test" in content
+        assert "old hermes content" not in content
+
+
+# ─── CursorAdapter error handling ───────────────────────────────
+
+
+class TestCursorAdapterErrors:
+    """Error handling tests for Cursor adapter."""
+
+    def test_no_config_fails_gracefully(self, tmp_path):
+        hdir = tmp_path / ".hermes"
+        hdir.mkdir()
+        tdir = tmp_path / "project"
+        tdir.mkdir()
+        adapter = CursorAdapter(hermes_dir=hdir, target_dir=tdir)
+        result = adapter.adapt()
+        assert result.success is False
+        assert any("Config error" in e for e in result.errors)
+
+    def test_target_dir_created_if_missing(self, hermes_dir, tmp_path):
+        tdir = tmp_path / "new_project"
+        adapter = CursorAdapter(hermes_dir=hermes_dir, target_dir=tdir)
+        result = adapter.adapt()
+        assert result.success is True
+        assert (tdir / ".cursorrules").exists()
+
+
+# ─── CursorAdapter defaults ────────────────────────────────────
+
+
+class TestCursorAdapterDefaults:
+    """Default path tests for Cursor adapter."""
+
+    def test_default_hermes_dir(self):
+        adapter = CursorAdapter()
+        assert adapter.hermes_dir == Path.home() / ".hermes"
+
+    def test_default_target_dir_is_cwd(self):
+        adapter = CursorAdapter()
+        assert adapter.target_dir == Path.cwd()
+
+    def test_custom_dirs(self, tmp_path):
+        hdir = tmp_path / "h"
+        tdir = tmp_path / "t"
+        adapter = CursorAdapter(hermes_dir=hdir, target_dir=tdir)
+        assert adapter.hermes_dir == hdir
+        assert adapter.target_dir == tdir
+
+
+# ─── Adapter registry (updated) ────────────────────────────────
+
+
+class TestAdapterRegistryCursor:
+    """Registry tests including Cursor adapter."""
+
+    def test_cursor_in_list(self):
+        adapters = list_adapters()
+        assert "cursor" in adapters
+
+    def test_get_cursor_adapter(self):
+        cls = get_adapter("cursor")
+        assert cls is CursorAdapter
+
+    def test_run_cursor_adapter(self, hermes_dir, cursor_target_dir):
+        result = run_adapter(
+            "cursor", hermes_dir=hermes_dir, target_dir=cursor_target_dir
+        )
+        assert result.success is True
+        assert result.adapter_name == "cursor"

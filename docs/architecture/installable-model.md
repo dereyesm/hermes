@@ -230,14 +230,21 @@ Reads `~/.hermes/` → generates:
     └── bus.jsonl          ← symlink to .hermes/bus/active.jsonl
 ```
 
-### Cursor adapter (example)
+### Cursor adapter
 
 Reads `~/.hermes/` → generates:
 
 ```
-.cursorrules               ← from config.toml + active dimension skills
-.cursor/                   ← workspace config
+project-root/
+├── .cursorrules           ← compiled markdown from config + skills + rules
+└── .cursor/
+    └── bus.jsonl          ← symlink to .hermes/bus/active.jsonl (optional)
 ```
+
+Unlike Claude Code (directory of symlinks), Cursor uses a single `.cursorrules`
+file. The adapter **compiles** dimension skills and rules into one markdown file
+with `<!-- HERMES:BEGIN -->` / `<!-- HERMES:END -->` markers, preserving any
+user-written content outside the markers.
 
 ### Adapter contract
 
@@ -266,9 +273,11 @@ Phase 2: Claude Code adapter ✓ DONE (commit 3113395)
   - CLI: hermes adapt claude-code [--hermes-dir] [--target-dir]
   - Idempotent, 44 tests. Registered in adapter registry.
 
-Phase 3: Second adapter
-  - Build Cursor or generic adapter
-  - Proves agent-agnostic design works
+Phase 3: Second adapter ✓ DONE (2026-03-23)
+  - adapter.py: CursorAdapter compiles .cursorrules from ~/.hermes/
+  - CLI: hermes adapt cursor [--hermes-dir] [--target-dir]
+  - Marker-based regeneration preserves user content
+  - Idempotent, 26 tests. Proves agent-agnostic design.
 
 Phase 4: Daemon extraction
   - Heraldo runs as systemd service (not Claude Code agent)
