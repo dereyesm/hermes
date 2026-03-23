@@ -783,6 +783,26 @@ def build_parser() -> argparse.ArgumentParser:
     p_daemon_status = daemon_sub.add_parser("status", help="Show agent node status")
     _add_dir_arg(p_daemon_status)
 
+    # hub (ARC-4601 §15)
+    p_hub = sub.add_parser("hub", help="Manage Hub server (ARC-4601 §15)")
+    hub_sub = p_hub.add_subparsers(dest="hub_command")
+
+    p_hub_start = hub_sub.add_parser("start", help="Start Hub server")
+    p_hub_start.add_argument(
+        "--foreground", action="store_true",
+        help="Run in foreground (for process managers)",
+    )
+    _add_dir_arg(p_hub_start)
+
+    p_hub_stop = hub_sub.add_parser("stop", help="Stop Hub server")
+    _add_dir_arg(p_hub_stop)
+
+    p_hub_status = hub_sub.add_parser("status", help="Show Hub status")
+    _add_dir_arg(p_hub_status)
+
+    p_hub_peers = hub_sub.add_parser("peers", help="List registered peers")
+    _add_dir_arg(p_hub_peers)
+
     return parser
 
 
@@ -846,6 +866,23 @@ def main(argv: list[str] | None = None) -> int:
             parser.parse_args(["daemon", "--help"])
             return 0
         return daemon_commands[args.daemon_command]()
+
+    if args.command == "hub":
+        from .hub import cmd_hub_peers, cmd_hub_start, cmd_hub_status, cmd_hub_stop
+
+        hub_dir = _resolve_clan_dir(args)
+        hub_commands = {
+            "start": lambda: cmd_hub_start(
+                hub_dir, foreground=getattr(args, "foreground", True)
+            ),
+            "stop": lambda: cmd_hub_stop(hub_dir),
+            "status": lambda: cmd_hub_status(hub_dir),
+            "peers": lambda: cmd_hub_peers(hub_dir),
+        }
+        if args.hub_command is None:
+            parser.parse_args(["hub", "--help"])
+            return 0
+        return hub_commands[args.hub_command]()
 
     return commands[args.command](args)
 
