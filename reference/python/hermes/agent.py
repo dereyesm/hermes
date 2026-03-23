@@ -999,11 +999,13 @@ class AgentNode:
             max_per_window=self.config.notification_throttle_per_minute,
         )
 
-        # ARC-9001: Bus Integrity (F1-F4)
+        # ARC-9001: Bus Integrity (F1-F6)
         from .integrity import (
+            BusGC,
             ConflictLog,
             OwnershipRegistry,
             SequenceTracker,
+            SnapshotManager,
             WriteVectorTracker,
         )
 
@@ -1020,6 +1022,13 @@ class AgentNode:
         # F4: Conflict log (bus-conflicts.jsonl alongside bus.jsonl)
         conflict_log_path = self.config.bus_path.parent / "bus-conflicts.jsonl"
         self.conflict_log = ConflictLog(conflict_log_path)
+
+        # F5: Snapshot manager (bus-snapshot.json)
+        snapshot_path = self.config.bus_path.parent / "bus-snapshot.json"
+        self.snapshot_mgr = SnapshotManager(snapshot_path)
+
+        # F6: GC config (archive path)
+        self.bus_archive_path = self.config.bus_path.parent / "bus-archive.jsonl"
 
         self.ownership = OwnershipRegistry(daemon_id=self.config.namespace)
         if state.ownership_claims:
@@ -1143,7 +1152,7 @@ class AgentNode:
                     pass
 
     def _persist_asp_state(self) -> None:
-        """Persist ASP state (F3+F4) + integrity state (ARC-9001) into NodeState."""
+        """Persist ASP state + integrity state (ARC-9001 F1-F6) into NodeState."""
         if self.state and self.asp_engine:
             self.state.pending_approvals = self.asp_approval_mgr.to_list()
             self.state.scheduler_last_fire = self.asp_scheduler.schedule_state
@@ -1153,6 +1162,14 @@ class AgentNode:
             self.state.seq_state = self.seq_tracker.to_dict()
         if self.state and self.ownership:
             self.state.ownership_claims = self.ownership.to_dict()
+        # ARC-9001 F5: create snapshot on persist (clean shutdown path)
+        if self.seq_tracker and self.ownership and hasattr(self, "snapshot_mgr"):
+            try:
+                self.snapshot_mgr.create(
+                    self.seq_tracker, self.ownership, self.config.bus_path,
+                )
+            except Exception:
+                pass  # Non-fatal: snapshot is optimization, not requirement
 
     async def run(self) -> None:
         """Main event loop. Starts all async tasks."""
@@ -1398,8 +1415,21 @@ class AgentNode:
                                 if self.asp_state_tracker.get_state(p.agent_id) == _AS.INACTIVE:
                                     self.asp_state_tracker.set_active(p.agent_id)
 
-                    # Persist F3+F4 state
+                    # Persist state (includes F5 snapshot)
                     self._persist_asp_state()
+
+                    # ARC-9001 F6: Periodic GC (every evaluation cycle)
+                    if hasattr(self, "bus_archive_path"):
+                        try:
+                            from .integrity import BusGC
+                            thresholds = BusGC.compute_threshold(self.seq_tracker)
+                            archived = BusGC.collect(
+                                self.config.bus_path, self.bus_archive_path, thresholds,
+                            )
+                            if archived > 0:
+                                logger.info("GC: archived %d messages", archived)
+                        except Exception:
+                            pass  # Non-fatal
 
                 if self.state:
                     self.state.last_evaluation = datetime.now().isoformat()
