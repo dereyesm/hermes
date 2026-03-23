@@ -19,7 +19,13 @@ F4 (ConflictLog): Append-only forensic log for integrity violations.
    Records gaps, duplicates, ownership breaches, and concurrent writes.
    File: bus-conflicts.jsonl, independent of bus archival.
 
-F5-F6 (Recovery, GC): PLANNED — see spec/ARC-9001.md.
+F5 (BusSnapshot + ReplayRequest): Periodic snapshots for fast recovery.
+   Replay protocol for gap resolution between daemon and relay.
+   Reference: PostgreSQL WAL snapshots, SS7 link recovery.
+
+F6 (BusGC): Sequence-aware garbage collection preserving pending refs.
+   Atomic compaction via temp file + rename.
+   Conflict log independence guaranteed.
 """
 
 from __future__ import annotations
@@ -560,6 +566,244 @@ class ConflictLog:
             1 for line in self._path.read_text(encoding="utf-8").splitlines()
             if line.strip()
         )
+
+
+# ---------------------------------------------------------------------------
+# F5: Recovery (Snapshots + Replay Requests)
+# ---------------------------------------------------------------------------
+
+import hashlib
+import os
+import tempfile
+
+
+@dataclass(frozen=True)
+class BusSnapshot:
+    """Periodic state snapshot for fast recovery (ARC-9001 F5).
+
+    Captures seq_state, ownership_claims, bus hash, and message count.
+    On restart, the daemon restores from the snapshot instead of scanning
+    the entire bus. Created every N messages or on clean shutdown.
+    """
+
+    seq_state: dict[str, int]
+    ownership_claims: dict[str, dict]
+    bus_hash: str  # SHA-256 of bus file at snapshot time
+    message_count: int
+    created_at: str  # ISO datetime
+
+    def to_dict(self) -> dict:
+        return {
+            "seq_state": dict(self.seq_state),
+            "ownership_claims": dict(self.ownership_claims),
+            "bus_hash": self.bus_hash,
+            "message_count": self.message_count,
+            "created_at": self.created_at,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> BusSnapshot:
+        return cls(
+            seq_state=data["seq_state"],
+            ownership_claims=data["ownership_claims"],
+            bus_hash=data["bus_hash"],
+            message_count=data["message_count"],
+            created_at=data["created_at"],
+        )
+
+
+class SnapshotManager:
+    """Manages bus-snapshot.json for fast recovery (ARC-9001 F5).
+
+    Creates snapshots of SequenceTracker + OwnershipRegistry state.
+    On recovery, restores from snapshot if bus hash matches (no full scan).
+    """
+
+    def __init__(self, snapshot_path: str | Path) -> None:
+        self._path = Path(snapshot_path)
+
+    @property
+    def path(self) -> Path:
+        return self._path
+
+    def create(
+        self,
+        seq_tracker: SequenceTracker,
+        ownership: OwnershipRegistry,
+        bus_path: str | Path,
+    ) -> BusSnapshot:
+        """Create a snapshot from current state.
+
+        Computes SHA-256 of the bus file for integrity verification.
+        """
+        bus_path = Path(bus_path)
+        bus_hash = ""
+        message_count = 0
+        if bus_path.exists():
+            content = bus_path.read_bytes()
+            bus_hash = hashlib.sha256(content).hexdigest()
+            message_count = sum(
+                1 for line in content.decode("utf-8", errors="replace").splitlines()
+                if line.strip()
+            )
+
+        snapshot = BusSnapshot(
+            seq_state=seq_tracker.to_dict(),
+            ownership_claims=ownership.to_dict(),
+            bus_hash=bus_hash,
+            message_count=message_count,
+            created_at=datetime.now().isoformat(timespec="seconds"),
+        )
+
+        with self._path.open("w", encoding="utf-8") as f:
+            json.dump(snapshot.to_dict(), f, indent=2)
+
+        return snapshot
+
+    def load(self) -> BusSnapshot | None:
+        """Load snapshot from file. Returns None if not found or invalid."""
+        if not self._path.exists():
+            return None
+        try:
+            with self._path.open("r", encoding="utf-8") as f:
+                data = json.load(f)
+            return BusSnapshot.from_dict(data)
+        except (json.JSONDecodeError, KeyError):
+            return None
+
+    def verify(self, snapshot: BusSnapshot, bus_path: str | Path) -> bool:
+        """Verify that the bus file matches the snapshot's hash.
+
+        Returns True if the bus content SHA-256 matches. If it doesn't,
+        the snapshot is stale and a full bus scan is needed.
+        """
+        bus_path = Path(bus_path)
+        if not bus_path.exists():
+            return snapshot.bus_hash == "" and snapshot.message_count == 0
+        content = bus_path.read_bytes()
+        current_hash = hashlib.sha256(content).hexdigest()
+        return current_hash == snapshot.bus_hash
+
+
+@dataclass(frozen=True)
+class ReplayRequest:
+    """A request to replay missing messages (ARC-9001 F5).
+
+    Sent when a gap is detected: the receiver asks the source to
+    resend messages from from_seq to to_seq inclusive.
+    """
+
+    src: str  # Source namespace that has the gap
+    from_seq: int  # First missing seq
+    to_seq: int  # Last missing seq
+    requested_at: str  # ISO datetime
+
+    def to_dispatch_msg(self) -> str:
+        """Format as a dispatch message payload (<120 chars)."""
+        return f"REPLAY_REQUEST:{self.src}:{self.from_seq}-{self.to_seq}"
+
+    @classmethod
+    def from_gap(cls, src: str, expected: int, actual: int) -> ReplayRequest:
+        """Create from a detected gap (expected vs actual seq)."""
+        return cls(
+            src=src,
+            from_seq=expected,
+            to_seq=actual - 1,
+            requested_at=datetime.now().isoformat(timespec="seconds"),
+        )
+
+
+# ---------------------------------------------------------------------------
+# F6: Garbage Collection
+# ---------------------------------------------------------------------------
+
+class BusGC:
+    """Sequence-aware garbage collection for the bus (ARC-9001 F6).
+
+    Archives messages below a sequence threshold per source. Uses atomic
+    compaction (write to temp file + rename). Conflict log is never touched.
+    """
+
+    @staticmethod
+    def compute_threshold(
+        seq_tracker: SequenceTracker,
+        keep_last: int = 50,
+    ) -> dict[str, int]:
+        """Compute per-source archive thresholds.
+
+        Keeps the last `keep_last` messages per source.
+        Returns {src: min_seq_to_keep}.
+        """
+        thresholds: dict[str, int] = {}
+        for src, state in seq_tracker.all_sources().items():
+            threshold = max(1, state.last_seq - keep_last + 1)
+            thresholds[src] = threshold
+        return thresholds
+
+    @staticmethod
+    def collect(
+        bus_path: str | Path,
+        archive_path: str | Path,
+        thresholds: dict[str, int],
+        compact: bool = False,
+    ) -> int:
+        """Archive messages below thresholds and compact the bus.
+
+        Messages with seq < threshold[src] are moved to archive.
+        Messages without seq are always kept (legacy compatibility).
+        Uses atomic write: temp file + os.replace().
+
+        Returns the number of messages archived.
+        """
+        bus_path = Path(bus_path)
+        archive_path = Path(archive_path)
+
+        if not bus_path.exists():
+            return 0
+
+        # Read all messages (using permissive parsing to handle edge cases)
+        from .bus import read_bus
+        messages = read_bus(bus_path)
+
+        active = []
+        archived = []
+
+        for msg in messages:
+            seq = getattr(msg, "seq", None)
+            src = msg.src
+            if seq is not None and src in thresholds and seq < thresholds[src]:
+                archived.append(msg)
+            else:
+                active.append(msg)
+
+        if not archived:
+            return 0
+
+        from .message import Message
+        _serialize = Message.to_compact_jsonl if compact else Message.to_jsonl
+
+        # Append archived to archive file
+        with archive_path.open("a", encoding="utf-8") as f:
+            for msg in archived:
+                f.write(_serialize(msg) + "\n")
+
+        # Atomic compaction: write active to temp, then rename
+        bus_dir = bus_path.parent
+        fd, tmp_path = tempfile.mkstemp(dir=bus_dir, suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                for msg in active:
+                    f.write(_serialize(msg) + "\n")
+            os.replace(tmp_path, bus_path)
+        except Exception:
+            # Clean up temp file on failure
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            raise
+
+        return len(archived)
 
 
 # ---------------------------------------------------------------------------

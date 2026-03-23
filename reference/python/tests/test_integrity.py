@@ -1,4 +1,4 @@
-"""Tests for ARC-9001 Bus Integrity Protocol — F1-F4."""
+"""Tests for ARC-9001 Bus Integrity Protocol — F1-F6."""
 
 from __future__ import annotations
 
@@ -7,15 +7,19 @@ from datetime import date
 import pytest
 
 from hermes.integrity import (
+    BusGC,
     BusIntegrityChecker,
+    BusSnapshot,
     ConflictLog,
     ConflictRecord,
     ConflictResolution,
     OwnershipClaim,
     OwnershipRegistry,
     OwnershipViolation,
+    ReplayRequest,
     SequenceState,
     SequenceTracker,
+    SnapshotManager,
     WriteVector,
     WriteVectorTracker,
 )
@@ -1090,3 +1094,226 @@ class TestMessageWField:
         compact = msg.to_compact()
         # Compact should NOT include w (verbose-only)
         assert len(compact) == 7  # ts, src, dst, type, msg, ttl, ack
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# F5: Snapshots & Replay Requests
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestBusSnapshot:
+    """BusSnapshot serialization."""
+
+    def test_to_dict_roundtrip(self):
+        snap = BusSnapshot(
+            seq_state={"eng": 5, "ops": 3},
+            ownership_claims={"eng": {"owner_id": "daemon", "granted_at": "2026-03-22"}},
+            bus_hash="abc123",
+            message_count=10,
+            created_at="2026-03-22T10:00:00",
+        )
+        restored = BusSnapshot.from_dict(snap.to_dict())
+        assert restored.seq_state == snap.seq_state
+        assert restored.bus_hash == snap.bus_hash
+        assert restored.message_count == snap.message_count
+
+
+class TestSnapshotManager:
+    """SnapshotManager create/load/verify."""
+
+    def test_create_and_load(self, tmp_path):
+        bus = tmp_path / "bus.jsonl"
+        bus.write_text('{"ts":"2026-03-22","src":"eng","dst":"*","type":"state","msg":"test","ttl":7,"ack":[]}\n')
+        st = SequenceTracker()
+        st.record("eng", 1)
+        ow = OwnershipRegistry()
+        mgr = SnapshotManager(tmp_path / "bus-snapshot.json")
+        snap = mgr.create(st, ow, bus)
+        assert snap.message_count == 1
+        assert snap.seq_state == {"eng": 1}
+        assert snap.bus_hash != ""
+        # Load back
+        loaded = mgr.load()
+        assert loaded is not None
+        assert loaded.message_count == 1
+        assert loaded.seq_state == {"eng": 1}
+
+    def test_load_nonexistent(self, tmp_path):
+        mgr = SnapshotManager(tmp_path / "nope.json")
+        assert mgr.load() is None
+
+    def test_verify_matches(self, tmp_path):
+        bus = tmp_path / "bus.jsonl"
+        bus.write_text('{"ts":"2026-03-22","src":"eng","dst":"*","type":"state","msg":"test","ttl":7,"ack":[]}\n')
+        st = SequenceTracker()
+        ow = OwnershipRegistry()
+        mgr = SnapshotManager(tmp_path / "snap.json")
+        snap = mgr.create(st, ow, bus)
+        assert mgr.verify(snap, bus) is True
+
+    def test_verify_stale(self, tmp_path):
+        bus = tmp_path / "bus.jsonl"
+        bus.write_text('{"ts":"2026-03-22","src":"eng","dst":"*","type":"state","msg":"test","ttl":7,"ack":[]}\n')
+        st = SequenceTracker()
+        ow = OwnershipRegistry()
+        mgr = SnapshotManager(tmp_path / "snap.json")
+        snap = mgr.create(st, ow, bus)
+        # Modify bus after snapshot
+        bus.write_text('{"ts":"2026-03-22","src":"eng","dst":"*","type":"state","msg":"changed","ttl":7,"ack":[]}\n')
+        assert mgr.verify(snap, bus) is False
+
+    def test_verify_empty_bus(self, tmp_path):
+        bus = tmp_path / "bus.jsonl"
+        st = SequenceTracker()
+        ow = OwnershipRegistry()
+        mgr = SnapshotManager(tmp_path / "snap.json")
+        snap = mgr.create(st, ow, bus)
+        assert snap.bus_hash == ""
+        assert snap.message_count == 0
+        assert mgr.verify(snap, bus) is True
+
+    def test_create_captures_ownership(self, tmp_path):
+        bus = tmp_path / "bus.jsonl"
+        bus.write_text("")
+        st = SequenceTracker()
+        ow = OwnershipRegistry()
+        ow.claim("eng", "daemon")
+        mgr = SnapshotManager(tmp_path / "snap.json")
+        snap = mgr.create(st, ow, bus)
+        assert "eng" in snap.ownership_claims
+
+
+class TestReplayRequest:
+    """ReplayRequest creation and formatting."""
+
+    def test_from_gap(self):
+        req = ReplayRequest.from_gap("eng", expected=5, actual=10)
+        assert req.src == "eng"
+        assert req.from_seq == 5
+        assert req.to_seq == 9
+
+    def test_dispatch_msg_format(self):
+        req = ReplayRequest(src="eng", from_seq=5, to_seq=9,
+                            requested_at="2026-03-22T10:00:00")
+        msg = req.to_dispatch_msg()
+        assert msg == "REPLAY_REQUEST:eng:5-9"
+        assert len(msg) <= 120
+
+    def test_from_gap_single_missing(self):
+        req = ReplayRequest.from_gap("eng", expected=5, actual=6)
+        assert req.from_seq == 5
+        assert req.to_seq == 5
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# F6: Garbage Collection
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestBusGC:
+    """BusGC threshold computation and collection."""
+
+    def test_compute_threshold_default(self):
+        st = SequenceTracker()
+        st.record("eng", 100)
+        st.record("ops", 30)
+        thresholds = BusGC.compute_threshold(st)
+        assert thresholds["eng"] == 51  # 100 - 50 + 1
+        assert thresholds["ops"] == 1   # max(1, 30 - 50 + 1) = 1
+
+    def test_compute_threshold_custom_keep(self):
+        st = SequenceTracker()
+        st.record("eng", 100)
+        thresholds = BusGC.compute_threshold(st, keep_last=10)
+        assert thresholds["eng"] == 91  # 100 - 10 + 1
+
+    def test_collect_archives_old_messages(self, tmp_path):
+        from hermes.bus import write_message
+        bus = tmp_path / "bus.jsonl"
+        archive = tmp_path / "archive.jsonl"
+        # Write 5 messages with seq 1-5
+        for i in range(1, 6):
+            write_message(bus, _msg("eng", seq=i))
+        # Archive seq < 4 (keep 4,5)
+        count = BusGC.collect(bus, archive, {"eng": 4})
+        assert count == 3
+        # Verify bus has only 2 messages
+        from hermes.bus import read_bus
+        remaining = read_bus(bus)
+        assert len(remaining) == 2
+        assert remaining[0].seq == 4
+        assert remaining[1].seq == 5
+        # Verify archive has 3
+        archived = read_bus(archive)
+        assert len(archived) == 3
+
+    def test_collect_no_op_when_nothing_to_archive(self, tmp_path):
+        from hermes.bus import write_message
+        bus = tmp_path / "bus.jsonl"
+        archive = tmp_path / "archive.jsonl"
+        write_message(bus, _msg("eng", seq=1))
+        count = BusGC.collect(bus, archive, {"eng": 1})
+        assert count == 0
+
+    def test_collect_preserves_messages_without_seq(self, tmp_path):
+        from hermes.bus import write_message
+        bus = tmp_path / "bus.jsonl"
+        archive = tmp_path / "archive.jsonl"
+        # Mix of seq and no-seq messages
+        write_message(bus, _msg("eng", seq=1))
+        write_message(bus, _msg("eng"))  # No seq — legacy
+        write_message(bus, _msg("eng", seq=3))
+        count = BusGC.collect(bus, archive, {"eng": 3})
+        assert count == 1  # Only seq=1 archived
+        from hermes.bus import read_bus
+        remaining = read_bus(bus)
+        assert len(remaining) == 2  # no-seq + seq=3
+
+    def test_collect_nonexistent_bus(self, tmp_path):
+        bus = tmp_path / "nope.jsonl"
+        archive = tmp_path / "archive.jsonl"
+        count = BusGC.collect(bus, archive, {"eng": 5})
+        assert count == 0
+
+    def test_collect_atomic_on_failure(self, tmp_path):
+        """Bus file should remain intact if compaction fails mid-write."""
+        from hermes.bus import write_message, read_bus
+        bus = tmp_path / "bus.jsonl"
+        archive = tmp_path / "archive.jsonl"
+        write_message(bus, _msg("eng", seq=1))
+        write_message(bus, _msg("eng", seq=2))
+        original_content = bus.read_text()
+        # Collect normally — should work
+        count = BusGC.collect(bus, archive, {"eng": 2})
+        assert count == 1
+        remaining = read_bus(bus)
+        assert len(remaining) == 1
+
+    def test_collect_multiple_sources(self, tmp_path):
+        from hermes.bus import write_message, read_bus
+        bus = tmp_path / "bus.jsonl"
+        archive = tmp_path / "archive.jsonl"
+        write_message(bus, _msg("eng", seq=1))
+        write_message(bus, _msg("eng", seq=2))
+        write_message(bus, _msg("ops", seq=1))
+        write_message(bus, _msg("ops", seq=2))
+        # Archive eng < 2, ops < 2
+        count = BusGC.collect(bus, archive, {"eng": 2, "ops": 2})
+        assert count == 2
+        remaining = read_bus(bus)
+        assert len(remaining) == 2
+        assert all(m.seq == 2 for m in remaining)
+
+    def test_conflict_log_untouched(self, tmp_path):
+        """Verify that GC does not affect conflict log."""
+        from hermes.bus import write_message
+        bus = tmp_path / "bus.jsonl"
+        archive = tmp_path / "archive.jsonl"
+        conflicts = tmp_path / "bus-conflicts.jsonl"
+        cl = ConflictLog(conflicts)
+        cl.record_anomaly("gap", "eng", seq=5)
+        write_message(bus, _msg("eng", seq=1))
+        write_message(bus, _msg("eng", seq=2))
+        BusGC.collect(bus, archive, {"eng": 2})
+        # Conflict log should still have 1 record
+        assert cl.count() == 1
