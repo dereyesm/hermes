@@ -31,11 +31,11 @@ Core protocol standards governing message formats, transport, addressing, and se
 | [ARC-2119](ARC-2119.md) | Requirement Level Keywords | RFC 2119 (MUST/SHOULD) | Universal across IETF, 3GPP, Ecma specifications | IMPLEMENTED | Meta |
 | ARC-2818 | Secure Bus Transport | RFC 2818 (HTTPS) | ECMA-434 (NLIP) security profiles; IETF draft-mpsb-agntcy-slim (MLS) | PLANNED | Security |
 | [ARC-5322](ARC-5322.md) | Message Format | RFC 5322 (IMF) | ECMA-430 (NLIP) envelope format; IETF draft-chang-agent-token-efficient (ADOL) | IMPLEMENTED | Core |
-| ARC-6455 | Real-Time Bus Extensions | RFC 6455 (WebSocket) | A2A SSE streaming; MCP Streamable HTTP | PLANNED | Extension |
+| ARC-6455 | Real-Time Bus Extensions | RFC 6455 (WebSocket) | A2A SSE streaming; MCP Streamable HTTP | ABSORBED (→ ARC-4601 §15) | Extension |
 | [ARC-2606](ARC-2606.md) | Agent Profile & Discovery | RFC 2606 (Reserved Domains) | A2A Agent Cards; ANP capability files; ECMA-432 (NLIP) agent discovery | IMPLEMENTED | Extension |
 | [ARC-2314](ARC-2314.md) | Skill Gateway Plane Architecture | -- (3GPP TS 23.214 CUPS) | 3GPP TS 23.501 (SBA); TS 23.502 (SMF); TS 29.244 (PFCP); TS 29.510 (NRF) | IMPLEMENTED | Core |
 | [ARC-3022](ARC-3022.md) | Agent Gateway Protocol | RFC 3022 (NAT) | 3GPP TS 23.214 (CUPS); BBF TR-369 gateway; 3GPP inter-PLMN roaming | IMPLEMENTED | Extension |
-| [ARC-4601](ARC-4601.md) | Agent Node Protocol | RFC 4601 (PIM-SM) | 3GPP TS 23.501 NF lifecycle; PIM-SM rendezvous point; persistent forwarding state | IMPLEMENTED | Extension |
+| [ARC-4601](ARC-4601.md) | Agent Node Protocol (+ Hub Mode §15) | RFC 4601 (PIM-SM), RFC 6455 (WebSocket) | 3GPP TS 23.501 NF lifecycle; PIM-SM rendezvous point; Hub server (§15, BR-018) | IMPLEMENTED | Extension |
 | [ARC-7231](ARC-7231.md) | Agent Semantics — Bridge Protocol Mapping | RFC 7231 (HTTP Semantics) | BBF TR-369 CRUD+Operate+Notify; FIPA ACL performatives; A2A v0.3/MCP bridge mapping | IMPLEMENTED | Extension |
 | ARC-7519 | Message Authentication | RFC 7519 (JWT) | IETF draft-goswami-agentic-jwt; 3GPP TS 29.510 (NRF) OAuth 2.0 model | PLANNED | Security |
 | ARC-7540 | Multiplexed Bus Channels | RFC 7540 (HTTP/2) | A2A multiplexed task streams; 3GPP TS 23.501 PDU sessions | PLANNED | Extension |
