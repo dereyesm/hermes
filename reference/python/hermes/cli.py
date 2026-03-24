@@ -800,6 +800,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_hub_status = hub_sub.add_parser("status", help="Show Hub status")
     _add_dir_arg(p_hub_status)
 
+    p_hub_init = hub_sub.add_parser("init", help="Generate hub-peers.json from peer registry")
+    p_hub_init.add_argument("--force", action="store_true", help="Overwrite existing file")
+    _add_dir_arg(p_hub_init)
+
     p_hub_peers = hub_sub.add_parser("peers", help="List registered peers")
     _add_dir_arg(p_hub_peers)
 
@@ -868,10 +872,13 @@ def main(argv: list[str] | None = None) -> int:
         return daemon_commands[args.daemon_command]()
 
     if args.command == "hub":
-        from .hub import cmd_hub_peers, cmd_hub_start, cmd_hub_status, cmd_hub_stop
+        from .hub import cmd_hub_init, cmd_hub_peers, cmd_hub_start, cmd_hub_status, cmd_hub_stop
 
         hub_dir = _resolve_clan_dir(args)
         hub_commands = {
+            "init": lambda: cmd_hub_init(
+                hub_dir, force=getattr(args, "force", False)
+            ),
             "start": lambda: cmd_hub_start(
                 hub_dir, foreground=getattr(args, "foreground", True)
             ),

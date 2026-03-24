@@ -20,6 +20,7 @@ from hermes.hub import (
     PeerInfo,
     QueuedMessage,
     StoreForwardQueue,
+    cmd_hub_init,
     load_hub_config,
     load_peers,
 )
@@ -681,3 +682,86 @@ class TestCLIHub:
         out = capsys.readouterr().out
         assert "momoshod" in out
         assert "jei" in out
+
+
+# ---------------------------------------------------------------------------
+# Hub Init (cmd_hub_init)
+# ---------------------------------------------------------------------------
+
+
+def _make_gateway(tmp_path, peers=None):
+    """Helper: create a gateway.json with optional peers."""
+    own_pub = {"sign_public": "cc" * 32, "dh_public": "dd" * 32}
+    keys_dir = tmp_path / ".keys"
+    keys_dir.mkdir(exist_ok=True)
+    (keys_dir / "gateway.pub").write_text(json.dumps(own_pub))
+    gw = {
+        "clan_id": "testclan",
+        "display_name": "Test Clan",
+        "keys": {"private": ".keys/gateway.key", "public": ".keys/gateway.pub"},
+        "peers": peers or [],
+    }
+    (tmp_path / "gateway.json").write_text(json.dumps(gw))
+
+
+class TestHubInit:
+    def test_creates_peers_file(self, tmp_path, capsys):
+        peer_dir = tmp_path / "keys" / "peers"
+        peer_dir.mkdir(parents=True)
+        (peer_dir / "alpha.pub").write_text(json.dumps({
+            "ed25519_pub": "aa" * 32, "x25519_pub": "bb" * 32,
+        }))
+        _make_gateway(tmp_path, peers=[{
+            "clan_id": "alpha",
+            "public_key_file": "keys/peers/alpha.pub",
+            "status": "active",
+            "added": "2026-03-20",
+        }])
+
+        ret = cmd_hub_init(tmp_path)
+        assert ret == 0
+
+        peers_file = tmp_path / "hub-peers.json"
+        assert peers_file.exists()
+        data = json.loads(peers_file.read_text())
+        assert "testclan" in data["peers"]  # self
+        assert "alpha" in data["peers"]  # peer
+        assert data["peers"]["alpha"]["sign_pub"] == "aa" * 32
+        assert data["peers"]["testclan"]["sign_pub"] == "cc" * 32
+
+    def test_refuses_overwrite(self, tmp_path, capsys):
+        _make_gateway(tmp_path)
+        (tmp_path / "hub-peers.json").write_text('{"peers":{}}')
+
+        ret = cmd_hub_init(tmp_path)
+        assert ret == 1
+        assert "already exists" in capsys.readouterr().out
+
+    def test_force_overwrites(self, tmp_path, capsys):
+        _make_gateway(tmp_path)
+        (tmp_path / "hub-peers.json").write_text('{"peers":{}}')
+
+        ret = cmd_hub_init(tmp_path, force=True)
+        assert ret == 0
+        data = json.loads((tmp_path / "hub-peers.json").read_text())
+        assert "testclan" in data["peers"]
+
+    def test_dual_format_raw_hex_and_json(self, tmp_path, capsys):
+        peer_dir = tmp_path / "keys" / "peers"
+        peer_dir.mkdir(parents=True)
+        # raw hex (64 chars)
+        (peer_dir / "rawpeer.pub").write_text("ee" * 32)
+        # JSON format
+        (peer_dir / "jsonpeer.pub").write_text(json.dumps({
+            "sign_public": "ff" * 32, "dh_public": "11" * 32,
+        }))
+        _make_gateway(tmp_path, peers=[
+            {"clan_id": "rawpeer", "public_key_file": "keys/peers/rawpeer.pub", "added": "2026-01-01"},
+            {"clan_id": "jsonpeer", "public_key_file": "keys/peers/jsonpeer.pub", "added": "2026-02-01"},
+        ])
+
+        ret = cmd_hub_init(tmp_path)
+        assert ret == 0
+        data = json.loads((tmp_path / "hub-peers.json").read_text())
+        assert data["peers"]["rawpeer"]["sign_pub"] == "ee" * 32
+        assert data["peers"]["jsonpeer"]["sign_pub"] == "ff" * 32

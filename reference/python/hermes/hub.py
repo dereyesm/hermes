@@ -622,6 +622,7 @@ def cmd_hub_start(hub_dir: Path, foreground: bool = False) -> int:
     peers_path = hub_dir / config.peers_file
     if not peers_path.exists():
         print(f"Error: peers file not found: {peers_path}")
+        print("  Run 'hermes hub init' to generate it from your peer registry.")
         return 1
 
     # PID lock
@@ -711,6 +712,75 @@ def cmd_hub_status(hub_dir: Path) -> int:
     print(f"  Uptime: {state.uptime_seconds:.0f}s")
     print(f"  Messages routed: {state.total_msgs_routed}")
     return 0
+
+
+def cmd_hub_init(hub_dir: Path, force: bool = False) -> int:
+    """Generate hub-peers.json from existing gateway config + peer keys."""
+    from .config import load_config
+
+    peers_path = hub_dir / "hub-peers.json"
+    if peers_path.exists() and not force:
+        print(f"hub-peers.json already exists: {peers_path}")
+        print("  Use --force to overwrite.")
+        return 1
+
+    # Load gateway config for peer list + self identity
+    config_path = hub_dir / "gateway.json"
+    if not config_path.exists():
+        config_path = hub_dir / "config.toml"
+    if not config_path.exists():
+        print("Error: no gateway.json or config.toml found")
+        return 1
+
+    gw = load_config(config_path)
+    hub_peers: dict[str, dict[str, str]] = {}
+
+    # Self-registration: read own public key
+    own_pub_path = hub_dir / gw.keys_public
+    if own_pub_path.exists():
+        sign_hex = _read_sign_pub(own_pub_path)
+        if sign_hex:
+            hub_peers[gw.clan_id] = {
+                "sign_pub": sign_hex,
+                "display_name": gw.display_name,
+                "registered_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            }
+
+    # Peer registration
+    for peer in gw.peers:
+        pub_path = hub_dir / peer.public_key_file
+        if not pub_path.exists():
+            print(f"  Warning: key file not found for {peer.clan_id}: {pub_path}")
+            continue
+        sign_hex = _read_sign_pub(pub_path)
+        if not sign_hex:
+            print(f"  Warning: could not extract sign_pub for {peer.clan_id}")
+            continue
+        hub_peers[peer.clan_id] = {
+            "sign_pub": sign_hex,
+            "display_name": "",
+            "registered_at": peer.added or "",
+        }
+
+    peers_path.write_text(json.dumps({"peers": hub_peers}, indent=2) + "\n")
+    print(f"Created {peers_path} with {len(hub_peers)} peer(s)")
+    for clan_id, info in hub_peers.items():
+        pub_short = info["sign_pub"][:8] + "..." if info["sign_pub"] else "?"
+        print(f"  {clan_id}: (pub: {pub_short})")
+    return 0
+
+
+def _read_sign_pub(pub_path: Path) -> str | None:
+    """Read Ed25519 sign public key from a .pub file (JSON or raw hex)."""
+    text = pub_path.read_text().strip()
+    # Raw hex string (64 hex chars = 32 bytes Ed25519)
+    if len(text) == 64 and all(c in "0123456789abcdefABCDEF" for c in text):
+        return text
+    try:
+        data = json.loads(text)
+        return data.get("sign_public") or data.get("ed25519_pub") or None
+    except (json.JSONDecodeError, AttributeError):
+        return None
 
 
 def cmd_hub_peers(hub_dir: Path) -> int:
