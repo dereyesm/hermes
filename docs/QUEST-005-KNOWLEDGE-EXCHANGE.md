@@ -4,7 +4,7 @@
 |---|---|
 | ID | QUEST-005 |
 | Title | Bilateral Knowledge Exchange — Clan DANI x Clan JEI |
-| Status | **ACCEPTED** (JEI-HERMES-016, 2026-03-22) |
+| Status | **IN PROGRESS** — JEI executing prompt chain (deadline 2026-03-29) |
 | Clans | momoshod, jei |
 | Depends | QUEST-004 (baseline assessment), QUEST-003 Phase 2 (E2E channel) |
 | Created | 2026-03-21 |

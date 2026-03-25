@@ -9,6 +9,65 @@ This project follows a versioning scheme where:
 
 ---
 
+## [Unreleased] — Hub Mode + Noise IK Spec + Documentation Sweep (2026-03-25)
+
+### Hub Mode & P2P Tunnel Specification
+
+This release adds the Hub Mode reference implementation (ARC-4601 §15), expands
+the Noise IK P2P tunnel specification (§16), and brings all documentation into
+coherence with the current project state.
+
+### Added
+
+- **ARC-4601 §15: Hub Mode** (IMPLEMENTED)
+  - `hub.py`: WebSocket Hub server — routes encrypted messages between peer daemons
+  - Ed25519 challenge-response authentication (reuses ARC-8446 key infrastructure)
+  - E2E passthrough: Hub reads only headers (`src`, `dst`), cannot decrypt `msg`
+  - Store-and-forward queue per peer with TTL eviction
+  - Presence system: online/offline notifications
+  - Legacy endpoints: `/events` (SSE), `/bus/push` (POST), `/healthz`
+  - `hermes hub init/start/stop/status/peers` CLI commands
+  - Reference: `hub.py` (800 lines), 52 tests
+
+- **ARC-4601 §16: P2P Tunnels — Noise IK specification** (DRAFT)
+  - Full Noise IK handshake detail (1-RTT, `Noise_IK_25519_ChaChaPoly_SHA256`)
+  - NAT traversal via Hub-assisted STUN-like mechanism
+  - Tunnel lifecycle FSM: 8 states (IDLE→DISCOVERY→STUN_EXCHANGE→HANDSHAKE→ACTIVE→REKEY→TEARDOWN→FALLBACK_HUB)
+  - UDP framing (5 frame types), keepalive, rekeying every 24h
+  - Security properties: forward secrecy, identity hiding, KCI resistance
+  - Threat model analysis, Hub integration, configuration schema
+  - Expanded from ~57 lines to ~310 lines
+
+- **CursorAdapter** (IMPLEMENTED)
+  - `adapter.py`: CursorAdapter compiles `.cursorrules` from `~/.hermes/` skills+rules
+  - HERMES:BEGIN/END markers for partial regeneration
+  - `hermes adapt cursor` CLI command
+  - 26 tests
+
+- **ARC-9001 F5-F6: Recovery + Garbage Collection** (IMPLEMENTED)
+  - F5: `SnapshotManager` + `ReplayRequest` for bus recovery
+  - F6: `BusGC` with TTL-based eviction + atomic compaction
+  - ARC-9001 spec COMPLETE (F1-F6)
+
+### Changed
+
+- **README.md** — badges updated (20 specs, 1087 tests), module list +hub.py +integrity.py, project structure, diagram counts
+- **docs/ARCHITECTURE.md** — Hub Mode section added, specs table expanded
+- **QUEST-003** status → COMPLETE (JEI confirmed ARC-8446 v1.2 canonical alignment)
+- **QUEST-005** status → IN PROGRESS (JEI executing prompt chain, deadline 2026-03-29)
+
+### Bilateral
+
+- **JEI-HERMES-018** received and decrypted: batch ACK of 5 pending messages
+- JEI confirmed **ARC-8446 v1.2 canonical params** (HKDF info, AAD, sig order aligned)
+- DANI-HERMES-016 ACK + DANI-HERMES-017 reminder sent via relay
+
+### Tests
+
+- 1087 total (+102 from Hub Mode, CursorAdapter, F5-F6), 0 regressions
+
+---
+
 ## [Unreleased] — ARC-9001 F3-F4 MVCC + Conflict Log (2026-03-22)
 
 ### Bus Integrity — Causal Ordering & Forensics
