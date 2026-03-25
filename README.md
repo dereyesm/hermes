@@ -3,8 +3,8 @@
 [![Tests](https://github.com/dereyesm/hermes/actions/workflows/ci.yml/badge.svg)](https://github.com/dereyesm/hermes/actions/workflows/ci.yml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Specs: 19](https://img.shields.io/badge/specs-19%20(18%20IMPL%20%2B%201%20DRAFT)-orange.svg)](spec/INDEX.md)
-[![Tests: 758](https://img.shields.io/badge/tests-758%20passing-brightgreen.svg)](reference/python/tests/)
+[![Specs: 20](https://img.shields.io/badge/specs-20%20(19%20IMPL%20%2B%201%20DRAFT)-orange.svg)](spec/INDEX.md)
+[![Tests: 1087](https://img.shields.io/badge/tests-1087%20passing-brightgreen.svg)](reference/python/tests/)
 [![Clans: 3](https://img.shields.io/badge/clans-3%20connected-teal.svg)](CLANS.md)
 
 <p align="center">
@@ -232,7 +232,7 @@ HERMES uses a formal, RFC-like standards process with three tracks, each tracing
 | **ATR** | ITU-T Rec. | Architecture, reference models, telecom-inspired patterns | ATR-X.200: Reference Model |
 | **AES** | IEEE Std | Implementation standards: interoperability, isolation, QoS | AES-802.1Q: Namespace Isolation |
 
-### Implemented Standards (17 specs + 1 DRAFT)
+### Implemented Standards (19 specs + 1 DRAFT)
 
 | Standard | Title | Tier | IETF/ITU-T Lineage |
 |----------|-------|------|---------------------|
@@ -244,10 +244,12 @@ HERMES uses a formal, RFC-like standards process with three tracks, each tracing
 | [ARC-2314](spec/ARC-2314.md) | Skill Gateway Plane Architecture | Core | 3GPP TS 23.214 (CUPS) |
 | [ARC-2606](spec/ARC-2606.md) | Agent Profile & Discovery | Extension | RFC 2606 (Reserved Domains) |
 | [ARC-3022](spec/ARC-3022.md) | Agent Gateway Protocol | Extension | RFC 3022 (NAT) |
-| [ARC-4601](spec/ARC-4601.md) | Agent Node Protocol | Extension | RFC 4601 (PIM-SM) |
+| [ARC-4601](spec/ARC-4601.md) | Agent Node Protocol + Hub Mode (§15) | Extension | RFC 4601 (PIM-SM), RFC 6455 (WebSocket) |
 | [ARC-5322](spec/ARC-5322.md) | Message Format + Compact Wire (§14) | Core | RFC 5322 (Internet Message Format) |
 | [ARC-7231](spec/ARC-7231.md) | Agent Semantics — Bridge Protocol | Extension | RFC 7231 (HTTP Semantics) |
 | [ARC-8446](spec/ARC-8446.md) | Encrypted Bus Protocol | Security | RFC 8446 (TLS 1.3) |
+| [ARC-9001](spec/ARC-9001.md) | Bus Integrity Protocol | Core | MVCC/OCC, ITU-T Q.703 (SS7) |
+| [ARC-0369](spec/ARC-0369.md) | Agent Service Platform | Core | BBF TR-369 (USP) |
 | [ARC-2119](spec/ARC-2119.md) | Requirement Level Keywords | Meta | RFC 2119 (MUST/SHOULD/MAY) |
 | [ATR-X.200](spec/ATR-X200.md) | Reference Model | Core | ITU-T X.200 (OSI Reference Model) |
 | [ATR-Q.700](spec/ATR-Q700.md) | Out-of-Band Signaling | Philosophy | ITU-T Q.700 (SS7) |
@@ -260,7 +262,7 @@ Full index with 30 planned standards: **[spec/INDEX.md](spec/INDEX.md)**
 
 ## Reference Implementation
 
-A Python reference implementation is included for validation and experimentation (**758 tests passing**):
+A Python reference implementation is included for validation and experimentation (**1087 tests passing**):
 
 ```bash
 cd reference/python
@@ -276,6 +278,8 @@ Modules:
 - `bridge.py` -- A2A/MCP bidirectional translation per ARC-7231
 - `crypto.py` -- Ed25519 + X25519 + AES-256-GCM encryption per ARC-8446
 - `agent.py` -- persistent Agent Node daemon per ARC-4601
+- `hub.py` -- Hub Mode server: WebSocket routing, store-forward, Ed25519 auth per ARC-4601 §15
+- `integrity.py` -- bus integrity: sequencing, ownership, MVCC, conflict log per ARC-9001
 - `dojo.py` -- orchestration plane: quest dispatch, skill matching, XP tracking per ARC-2314
 - `config.py` -- clan configuration and peer management
 - `agora.py` -- Agora directory client for clan discovery
@@ -333,7 +337,7 @@ Full plan: **[docs/EVOLUTION-PLAN.md](docs/EVOLUTION-PLAN.md)**
 
 ```
 hermes/
-├── spec/              # Formal standards (18 specs, 30 planned)
+├── spec/              # Formal standards (20 specs, 30 planned)
 │   ├── ARC-0001.md    #   Architecture (meta-standard)
 │   ├── ARC-0768.md    #   Datagram & Reliable Message Semantics
 │   ├── ARC-0791.md    #   Addressing & Routing
@@ -359,8 +363,8 @@ hermes/
 │   ├── GETTING-STARTED.md
 │   ├── POSITIONING.md
 │   ├── USE-CASES.md
-│   └── diagrams/      #   Visual documentation (13 Mermaid + 14 D2)
-├── reference/python/  # Reference implementation (758 tests)
+│   └── diagrams/      #   Visual documentation (11 Mermaid + 16 D2)
+├── reference/python/  # Reference implementation (1087 tests)
 ├── examples/          # Sample bus, routes, configs
 ├── CHANGELOG.md
 ├── CONTRIBUTING.md

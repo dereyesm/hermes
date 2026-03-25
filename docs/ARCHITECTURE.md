@@ -210,7 +210,7 @@ hermes adapt claude-code                    # default paths
 hermes adapt claude-code --hermes-dir /opt/hermes --target-dir ~/.claude
 ```
 
-Adapters are idempotent (safe to re-run) and follow the contract in [installable-model.md](architecture/installable-model.md). Future adapters: Cursor (`.cursorrules`), generic (template).
+Adapters are idempotent (safe to re-run) and follow the contract in [installable-model.md](architecture/installable-model.md). Current adapters: Claude Code (symlinks), Cursor (compiled `.cursorrules`). Future: VS Code, generic template.
 
 ## Agent Service Platform (ARC-0369)
 
@@ -243,6 +243,29 @@ The **Bus Integrity Protocol** ([`integrity.py`](../reference/python/hermes/inte
 
 See [ARC-9001](../spec/ARC-9001.md) for the full specification.
 
+## Hub Mode (ARC-4601 §15)
+
+The **Hub** ([`hub.py`](../reference/python/hermes/hub.py)) extends the Agent Node with a server mode that routes encrypted messages between peer daemons:
+
+- **WebSocket transport**: Bidirectional messaging over a single TCP connection (RFC 6455)
+- **Ed25519 challenge-response auth**: Peers authenticate using existing ARC-8446 keys — no new crypto
+- **E2E passthrough**: Hub reads only `src`, `dst`, `type`, `ttl` — cannot decrypt the `msg` field
+- **Store-and-forward**: FIFO queue per peer with TTL-based eviction; drains on reconnect
+- **Presence**: Peers receive online/offline notifications for connected clans
+- **Legacy endpoints**: `/events` (SSE), `/bus/push` (POST), `/healthz` for backward compatibility
+
+The Hub is a **routing convenience, not a trust boundary** — ARC-8446 E2E encryption ensures the Hub cannot see message content. Phase B (§16 DRAFT) adds optional P2P tunnels using Noise IK for direct peer connectivity.
+
+```bash
+hermes hub init        # bootstrap hub-peers.json from peer registry
+hermes hub start       # start Hub server (--foreground for interactive)
+hermes hub stop        # graceful shutdown
+hermes hub status      # show PID, uptime, messages routed
+hermes hub peers       # list registered peers
+```
+
+See [ARC-4601 §15](../spec/ARC-4601.md) for the full specification.
+
 ## Related Specifications
 
 | Spec | Title | What it covers |
@@ -255,4 +278,8 @@ See [ARC-9001](../spec/ARC-9001.md) for the full specification.
 | [ARC-1918](../spec/ARC-1918.md) | Private Spaces | Firewall model |
 | [ARC-3022](../spec/ARC-3022.md) | Agent Gateway | NAT, filtering, Agora connection |
 | [ARC-9001](../spec/ARC-9001.md) | Bus Integrity | Sequencing, ownership, MVCC |
+| [ARC-4601](../spec/ARC-4601.md) | Agent Node + Hub Mode | Daemon, WebSocket Hub (§15), P2P tunnels (§16 DRAFT) |
+| [ARC-0369](../spec/ARC-0369.md) | Agent Service Platform | Bus convergence, agent registry, lifecycle |
+| [ARC-8446](../spec/ARC-8446.md) | Encrypted Bus Protocol | Ed25519, X25519, AES-256-GCM, ECDHE |
+| [ATR-G.711](../spec/ATR-G711.md) | Wire Efficiency | Payload encoding, compact format |
 | [ATR-Q.700](../spec/ATR-Q700.md) | OOB Signaling | Design philosophy |

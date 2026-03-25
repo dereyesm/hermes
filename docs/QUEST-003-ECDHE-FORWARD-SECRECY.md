@@ -4,7 +4,7 @@
 |---|---|
 | ID | QUEST-003 |
 | Title | Per-Message Forward Secrecy via Ephemeral Diffie-Hellman (ECDHE) |
-| Status | **PHASE 2 IN PROGRESS** |
+| Status | **COMPLETE** (all 3 phases, closed 2026-03-25) |
 | Clans | momoshod, jei |
 | Spec | ARC-8446 Section 11.2 |
 | Created | 2026-03-16 |
