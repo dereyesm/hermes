@@ -5,7 +5,7 @@
 
 ## Executive Summary
 
-HERMES is a lightweight, file-based inter-agent communication protocol with 11 implemented specs and 214 tests. The agent communication landscape has matured rapidly (A2A, MCP, Ecma NLIP, IETF drafts, 3GPP SBA patterns). This plan evolves HERMES to integrate with — not compete against — these standards, while preserving its unique strengths: zero infrastructure, privacy-first, telecom rigor.
+HERMES is a lightweight, file-based inter-agent communication protocol with 17 implemented specs (+ 1 INFO + 1 DRAFT) and 1087 tests. The agent communication landscape has matured rapidly (A2A, MCP, Ecma NLIP, IETF drafts, 3GPP SBA patterns). This plan evolves HERMES to integrate with — not compete against — these standards, while preserving its unique strengths: zero infrastructure, privacy-first, telecom rigor.
 
 **Strategic position**: HERMES is a **dual-mode protocol** — **Sovereign** (file-based, self-hosted, zero infrastructure) and **Hosted** (managed Hub with SLAs). Both modes use the same wire format (ARC-5322), same privacy model (ARC-1918), same gateway-as-NAT (ARC-3022). It contributes telecom-inspired concepts (CUPS separation, Shannon constraints, dual trust metrics) to the broader agent protocol ecosystem.
 
@@ -56,18 +56,18 @@ HERMES is a lightweight, file-based inter-agent communication protocol with 11 i
 
 **Files**: `README.md`, `docs/POSITIONING.md` (new), `spec/INDEX.md`
 
-- [ ] Add ecosystem positioning section to README: "Where HERMES Fits"
+- [x] Add ecosystem positioning section to README: "Where HERMES Fits"
   - Visual landscape map showing MCP (vertical), A2A (horizontal), HERMES (Sovereign + Hosted)
   - Explicit non-compete statement: HERMES complements, does not replace
-- [ ] Add badges: tests passing, Python version, license, spec count
-- [ ] Add "Standards References" section: formal citations to IETF RFCs, 3GPP TS, BBF TR, Ecma standards
-- [ ] Create `docs/POSITIONING.md`: technical white paper
+- [x] Add badges: tests passing, Python version, license, spec count
+- [x] Add "Standards References" section: formal citations to IETF RFCs, 3GPP TS, BBF TR, Ecma standards
+- [x] Create `docs/POSITIONING.md`: technical white paper
   - HERMES dual-mode architecture: Sovereign (file-based) + Hosted (managed Hub)
   - Privacy-first: ARC-1918 firewalls, gateway-as-NAT
   - Gateway bridge to A2A/MCP
   - Research vehicle for telecom-inspired agent concepts
   - Formal references: TS 23.214, TS 23.501, TS 29.244, TR-369, ECMA-430, draft-rosenberg-ai-protocols
-- [ ] Update `spec/INDEX.md`: add "Industry Reference" column mapping each ARC/ATR/AES to its real-world standard body lineage AND modern equivalents
+- [x] Update `spec/INDEX.md`: add "Industry Reference" column mapping each ARC/ATR/AES to its real-world standard body lineage AND modern equivalents
 
 ### 1.2 Formalize CUPS Split (Control Plane / User Plane)
 
@@ -75,7 +75,7 @@ HERMES is a lightweight, file-based inter-agent communication protocol with 11 i
 
 Inspired by 3GPP TS 23.214 (CUPS) and TS 29.244 (PFCP):
 
-- [ ] Add "Control Plane / User Plane Separation" section to ATR-X.200
+- [x] Add "Control Plane / User Plane Separation" section to ATR-X.200
   - **User Plane**: bus.jsonl (data forwarding, message transit)
   - **Control Plane**: routes.md, firewall rules, namespace config (policy, routing decisions)
   - Reference PFCP session model: CP establishes rules, UP executes them
@@ -128,8 +128,8 @@ The 120-char payload limit was a Shannon constraint for atomicity. Industry solv
 
 ### 1.5 Test & CI Hardening
 
-- [ ] Add GitHub Actions CI: pytest on push/PR, Python 3.10-3.13 matrix
-- [ ] Add `pyproject.toml` classifiers for PyPI readiness
+- [x] Add GitHub Actions CI: pytest on push/PR, Python 3.10-3.13 matrix
+- [x] Add `pyproject.toml` classifiers for PyPI readiness
 - [ ] Add code coverage badge (target: 90%+)
 - [ ] Create conformance test suite: `tests/conformance/` — validates any implementation against spec
 
@@ -165,7 +165,7 @@ Inspired by RFC 8446 (TLS 1.3) + NIST PQC (FIPS 203-205) + IETF draft-goswami-ag
   - Level 1: Message signing (integrity, non-repudiation)
   - Level 2: Payload encryption (confidentiality)
   - Level 3: Channel encryption + mutual auth (full security)
-- [ ] Prototype: Python `hermes.crypto` module — sign/verify using PyNaCl (Ed25519)
+- [x] Prototype: Python `hermes.crypto` module — sign/verify using Ed25519 (cryptography lib)
 
 ### 2.2 ATR-X.509: Agent Identity Certificates
 
@@ -202,7 +202,7 @@ Inspired by ITU-T X.509 + W3C DIDs + IETF draft-goswami-agentic-jwt:
 
 ### 3.1 L3: Channel Efficiency Model (ATR-G.711 → ATR-CE)
 
-- [ ] Benchmark: HERMES file-based vs HTTP/TCP for agent communication
+- [x] Benchmark: HERMES file-based vs HTTP/TCP for agent communication
   - TCP handshake (3-way) + TLS 1.3 (1-2 RTT) + HTTP headers (~500B) + JSON body
   - vs. HERMES: 1 syscall (file append), ~200B JSON, no network stack
   - Model energy per message (Joules) using published CPU/storage benchmarks

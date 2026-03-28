@@ -3,7 +3,7 @@
 [![Tests](https://github.com/dereyesm/hermes/actions/workflows/ci.yml/badge.svg)](https://github.com/dereyesm/hermes/actions/workflows/ci.yml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Specs: 21](https://img.shields.io/badge/specs-21%20(20%20IMPL%20%2B%201%20DRAFT)-orange.svg)](spec/INDEX.md)
+[![Specs: 19](https://img.shields.io/badge/specs-19%20(17%20IMPL%20%2B%201%20INFO%20%2B%201%20DRAFT)-orange.svg)](spec/INDEX.md)
 [![Tests: 1087](https://img.shields.io/badge/tests-1087%20passing-brightgreen.svg)](reference/python/tests/)
 [![Clans: 3](https://img.shields.io/badge/clans-3%20connected-teal.svg)](CLANS.md)
 
@@ -232,7 +232,7 @@ HERMES uses a formal, RFC-like standards process with three tracks, each tracing
 | **ATR** | ITU-T Rec. | Architecture, reference models, telecom-inspired patterns | ATR-X.200: Reference Model |
 | **AES** | IEEE Std | Implementation standards: interoperability, isolation, QoS | AES-802.1Q: Namespace Isolation |
 
-### Implemented Standards (20 specs + 1 DRAFT)
+### Standards (17 IMPL + 1 INFO + 1 DRAFT = 19 spec files)
 
 | Standard | Title | Tier | IETF/ITU-T Lineage |
 |----------|-------|------|---------------------|
@@ -288,6 +288,7 @@ Modules:
 - `cli.py` -- command-line interface for clan operations
 - `installer.py` -- cross-platform one-command setup
 - `hooks.py` -- Claude Code hook handlers
+- `terminal.py` -- brand-aware CLI output (rich/plain-text dual mode) per AES-2040
 
 See [reference/python/](reference/python/) for details.
 
