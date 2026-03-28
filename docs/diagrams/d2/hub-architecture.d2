@@ -1,0 +1,224 @@
+# HERMES Hub Mode Architecture — ARC-4601 §15
+# Brand: #1A1A2E #00D4AA #F5A623 #27AE60 #E74C3C #7F8C8D
+
+direction: down
+
+# --- Peer Daemons (external) ---
+
+peer-a: Peer Daemon A {
+  shape: cloud
+  style.font-size: 24
+  style.fill: "#27AE60"
+  style.font-color: "#1A1A2E"
+  style.stroke: "#27AE60"
+  style.stroke-width: 3
+}
+
+peer-b: Peer Daemon B {
+  shape: cloud
+  style.font-size: 24
+  style.fill: "#27AE60"
+  style.font-color: "#1A1A2E"
+  style.stroke: "#27AE60"
+  style.stroke-width: 3
+}
+
+peer-c: Peer Daemon C (offline) {
+  shape: cloud
+  style.font-size: 24
+  style.fill: "#7F8C8D"
+  style.font-color: "#fff"
+  style.stroke: "#7F8C8D"
+  style.stroke-width: 3
+}
+
+# --- Hub Server ---
+
+hub: Hub Server (ARC-4601 §15) {
+  style.font-size: 28
+  style.fill: "#1A1A2E"
+  style.font-color: "#00D4AA"
+  style.stroke: "#00D4AA"
+  style.stroke-width: 3
+
+  auth: AuthHandler {
+    shape: hexagon
+    style.font-size: 24
+    style.fill: "#E74C3C"
+    style.font-color: "#fff"
+    style.stroke: "#E74C3C"
+    style.stroke-width: 2
+
+    challenge: "Ed25519 challenge-response" {
+      shape: text
+      style.font-size: 16
+      style.font-color: "#7F8C8D"
+      style.italic: true
+    }
+
+    peers-file: "hub-peers.json" {
+      shape: text
+      style.font-size: 16
+      style.font-color: "#7F8C8D"
+      style.italic: true
+    }
+  }
+
+  conn-table: ConnectionTable {
+    shape: hexagon
+    style.font-size: 24
+    style.fill: "#F5A623"
+    style.font-color: "#1A1A2E"
+    style.stroke: "#F5A623"
+    style.stroke-width: 2
+
+    mapping: "clan_id -> WebSocket" {
+      shape: text
+      style.font-size: 16
+      style.font-color: "#7F8C8D"
+      style.italic: true
+    }
+
+    max-conn: "max 100 connections" {
+      shape: text
+      style.font-size: 16
+      style.font-color: "#7F8C8D"
+      style.italic: true
+    }
+  }
+
+  router: MessageRouter {
+    shape: hexagon
+    style.font-size: 24
+    style.fill: "#F5A623"
+    style.font-color: "#1A1A2E"
+    style.stroke: "#F5A623"
+    style.stroke-width: 2
+
+    modes: "unicast | broadcast" {
+      shape: text
+      style.font-size: 16
+      style.font-color: "#7F8C8D"
+      style.italic: true
+    }
+
+    passthrough: "E2E passthrough (no decrypt)" {
+      shape: text
+      style.font-size: 16
+      style.font-color: "#00D4AA"
+      style.bold: true
+    }
+  }
+
+  store-fwd: StoreForwardQueue {
+    shape: cylinder
+    style.font-size: 24
+    style.fill: "#1A1A2E"
+    style.font-color: "#F5A623"
+    style.stroke: "#F5A623"
+    style.stroke-width: 2
+
+    fifo: "per-peer FIFO" {
+      shape: text
+      style.font-size: 16
+      style.font-color: "#7F8C8D"
+      style.italic: true
+    }
+
+    ttl: "TTL eviction (7d default)" {
+      shape: text
+      style.font-size: 16
+      style.font-color: "#7F8C8D"
+      style.italic: true
+    }
+  }
+
+  hub-state: HubState {
+    shape: rectangle
+    style.font-size: 24
+    style.fill: "#7F8C8D"
+    style.font-color: "#fff"
+    style.stroke: "#7F8C8D"
+    style.stroke-width: 3
+    style.border-radius: 8
+  }
+
+  state-detail: "hub-state.json + PID + uptime" {
+    shape: text
+    style.font-size: 16
+    style.font-color: "#7F8C8D"
+    style.italic: true
+  }
+
+  # Internal flows
+
+  auth -> conn-table: authenticated {
+    style.stroke: "#E74C3C"
+    style.stroke-width: 3
+    style.animated: true
+    style.font-size: 20
+    style.bold: true
+  }
+
+  conn-table -> router: route msg {
+    style.stroke: "#F5A623"
+    style.stroke-width: 3
+    style.animated: true
+    style.font-size: 20
+    style.bold: true
+  }
+
+  router -> store-fwd: peer offline {
+    style.stroke: "#F5A623"
+    style.stroke-width: 2
+    style.stroke-dash: 5
+    style.font-size: 20
+  }
+
+  hub-state -> state-detail: {
+    style.stroke: "#7F8C8D"
+    style.stroke-width: 1
+    style.stroke-dash: 3
+  }
+}
+
+# --- External connections ---
+
+peer-a -> hub.auth: WebSocket :8443 {
+  style.stroke: "#27AE60"
+  style.stroke-width: 4
+  style.animated: true
+  style.font-size: 20
+  style.bold: true
+}
+
+peer-b -> hub.auth: WebSocket :8443 {
+  style.stroke: "#27AE60"
+  style.stroke-width: 4
+  style.animated: true
+  style.font-size: 20
+  style.bold: true
+}
+
+hub.router -> peer-a: deliver msg {
+  style.stroke: "#00D4AA"
+  style.stroke-width: 4
+  style.animated: true
+  style.font-size: 20
+  style.bold: true
+}
+
+hub.router -> peer-b: deliver msg {
+  style.stroke: "#00D4AA"
+  style.stroke-width: 4
+  style.animated: true
+  style.font-size: 20
+  style.bold: true
+}
+
+hub.store-fwd -> peer-c: drain on reconnect {
+  style.stroke: "#7F8C8D"
+  style.stroke-width: 3
+  style.stroke-dash: 5
+  style.font-size: 20
+}

@@ -1,0 +1,335 @@
+# HERMES Agent Service Platform — ARC-0369 (F1-F5)
+# Brand: #1A1A2E #00D4AA #F5A623 #27AE60 #E74C3C #7F8C8D
+
+direction: right
+
+# --- Input ---
+
+bus: bus.jsonl {
+  shape: cylinder
+  style.font-size: 28
+  style.fill: "#1A1A2E"
+  style.font-color: "#27AE60"
+  style.stroke: "#27AE60"
+  style.stroke-width: 3
+}
+
+# F1: Message Classification
+
+f1: F1 MessageClassifier {
+  style.font-size: 24
+  style.fill: "#1A1A2E"
+  style.font-color: "#00D4AA"
+  style.stroke: "#00D4AA"
+  style.stroke-width: 3
+
+  cats: "4 categories" {
+    shape: text
+    style.font-size: 16
+    style.font-color: "#00D4AA"
+    style.bold: true
+  }
+
+  internal: "INTERNAL" {
+    shape: text
+    style.font-size: 14
+    style.font-color: "#27AE60"
+  }
+
+  outbound: "OUTBOUND" {
+    shape: text
+    style.font-size: 14
+    style.font-color: "#F5A623"
+  }
+
+  inbound: "INBOUND" {
+    shape: text
+    style.font-size: 14
+    style.font-color: "#00D4AA"
+  }
+
+  expired: "EXPIRED" {
+    shape: text
+    style.font-size: 14
+    style.font-color: "#E74C3C"
+  }
+}
+
+# F2: Agent Registry
+
+f2: F2 AgentRegistry {
+  style.font-size: 24
+  style.fill: "#1A1A2E"
+  style.font-color: "#F5A623"
+  style.stroke: "#F5A623"
+  style.stroke-width: 3
+
+  profiles: "AgentProfiles (disk)" {
+    shape: text
+    style.font-size: 16
+    style.font-color: "#7F8C8D"
+    style.italic: true
+  }
+
+  rules: "DispatchRules" {
+    shape: text
+    style.font-size: 16
+    style.font-color: "#7F8C8D"
+    style.italic: true
+  }
+
+  hot-reload: "hot-reload" {
+    shape: text
+    style.font-size: 16
+    style.font-color: "#F5A623"
+    style.italic: true
+  }
+}
+
+# F3: Dispatch Engine
+
+f3: F3 DispatchEngine {
+  style.font-size: 24
+  style.fill: "#1A1A2E"
+  style.font-color: "#F5A623"
+  style.stroke: "#F5A623"
+  style.stroke-width: 3
+
+  trigger: "trigger evaluation" {
+    shape: text
+    style.font-size: 16
+    style.font-color: "#7F8C8D"
+    style.italic: true
+  }
+
+  approval: "approval gates" {
+    shape: text
+    style.font-size: 16
+    style.font-color: "#E74C3C"
+    style.italic: true
+  }
+
+  priority: "priority sort" {
+    shape: text
+    style.font-size: 16
+    style.font-color: "#7F8C8D"
+    style.italic: true
+  }
+
+  concurrency: "ConcurrencyTracker" {
+    shape: text
+    style.font-size: 16
+    style.font-color: "#7F8C8D"
+    style.italic: true
+  }
+}
+
+# F4: Agent Lifecycle (7-state FSM)
+
+f4: F4 AgentStateTracker {
+  style.font-size: 24
+  style.fill: "#1A1A2E"
+  style.font-color: "#00D4AA"
+  style.stroke: "#00D4AA"
+  style.stroke-width: 3
+
+  inactive: INACTIVE {
+    shape: rectangle
+    style.font-size: 16
+    style.fill: "#7F8C8D"
+    style.font-color: "#fff"
+    style.stroke: "#7F8C8D"
+    style.border-radius: 4
+  }
+
+  active: ACTIVE {
+    shape: rectangle
+    style.font-size: 16
+    style.fill: "#27AE60"
+    style.font-color: "#1A1A2E"
+    style.stroke: "#27AE60"
+    style.border-radius: 4
+  }
+
+  pending: PENDING {
+    shape: rectangle
+    style.font-size: 16
+    style.fill: "#F5A623"
+    style.font-color: "#1A1A2E"
+    style.stroke: "#F5A623"
+    style.border-radius: 4
+  }
+
+  running: RUNNING {
+    shape: rectangle
+    style.font-size: 16
+    style.fill: "#00D4AA"
+    style.font-color: "#1A1A2E"
+    style.stroke: "#00D4AA"
+    style.border-radius: 4
+  }
+
+  idle: IDLE {
+    shape: rectangle
+    style.font-size: 16
+    style.fill: "#27AE60"
+    style.font-color: "#1A1A2E"
+    style.stroke: "#27AE60"
+    style.border-radius: 4
+  }
+
+  failed: FAILED {
+    shape: rectangle
+    style.font-size: 16
+    style.fill: "#E74C3C"
+    style.font-color: "#fff"
+    style.stroke: "#E74C3C"
+    style.border-radius: 4
+  }
+
+  removed: REMOVED {
+    shape: rectangle
+    style.font-size: 16
+    style.fill: "#7F8C8D"
+    style.font-color: "#fff"
+    style.stroke: "#7F8C8D"
+    style.border-radius: 4
+  }
+
+  # FSM transitions
+
+  inactive -> active: register {
+    style.stroke: "#27AE60"
+    style.stroke-width: 2
+    style.font-size: 14
+  }
+
+  active -> pending: dispatch {
+    style.stroke: "#F5A623"
+    style.stroke-width: 2
+    style.font-size: 14
+  }
+
+  pending -> running: execute {
+    style.stroke: "#00D4AA"
+    style.stroke-width: 2
+    style.font-size: 14
+  }
+
+  running -> idle: complete {
+    style.stroke: "#27AE60"
+    style.stroke-width: 2
+    style.font-size: 14
+  }
+
+  running -> failed: error {
+    style.stroke: "#E74C3C"
+    style.stroke-width: 2
+    style.font-size: 14
+  }
+
+  idle -> pending: new task {
+    style.stroke: "#F5A623"
+    style.stroke-width: 2
+    style.stroke-dash: 3
+    style.font-size: 14
+  }
+
+  failed -> active: recover {
+    style.stroke: "#27AE60"
+    style.stroke-width: 2
+    style.stroke-dash: 3
+    style.font-size: 14
+  }
+
+  active -> removed: deregister {
+    style.stroke: "#7F8C8D"
+    style.stroke-width: 2
+    style.stroke-dash: 5
+    style.font-size: 14
+  }
+}
+
+# F5: Notification Throttler
+
+f5: F5 NotificationThrottler {
+  shape: hexagon
+  style.font-size: 24
+  style.fill: "#E74C3C"
+  style.font-color: "#fff"
+  style.stroke: "#E74C3C"
+  style.stroke-width: 2
+
+  rate: "rate limit (burst + cooldown)" {
+    shape: text
+    style.font-size: 16
+    style.font-color: "#7F8C8D"
+    style.italic: true
+  }
+
+  suppress: "suppression rules" {
+    shape: text
+    style.font-size: 16
+    style.font-color: "#7F8C8D"
+    style.italic: true
+  }
+}
+
+output: Agent Action {
+  shape: rectangle
+  style.font-size: 24
+  style.fill: "#00D4AA"
+  style.font-color: "#1A1A2E"
+  style.stroke: "#00D4AA"
+  style.stroke-width: 3
+  style.border-radius: 8
+}
+
+# --- Main flow ---
+
+bus -> f1: read msg {
+  style.stroke: "#27AE60"
+  style.stroke-width: 4
+  style.animated: true
+  style.font-size: 20
+  style.bold: true
+}
+
+f1 -> f2: classified {
+  style.stroke: "#00D4AA"
+  style.stroke-width: 3
+  style.animated: true
+  style.font-size: 18
+  style.bold: true
+}
+
+f2 -> f3: matched agent {
+  style.stroke: "#F5A623"
+  style.stroke-width: 3
+  style.animated: true
+  style.font-size: 18
+  style.bold: true
+}
+
+f3 -> f4: dispatch {
+  style.stroke: "#F5A623"
+  style.stroke-width: 3
+  style.animated: true
+  style.font-size: 18
+  style.bold: true
+}
+
+f4 -> f5: state change {
+  style.stroke: "#00D4AA"
+  style.stroke-width: 2
+  style.stroke-dash: 3
+  style.font-size: 18
+}
+
+f5 -> output: notify {
+  style.stroke: "#E74C3C"
+  style.stroke-width: 3
+  style.animated: true
+  style.font-size: 18
+  style.bold: true
+}

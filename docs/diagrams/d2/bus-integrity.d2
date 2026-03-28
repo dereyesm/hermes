@@ -1,0 +1,255 @@
+# HERMES Bus Integrity Protocol — ARC-9001 (F1-F6)
+# Brand: #1A1A2E #00D4AA #F5A623 #27AE60 #E74C3C #7F8C8D
+
+direction: right
+
+# --- Write Path (left to right) ---
+
+msg-in: Bus Message {
+  shape: rectangle
+  style.font-size: 24
+  style.fill: "#27AE60"
+  style.font-color: "#1A1A2E"
+  style.stroke: "#27AE60"
+  style.stroke-width: 3
+  style.border-radius: 8
+}
+
+# F1: Sequencing
+
+f1: F1 SequenceTracker {
+  style.font-size: 24
+  style.fill: "#1A1A2E"
+  style.font-color: "#F5A623"
+  style.stroke: "#F5A623"
+  style.stroke-width: 3
+
+  mono: "monotonic seq per src" {
+    shape: text
+    style.font-size: 16
+    style.font-color: "#7F8C8D"
+    style.italic: true
+  }
+
+  detect: "gap + dup detection" {
+    shape: text
+    style.font-size: 16
+    style.font-color: "#E74C3C"
+    style.italic: true
+  }
+}
+
+# F2: Ownership
+
+f2: F2 OwnershipRegistry {
+  style.font-size: 24
+  style.fill: "#1A1A2E"
+  style.font-color: "#F5A623"
+  style.stroke: "#F5A623"
+  style.stroke-width: 3
+
+  ns-map: "namespace -> writer" {
+    shape: text
+    style.font-size: 16
+    style.font-color: "#7F8C8D"
+    style.italic: true
+  }
+
+  daemon-own: "daemon implicit ownership" {
+    shape: text
+    style.font-size: 16
+    style.font-color: "#7F8C8D"
+    style.italic: true
+  }
+}
+
+# F3: MVCC Write Vectors
+
+f3: F3 WriteVectorTracker {
+  style.font-size: 24
+  style.fill: "#1A1A2E"
+  style.font-color: "#F5A623"
+  style.stroke: "#F5A623"
+  style.stroke-width: 3
+
+  mvcc: "MVCC vector clocks" {
+    shape: text
+    style.font-size: 16
+    style.font-color: "#7F8C8D"
+    style.italic: true
+  }
+
+  conflict: "conflict detection" {
+    shape: text
+    style.font-size: 16
+    style.font-color: "#E74C3C"
+    style.italic: true
+  }
+}
+
+msg-valid: Validated {
+  shape: rectangle
+  style.font-size: 24
+  style.fill: "#00D4AA"
+  style.font-color: "#1A1A2E"
+  style.stroke: "#00D4AA"
+  style.stroke-width: 3
+  style.border-radius: 8
+}
+
+# Write path connections
+
+msg-in -> f1: validate seq {
+  style.stroke: "#F5A623"
+  style.stroke-width: 3
+  style.animated: true
+  style.font-size: 18
+  style.bold: true
+}
+
+f1 -> f2: check owner {
+  style.stroke: "#F5A623"
+  style.stroke-width: 3
+  style.animated: true
+  style.font-size: 18
+  style.bold: true
+}
+
+f2 -> f3: check vectors {
+  style.stroke: "#F5A623"
+  style.stroke-width: 3
+  style.animated: true
+  style.font-size: 18
+  style.bold: true
+}
+
+f3 -> msg-valid: pass {
+  style.stroke: "#00D4AA"
+  style.stroke-width: 3
+  style.animated: true
+  style.font-size: 18
+  style.bold: true
+}
+
+# --- Forensic Layer (below) ---
+
+f4: F4 ConflictLog {
+  shape: cylinder
+  style.font-size: 24
+  style.fill: "#E74C3C"
+  style.font-color: "#fff"
+  style.stroke: "#E74C3C"
+  style.stroke-width: 3
+
+  file: "bus-conflicts.jsonl" {
+    shape: text
+    style.font-size: 16
+    style.font-color: "#7F8C8D"
+    style.italic: true
+  }
+
+  lifecycle: "independent lifecycle" {
+    shape: text
+    style.font-size: 16
+    style.font-color: "#7F8C8D"
+    style.italic: true
+  }
+}
+
+f1 -> f4: gap / dup {
+  style.stroke: "#E74C3C"
+  style.stroke-width: 2
+  style.stroke-dash: 5
+  style.font-size: 16
+}
+
+f2 -> f4: unauthorized {
+  style.stroke: "#E74C3C"
+  style.stroke-width: 2
+  style.stroke-dash: 5
+  style.font-size: 16
+}
+
+f3 -> f4: conflict {
+  style.stroke: "#E74C3C"
+  style.stroke-width: 2
+  style.stroke-dash: 5
+  style.font-size: 16
+}
+
+# --- Maintenance Layer ---
+
+f5: F5 SnapshotManager {
+  shape: hexagon
+  style.font-size: 24
+  style.fill: "#7F8C8D"
+  style.font-color: "#fff"
+  style.stroke: "#7F8C8D"
+  style.stroke-width: 2
+
+  snap: "bus-snapshot.json" {
+    shape: text
+    style.font-size: 16
+    style.font-color: "#fff"
+    style.italic: true
+  }
+
+  sha: "SHA-256 verified" {
+    shape: text
+    style.font-size: 16
+    style.font-color: "#fff"
+    style.italic: true
+  }
+}
+
+f6: F6 BusGC {
+  shape: hexagon
+  style.font-size: 24
+  style.fill: "#7F8C8D"
+  style.font-color: "#fff"
+  style.stroke: "#7F8C8D"
+  style.stroke-width: 2
+
+  ttl: "TTL-based eviction" {
+    shape: text
+    style.font-size: 16
+    style.font-color: "#fff"
+    style.italic: true
+  }
+
+  atomic: "atomic compaction" {
+    shape: text
+    style.font-size: 16
+    style.font-color: "#fff"
+    style.italic: true
+  }
+}
+
+bus: bus.jsonl {
+  shape: cylinder
+  style.font-size: 28
+  style.fill: "#1A1A2E"
+  style.font-color: "#27AE60"
+  style.stroke: "#27AE60"
+  style.stroke-width: 3
+}
+
+f5 -> bus: snapshot + recovery {
+  style.stroke: "#7F8C8D"
+  style.stroke-width: 3
+  style.font-size: 18
+}
+
+f6 -> bus: compact + archive {
+  style.stroke: "#7F8C8D"
+  style.stroke-width: 3
+  style.font-size: 18
+}
+
+msg-valid -> bus: write {
+  style.stroke: "#00D4AA"
+  style.stroke-width: 4
+  style.animated: true
+  style.font-size: 20
+  style.bold: true
+}
