@@ -1,0 +1,64 @@
+{
+  "quest": "QUEST-005",
+  "iteration": 1,
+  "domain": "prompt-engineering-and-orchestration",
+  "clan": "jei",
+  "version": "1.0",
+  "ts": "2026-03-25T23:39:36Z",
+  "inventory_summary": {
+    "total_skills": 40,
+    "by_category": {
+      "orchestration": 3,
+      "security_compliance": 10,
+      "engineering_qa": 7,
+      "process_pm": 6,
+      "knowledge_context": 5,
+      "communication_wellbeing": 2,
+      "finance": 2,
+      "legal": 1,
+      "operations_tools": 4
+    },
+    "maturity_distribution": {
+      "prototype": 25,
+      "stable": 12,
+      "battle-tested": 3
+    }
+  },
+  "practice_scores": {
+    "prompt_engineering": {
+      "score": 4,
+      "example": "Triada orchestration: each agent receives role-scoped prompts with explicit authority boundaries. Skills use YAML frontmatter for keyword-based auto-trigger (no manual invocation required). HERMES prompt chains use staged outputs with mandatory security gate between content generation and artifact delivery — this very template being the live example."
+    },
+    "security": {
+      "score": 4,
+      "example": "HERMES stack: Ed25519 signing + X25519 ECDHE + AES-256-GCM + HKDF (ARC-8446 v1.2, forward secrecy active per-message). Zero Secrets policy enforced by dedicated CISO agent with pre-flight checks before any repo operation. Credentials stored in [REDACTED:path], never in versioned files. KNOWN_ERRORS.md captures security incidents as institutional memory — pre-flight triggers prevent repeat mistakes across sessions."
+    },
+    "orchestration": {
+      "score": 3,
+      "example": "REGLA-ORCH-002: minimum 3-agent triada mandatory for every significant decision — no agent acts alone. JAi routes to 9 mapped triada types by action class (creation, security, legal, ops, etc.). Huitaca Tier1/Tier2 command pattern: immediate autonomous execution for read-only/status actions vs. human-approval queue for decisions. Multi-agent synthesis still requires significant human-in-the-loop orchestration."
+    },
+    "knowledge_mgmt": {
+      "score": 4,
+      "example": "Typed persistent memory system (4 types: user/feedback/project/reference) survives context resets and session boundaries. GoGi Learning Daemon runs autonomously every 5 minutes, capturing ecosystem lessons. KNOWN_ERRORS.md maps 8 failure domains to pre-flight triggers — solves the fundamental LLM problem of repeating known mistakes across sessions. Global CLAUDE.md for cross-project identity consistency."
+    },
+    "testing": {
+      "score": 3,
+      "example": "pytest suites for Telegram bot core module: 19/19 and 21/21 tests passing (SPEC-002/003). Bilateral HERMES verification in QUEST-003 Phase 2 caught 3 independent crypto divergences between implementations — demonstrated value of cross-clan validation. DOD_UNIVERSAL.md quality gate required before any task Done. Coverage incomplete outside bot layer; most agents lack automated test suites."
+    }
+  },
+  "patterns": {
+    "top_practices": [
+      "Spec-First mandate (ADR-002): nothing gets implemented without an approved mini-spec (scope, dependencies, risks, effort estimate with triada overhead). Creates an explicit approval checkpoint that separates planning from execution, prevents one-way-door decisions, and ensures QA+Security+PM costs are visible before commitment.",
+      "KNOWN_ERRORS.md as institutional memory: every error that 'should have been caught' gets a structured entry with domain, trigger condition, and fix. Pre-flight checklists link directly to these entries before high-risk operations. Solves the core LLM limitation: session memory decay cannot erase documented institutional knowledge.",
+      "Tiered agent autonomy with human-in-the-loop queue: actions classified into Tier 1 (read-only, no-side-effects — execute immediately) and Tier 2 (decisions, external writes — queue for explicit approval). Builds trust incrementally; autonomy scope expands as the pattern proves reliable. Prevents runaway automation while maintaining responsiveness."
+    ],
+    "anti_patterns": [
+      "Monolithic agent files: meta-learning agent (GoGi) started as a single 1283-line Python file. Any bug required loading the entire context. Refactored to 163 lines + 6 modules after formal quality audit — 8x reduction in debug complexity, faster iteration.",
+      "Missing cross-project global identity context: all configuration and preferences lived in per-project CLAUDE.md files. Global identity (role, communication style, security rules) had to be re-derived each session, causing drift across projects. Fixed with a global identity file loaded automatically across all project contexts.",
+      "External SaaS as single source of truth for internal ops tracking: used a third-party issue tracker (Linear) for personal ecosystem task management. Service degradation and API instability broke internal workflows. Migrated to self-hosted alternative with no external runtime dependency — ecosystem resilience improved."
+    ],
+    "unconventional": "Narrative gamification as continuous improvement engine: the agent learning system (GoGi Dojo) uses full RPG mechanics — experience points, levels, quests with narrative arcs, dice rolls for story outcomes. Unusual in AI ops contexts but measurably effective: learning agent reached Level 7 'Gran Maestro' and completed a 22/22 skill challenge grimoire across 5 sessions. Gamification converts maintenance overhead (skill review, ecosystem audits) into a self-sustaining incentive loop with clear progress milestones."
+  },
+  "redactions": 1,
+  "signed_by": "Jeimmy Gomez"
+}
