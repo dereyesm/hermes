@@ -4,8 +4,8 @@
 > Se actualiza al cierre de sesion cuando hay nuevos patrones confirmados (3+ ocurrencias).
 > El SKILL.md define QUE hace HERMES Community. Este archivo define COMO lo hace bien.
 
-## Ultima actualizacion: 2026-03-22
-## Fuente: 2 clanes onboarded, 5 QUESTs, visual stack AES-2040, 4 Arena sessions (172 XP)
+## Ultima actualizacion: 2026-03-27
+## Fuente: 2 clanes onboarded, 5 QUESTs, visual stack AES-2040, 5 Arena sessions (232 XP)
 
 ---
 

@@ -4,8 +4,8 @@
 > Se actualiza al cierre de sesion cuando hay nuevos patrones confirmados (3+ ocurrencias).
 > El SKILL.md define QUE hace HERMES Research. Este archivo define COMO lo hace bien.
 
-## Ultima actualizacion: 2026-03-22
-## Fuente: L3 overhead model, ATR-G.711, 4 Arena sessions (193 XP)
+## Ultima actualizacion: 2026-03-27
+## Fuente: L3 overhead model, ATR-G.711, 5 Arena sessions (253 XP)
 
 ---
 
@@ -17,6 +17,7 @@
 |----------|-----------|-----------|------|
 | Protocol comparison baseline | Always include HTTP/1.1, gRPC, MQTT in comparison table | 100% | Audiences know these; unfamiliar baselines weaken the argument |
 | Overhead calculation | `bytes_useful / bytes_total` for payload ratio; lower overhead = higher ratio | 100% | HERMES 76.9% vs HTTP/1.1 20.1% — the number that sells |
+| Cold vs warm disclaimer | Always specify cold/warm for connection-oriented protocols (gRPC, HTTP/2) | 100% | MULTI-019 finding: 4.9x advantage is cold-start only; warm gRPC ~3.2x. Precision matters |
 | Throughput measurement | Single-threaded, sequential writes, median of 5 runs | 95% | 872K msg/sec compact. Variance <2% across runs |
 | Dataset selection | Public only, script-reproducible, no API keys required | 100% | Ookla (AWS Open Data), M-Lab (BigQuery free tier), CAIDA (academic) |
 | Compact format sizing | msgpack-style array: count elements, not parse overhead | 100% | 5-elem static sealed, 6-elem ECDHE sealed — auto-detect by length |

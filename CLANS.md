@@ -8,14 +8,15 @@
 |------|-----------|--------|--------|-------------|
 | **momoshod** | Daniel Reyes | 2026-02-28 | Active | -- (founding clan) |
 | **nymyka** | Grupo Nymyka | 2026-03-15 | Active | QUEST-CROSS-001 |
-| **jei** | Jeimmy Gomez | 2026-03-18 | Pending | QUEST-003 Phase 2 |
+| **jei** | Jeimmy Gomez | 2026-03-18 | Active | QUEST-001 (Security Review) |
 
 ## Network Stats
 
-- **Protocol version**: 0.3.0
-- **Specs**: 19 (17 implemented, 2 draft)
-- **Reference implementation**: Python (605 tests)
-- **Crypto**: Ed25519 (sign) + X25519 (DH) + AES-256-GCM (encrypt)
+- **Protocol version**: 0.4.2-alpha
+- **Specs**: 20 implemented, 1 draft, 7 planned
+- **Reference implementation**: Python (1,087 tests, 17 modules)
+- **Crypto**: Ed25519 (sign) + X25519 (DH) + AES-256-GCM (encrypt) + ECDHE forward secrecy
+- **Adapters**: Claude Code, Cursor
 
 ## Join the Network
 
@@ -50,6 +51,9 @@ Every clan is sovereign. Your bus, your keys, your rules. HERMES connects withou
 | 2026-03-18 | `hermes install` ships. One-command onboarding. |
 | 2026-03-18 | ARC-0369 drafted. Agent Service Platform (TR-369 lineage). |
 | 2026-03-18 | Clan jei registered. Awaiting first connection. |
+| 2026-03-22 | QUEST-003 complete. ECDHE forward secrecy bilateral. ARC-8446 v1.2 canonical. |
+| 2026-03-23 | Hub Mode ships (ARC-4601 §15). WebSocket routing + E2E passthrough. |
+| 2026-03-25 | JEI confirms ARC-8446 v1.2 canonical alignment. Hub deploy test passes. |
 
 ---
 

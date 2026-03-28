@@ -11,7 +11,7 @@ The standards process is modeled after the IETF RFC system:
 1. **Open an issue** using the [ARC Proposal template](.github/ISSUE_TEMPLATE/arc-proposal.md)
 2. **Community discussion** happens in the issue thread
 3. **Draft PR** — once there's rough consensus, submit a PR with the spec in `spec/`
-4. **Review cycle** — at least 2 reviewers must approve
+4. **Review cycle** — the maintainer reviews all PRs; additional reviewers welcome
 5. **Merge** — the standard moves from DRAFT to IMPLEMENTED when a reference implementation exists
 
 **Numbering convention**:
