@@ -15,15 +15,14 @@ import json
 import logging
 import os
 import signal
-import subprocess
 import sys
 import time
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from enum import Enum
-from http.client import HTTPConnection, HTTPSConnection
 from pathlib import Path
-from typing import Any, AsyncIterator, Callable
+from typing import Any
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
@@ -62,14 +61,20 @@ def _parse_bus_message_permissive(data: dict) -> Message | None:
     ack = list(data["ack"]) if isinstance(data["ack"], list) else []
 
     return Message(
-        ts=ts, src=src, dst=dst, type=msg_type, msg=msg_text,
-        ttl=ttl, ack=[str(a).lower() for a in ack],
+        ts=ts,
+        src=src,
+        dst=dst,
+        type=msg_type,
+        msg=msg_text,
+        ttl=ttl,
+        ack=[str(a).lower() for a in ack],
     )
 
 
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class AgentNodeConfig:
@@ -93,9 +98,7 @@ class AgentNodeConfig:
     dispatch_allowed_tools: list[str] = field(default_factory=list)
     poll_interval: float = 2.0
     escalation_threshold_hours: int = 4
-    forward_types: list[str] = field(
-        default_factory=lambda: ["alert", "dispatch", "event"]
-    )
+    forward_types: list[str] = field(default_factory=lambda: ["alert", "dispatch", "event"])
     clan_dir: Path = field(default_factory=lambda: Path("."))
     # F4-F5 (ARC-0369): ASP integration — opt-in (auto-enabled if agents/ exists)
     agents_dir: str = "agents"
@@ -132,6 +135,7 @@ def load_agent_config(config_path: Path) -> AgentNodeConfig:
     # TOML format
     if path.suffix == ".toml":
         import tomllib
+
         with open(path, "rb") as f:
             data = tomllib.load(f)
         section = data.get("daemon")
@@ -141,7 +145,7 @@ def load_agent_config(config_path: Path) -> AgentNodeConfig:
             raise ValueError("Daemon is disabled (enabled=false)")
     else:
         # JSON format
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             data = json.load(f)
         section = data.get("agent_node")
         if section is None:
@@ -167,9 +171,7 @@ def load_agent_config(config_path: Path) -> AgentNodeConfig:
         namespace=section.get("namespace", "heraldo"),
         gateway_sse_path=section.get("gateway_sse_path", "/events"),
         gateway_push_path=section.get("gateway_push_path", "/bus/push"),
-        gateway_heartbeat_path=section.get(
-            "gateway_heartbeat_path", "/healthz"
-        ),
+        gateway_heartbeat_path=section.get("gateway_heartbeat_path", "/healthz"),
         auth_token=section.get("auth_token", ""),
         gateway_key=section.get("gateway_key", ""),
         sse_token=section.get("sse_token", ""),
@@ -179,16 +181,10 @@ def load_agent_config(config_path: Path) -> AgentNodeConfig:
         dispatch_timeout=float(section.get("dispatch_timeout", 300)),
         dispatch_command=section.get("dispatch_command", "claude"),
         dispatch_max_turns=int(section.get("dispatch_max_turns", 10)),
-        dispatch_allowed_tools=list(
-            section.get("dispatch_allowed_tools", [])
-        ),
+        dispatch_allowed_tools=list(section.get("dispatch_allowed_tools", [])),
         poll_interval=float(section.get("poll_interval", 2.0)),
-        escalation_threshold_hours=int(
-            section.get("escalation_threshold_hours", 4)
-        ),
-        forward_types=list(
-            section.get("forward_types", ["alert", "dispatch", "event"])
-        ),
+        escalation_threshold_hours=int(section.get("escalation_threshold_hours", 4)),
+        forward_types=list(section.get("forward_types", ["alert", "dispatch", "event"])),
         clan_dir=clan_dir,
         agents_dir=agents_dir_name,
         asp_enabled=bool(asp_enabled),
@@ -197,18 +193,15 @@ def load_agent_config(config_path: Path) -> AgentNodeConfig:
         notification_throttle_per_minute=int(
             asp_section.get("notification_throttle_per_minute", 5)
         ),
-        approval_default_timeout_hours=int(
-            asp_section.get("approval_default_timeout_hours", 24)
-        ),
-        queue_overflow=str(
-            asp_section.get("queue_overflow", "drop-newest")
-        ),
+        approval_default_timeout_hours=int(asp_section.get("approval_default_timeout_hours", 24)),
+        queue_overflow=str(asp_section.get("queue_overflow", "drop-newest")),
     )
 
 
 # ---------------------------------------------------------------------------
 # State Management
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class DispatchSlot:
@@ -347,7 +340,7 @@ class StateManager:
         if not self.state_path.exists():
             return None
         try:
-            with open(self.state_path, "r", encoding="utf-8") as f:
+            with open(self.state_path, encoding="utf-8") as f:
                 data = json.load(f)
             return NodeState.from_dict(data)
         except (json.JSONDecodeError, KeyError):
@@ -410,6 +403,7 @@ def _kill_process(pid: int) -> None:
 # Bus Observer
 # ---------------------------------------------------------------------------
 
+
 class BusObserver:
     """Watches bus.jsonl for new messages using offset-based tail.
 
@@ -434,6 +428,7 @@ class BusObserver:
         """Check if kqueue is available (macOS/BSD)."""
         try:
             import select
+
             return hasattr(select, "kqueue")
         except ImportError:
             return False
@@ -458,7 +453,7 @@ class BusObserver:
             return []
 
         messages = []
-        with open(self.bus_path, "r", encoding="utf-8") as f:
+        with open(self.bus_path, encoding="utf-8") as f:
             f.seek(self.offset)
             new_data = f.read()
             new_offset = f.tell()
@@ -525,7 +520,7 @@ class BusObserver:
                     try:
                         events = await asyncio.get_event_loop().run_in_executor(
                             None,
-                            lambda: kq.control([ev], 1, self.poll_interval),
+                            lambda _ev=ev: kq.control([_ev], 1, self.poll_interval),
                         )
                     except asyncio.CancelledError:
                         raise
@@ -558,6 +553,7 @@ class BusObserver:
 # ---------------------------------------------------------------------------
 # Gateway Link
 # ---------------------------------------------------------------------------
+
 
 class GatewayLink:
     """Manages bidirectional connection with a remote gateway."""
@@ -599,10 +595,12 @@ class GatewayLink:
                 error_str = str(e)
                 is_503 = "503" in error_str or "Service Unavailable" in error_str
                 if is_503 and attempt < max_retries:
-                    delay = 2 ** attempt  # 1s, 2s, 4s
+                    delay = 2**attempt  # 1s, 2s, 4s
                     logger.warning(
                         "POST to gateway got 503 (attempt %d/%d), retrying in %ds",
-                        attempt + 1, max_retries + 1, delay,
+                        attempt + 1,
+                        max_retries + 1,
+                        delay,
                     )
                     time.sleep(delay)
                     continue
@@ -635,7 +633,8 @@ class GatewayLink:
             except Exception as e:
                 logger.warning(
                     "SSE connection lost: %s (reconnecting in %.0fs)",
-                    e, self._backoff,
+                    e,
+                    self._backoff,
                 )
                 await asyncio.sleep(self._backoff)
                 self._backoff = min(self._backoff * 2, self._max_backoff)
@@ -742,6 +741,7 @@ class GatewayLink:
 # Message Evaluator
 # ---------------------------------------------------------------------------
 
+
 class Action(str, Enum):
     """Actions the evaluator can assign to a message."""
 
@@ -808,6 +808,7 @@ class MessageEvaluator:
 # Dispatcher
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class DispatchResult:
     """Result of a dispatch execution."""
@@ -837,10 +838,12 @@ class Dispatcher:
         cmd.extend(["--max-turns", str(self.config.dispatch_max_turns)])
         cmd.extend(["--output-format", "json"])
         if self.config.dispatch_allowed_tools:
-            cmd.extend([
-                "--allowedTools",
-                ",".join(self.config.dispatch_allowed_tools),
-            ])
+            cmd.extend(
+                [
+                    "--allowedTools",
+                    ",".join(self.config.dispatch_allowed_tools),
+                ]
+            )
         return cmd
 
     async def dispatch(self, message: Message, cid: str) -> DispatchSlot:
@@ -877,7 +880,9 @@ class Dispatcher:
         # Find the process by PID
         try:
             proc = await asyncio.create_subprocess_exec(
-                "kill", "-0", str(slot.pid),
+                "kill",
+                "-0",
+                str(slot.pid),
                 stdout=asyncio.subprocess.DEVNULL,
                 stderr=asyncio.subprocess.DEVNULL,
             )
@@ -913,6 +918,7 @@ class Dispatcher:
 # Agent Node (main daemon)
 # ---------------------------------------------------------------------------
 
+
 class AgentNode:
     """The persistent Agent Node daemon per ARC-4601."""
 
@@ -944,8 +950,8 @@ class AgentNode:
         # ARC-9001: Bus Integrity — opt-in (enabled with ASP)
         self.seq_tracker = None
         self.ownership = None
-        self.wv_tracker = None      # F3: Write vector tracking
-        self.conflict_log = None    # F4: Conflict forensic log
+        self.wv_tracker = None  # F3: Write vector tracking
+        self.conflict_log = None  # F4: Conflict forensic log
 
     def _init_asp(self, state: NodeState) -> None:
         """Initialize ARC-0369 F3+F4+F5 components."""
@@ -983,7 +989,8 @@ class AgentNode:
             overflow_policy=QueueOverflow(self.config.queue_overflow),
         )
         self.asp_scheduler = DispatchScheduler(
-            self.asp_registry, self.config.namespace,
+            self.asp_registry,
+            self.config.namespace,
         )
         errors = self.asp_scheduler.load()
         if errors:
@@ -1001,7 +1008,6 @@ class AgentNode:
 
         # ARC-9001: Bus Integrity (F1-F6)
         from .integrity import (
-            BusGC,
             ConflictLog,
             OwnershipRegistry,
             SequenceTracker,
@@ -1033,7 +1039,8 @@ class AgentNode:
         self.ownership = OwnershipRegistry(daemon_id=self.config.namespace)
         if state.ownership_claims:
             self.ownership = OwnershipRegistry.from_dict(
-                state.ownership_claims, daemon_id=self.config.namespace,
+                state.ownership_claims,
+                daemon_id=self.config.namespace,
             )
         else:
             self.ownership.claim_for_daemon({self.config.namespace})
@@ -1056,7 +1063,7 @@ class AgentNode:
         Translates dispatch outcomes into actual process spawning,
         state tracking, and bus writes.
         """
-        from .asp import AgentState, DispatchOutcome
+        from .asp import DispatchOutcome
 
         match decision.outcome:
             case DispatchOutcome.DISPATCHED | DispatchOutcome.APPROVAL_GRANTED:
@@ -1086,8 +1093,12 @@ class AgentNode:
                                 type="event",
                                 msg=f"[RE:{decision.rule_id}] OK",
                             )
-                            write_message(self.config.bus_path, result_msg,
-                                         seq_tracker=self.seq_tracker, wv_tracker=self.wv_tracker)
+                            write_message(
+                                self.config.bus_path,
+                                result_msg,
+                                seq_tracker=self.seq_tracker,
+                                wv_tracker=self.wv_tracker,
+                            )
                         except Exception:
                             pass
                     else:
@@ -1100,8 +1111,12 @@ class AgentNode:
                                 type="alert",
                                 msg=f"DISPATCH_FAILED:{decision.agent_id}:{decision.rule_id}",
                             )
-                            write_message(self.config.bus_path, fail_msg,
-                                         seq_tracker=self.seq_tracker, wv_tracker=self.wv_tracker)
+                            write_message(
+                                self.config.bus_path,
+                                fail_msg,
+                                seq_tracker=self.seq_tracker,
+                                wv_tracker=self.wv_tracker,
+                            )
                         except Exception:
                             pass
                 except RuntimeError as e:
@@ -1118,8 +1133,12 @@ class AgentNode:
                         type="event",
                         msg=f"APPROVAL_REQUIRED:{decision.agent_id}:{decision.rule_id}",
                     )
-                    write_message(self.config.bus_path, approval_msg,
-                                 seq_tracker=self.seq_tracker, wv_tracker=self.wv_tracker)
+                    write_message(
+                        self.config.bus_path,
+                        approval_msg,
+                        seq_tracker=self.seq_tracker,
+                        wv_tracker=self.wv_tracker,
+                    )
                 except Exception:
                     pass
 
@@ -1131,13 +1150,18 @@ class AgentNode:
                         type="alert",
                         msg=f"DISPATCH_DROPPED:{decision.agent_id}:{decision.rule_id}",
                     )
-                    write_message(self.config.bus_path, drop_msg,
-                                 seq_tracker=self.seq_tracker, wv_tracker=self.wv_tracker)
+                    write_message(
+                        self.config.bus_path,
+                        drop_msg,
+                        seq_tracker=self.seq_tracker,
+                        wv_tracker=self.wv_tracker,
+                    )
                 except Exception:
                     pass
 
             case DispatchOutcome.APPROVAL_TIMEOUT:
                 from .asp import AgentState as _AS
+
                 self.asp_state_tracker.transition(decision.agent_id, _AS.ACTIVE)
                 try:
                     timeout_msg = create_message(
@@ -1146,8 +1170,12 @@ class AgentNode:
                         type="alert",
                         msg=f"APPROVAL_TIMEOUT:{decision.agent_id}:{decision.rule_id}",
                     )
-                    write_message(self.config.bus_path, timeout_msg,
-                                 seq_tracker=self.seq_tracker, wv_tracker=self.wv_tracker)
+                    write_message(
+                        self.config.bus_path,
+                        timeout_msg,
+                        seq_tracker=self.seq_tracker,
+                        wv_tracker=self.wv_tracker,
+                    )
                 except Exception:
                     pass
 
@@ -1166,7 +1194,9 @@ class AgentNode:
         if self.seq_tracker and self.ownership and hasattr(self, "snapshot_mgr"):
             try:
                 self.snapshot_mgr.create(
-                    self.seq_tracker, self.ownership, self.config.bus_path,
+                    self.seq_tracker,
+                    self.ownership,
+                    self.config.bus_path,
                 )
             except Exception:
                 pass  # Non-fatal: snapshot is optimization, not requirement
@@ -1176,9 +1206,7 @@ class AgentNode:
         # Acquire lock
         if not self.state_manager.acquire_lock():
             existing_pid = self.state_manager.get_lock_pid()
-            logger.error(
-                "Another node is running (PID %s). Aborting.", existing_pid
-            )
+            logger.error("Another node is running (PID %s). Aborting.", existing_pid)
             raise RuntimeError(f"Node already running (PID {existing_pid})")
 
         try:
@@ -1295,6 +1323,7 @@ class AgentNode:
                         continue
                     if self.config.asp_enabled and self.asp_throttler:
                         from .asp import NotificationThrottler
+
                         if NotificationThrottler.should_suppress(msg.type, msg.msg):
                             self.asp_throttler.record_suppressed(msg.src)
                             continue
@@ -1302,6 +1331,7 @@ class AgentNode:
                             self.asp_throttler.record_suppressed(msg.src)
                             continue
                         from .installer import send_notification
+
                         send_notification(
                             f"HERMES — {msg.type}",
                             msg.msg[:120],
@@ -1309,6 +1339,7 @@ class AgentNode:
                         self.asp_throttler.record(msg.src)
                     else:
                         from .installer import send_notification
+
                         send_notification(
                             "HERMES",
                             f"[{msg.type}] from {msg.src}: {msg.msg[:60]}",
@@ -1329,6 +1360,7 @@ class AgentNode:
         """Legacy dispatch path (pre-ASP)."""
         if self.dispatcher.available_slots > 0:
             from .message import extract_cid
+
             cid = extract_cid(msg.msg) or f"auto-{int(time.time())}"
             try:
                 slot = await self.dispatcher.dispatch(msg, cid)
@@ -1347,12 +1379,15 @@ class AgentNode:
                 # Deduplicate: check if message already on bus
                 existing = read_bus(self.config.bus_path)
                 is_dup = any(
-                    m.src == msg.src and m.ts == msg.ts and m.msg == msg.msg
-                    for m in existing
+                    m.src == msg.src and m.ts == msg.ts and m.msg == msg.msg for m in existing
                 )
                 if not is_dup:
-                    write_message(self.config.bus_path, msg,
-                                 seq_tracker=self.seq_tracker, wv_tracker=self.wv_tracker)
+                    write_message(
+                        self.config.bus_path,
+                        msg,
+                        seq_tracker=self.seq_tracker,
+                        wv_tracker=self.wv_tracker,
+                    )
                     logger.info("SSE → bus: %s", msg.msg[:50])
             except (ValidationError, Exception) as e:
                 logger.debug("SSE event skipped: %s", e)
@@ -1411,6 +1446,7 @@ class AgentNode:
                         if changes:
                             self.asp_scheduler.load()
                             from .asp import AgentState as _AS
+
                             for p in self.asp_registry.all_enabled():
                                 if self.asp_state_tracker.get_state(p.agent_id) == _AS.INACTIVE:
                                     self.asp_state_tracker.set_active(p.agent_id)
@@ -1422,9 +1458,12 @@ class AgentNode:
                     if hasattr(self, "bus_archive_path"):
                         try:
                             from .integrity import BusGC
+
                             thresholds = BusGC.compute_threshold(self.seq_tracker)
                             archived = BusGC.collect(
-                                self.config.bus_path, self.bus_archive_path, thresholds,
+                                self.config.bus_path,
+                                self.bus_archive_path,
+                                thresholds,
                             )
                             if archived > 0:
                                 logger.info("GC: archived %d messages", archived)
@@ -1441,16 +1480,14 @@ class AgentNode:
         if not self.dispatcher.active:
             return
 
-        logger.info(
-            "Draining %d active dispatches...", len(self.dispatcher.active)
-        )
+        logger.info("Draining %d active dispatches...", len(self.dispatcher.active))
         for slot in list(self.dispatcher.active):
             try:
                 await asyncio.wait_for(
                     self.dispatcher.wait_slot(slot),
                     timeout=min(30.0, self.config.dispatch_timeout),
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.warning("Force-killing dispatch PID=%d", slot.pid)
                 await self.dispatcher.cancel_slot(slot)
 
@@ -1467,6 +1504,7 @@ class AgentNode:
 # ---------------------------------------------------------------------------
 # CLI commands
 # ---------------------------------------------------------------------------
+
 
 def cmd_daemon_start(clan_dir: Path, foreground: bool = True) -> int:
     """Start the Agent Node daemon."""

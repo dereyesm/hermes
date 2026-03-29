@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import date
-
 import pytest
 
 from hermes.integrity import (
@@ -13,18 +11,15 @@ from hermes.integrity import (
     ConflictLog,
     ConflictRecord,
     ConflictResolution,
-    OwnershipClaim,
     OwnershipRegistry,
     OwnershipViolation,
     ReplayRequest,
-    SequenceState,
     SequenceTracker,
     SnapshotManager,
     WriteVector,
     WriteVectorTracker,
 )
 from hermes.message import Message, create_message
-
 
 # ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -416,14 +411,21 @@ class TestMessageSeqField:
 
     def test_seq_validation_rejects_negative(self):
         from hermes.message import ValidationError
+
         with pytest.raises(ValidationError, match="positive"):
             create_message(src="eng", dst="*", type="state", msg="test", seq=0)
 
     def test_seq_validation_rejects_bool(self):
         from hermes.message import ValidationError, validate_message
+
         data = {
-            "ts": "2026-03-20", "src": "eng", "dst": "*",
-            "type": "state", "msg": "test", "ttl": 7, "ack": [],
+            "ts": "2026-03-20",
+            "src": "eng",
+            "dst": "*",
+            "type": "state",
+            "msg": "test",
+            "ttl": 7,
+            "ack": [],
             "seq": True,
         }
         with pytest.raises(ValidationError, match="integer"):
@@ -431,11 +433,13 @@ class TestMessageSeqField:
 
     def test_seq_roundtrip_via_json(self):
         import json
+
         msg = create_message(src="eng", dst="*", type="state", msg="test", seq=10)
         line = msg.to_jsonl()
         data = json.loads(line)
         assert data["seq"] == 10
         from hermes.message import validate_message
+
         msg2 = validate_message(data)
         assert msg2.seq == 10
 
@@ -444,7 +448,8 @@ class TestBusWriteWithSeqTracker:
     """write_message with seq_tracker integration."""
 
     def test_auto_assigns_seq(self, tmp_path):
-        from hermes.bus import write_message, read_bus
+        from hermes.bus import read_bus, write_message
+
         bus = tmp_path / "bus.jsonl"
         t = SequenceTracker()
         msg = _msg("eng")
@@ -461,6 +466,7 @@ class TestBusWriteWithSeqTracker:
 
     def test_preserves_explicit_seq(self, tmp_path):
         from hermes.bus import write_message
+
         bus = tmp_path / "bus.jsonl"
         t = SequenceTracker()
         msg = _msg("eng", seq=42)
@@ -469,7 +475,8 @@ class TestBusWriteWithSeqTracker:
         assert t.get_state("eng").last_seq == 42
 
     def test_no_tracker_no_seq(self, tmp_path):
-        from hermes.bus import write_message, read_bus
+        from hermes.bus import read_bus, write_message
+
         bus = tmp_path / "bus.jsonl"
         msg = _msg("eng")
         written = write_message(bus, msg)
@@ -482,7 +489,8 @@ class TestReadBusWithIntegrity:
     """read_bus_with_integrity function."""
 
     def test_reads_and_validates(self, tmp_path):
-        from hermes.bus import write_message, read_bus_with_integrity
+        from hermes.bus import read_bus_with_integrity, write_message
+
         bus = tmp_path / "bus.jsonl"
         t = SequenceTracker()
         write_message(bus, _msg("eng"), seq_tracker=t)
@@ -492,7 +500,8 @@ class TestReadBusWithIntegrity:
         assert anomalies == []
 
     def test_detects_gap(self, tmp_path):
-        from hermes.bus import write_message, read_bus_with_integrity
+        from hermes.bus import read_bus_with_integrity, write_message
+
         bus = tmp_path / "bus.jsonl"
         write_message(bus, _msg("eng", seq=1))
         write_message(bus, _msg("eng", seq=5))
@@ -507,8 +516,9 @@ class TestReadBusWithIntegrity:
 # ═══════════════════════════════════════════════════════════════════════
 
 
-def _msg_w(src: str = "eng", dst: str = "*", seq: int | None = None,
-           w: dict | None = None) -> Message:
+def _msg_w(
+    src: str = "eng", dst: str = "*", seq: int | None = None, w: dict | None = None
+) -> Message:
     """Create a test message with optional write vector."""
     return create_message(src=src, dst=dst, type="state", msg="test", seq=seq, w=w)
 
@@ -684,9 +694,7 @@ class TestWriteVectorTracker:
         wvt.record("eng", 1, WriteVector(state={"eng": 0}))
         wvt.record("ops", 1, WriteVector(state={"ops": 0}))
         # finance writes seeing nothing — concurrent with both
-        conflicts = wvt.detect_conflicts(
-            "finance", 1, WriteVector(state={"finance": 0})
-        )
+        conflicts = wvt.detect_conflicts("finance", 1, WriteVector(state={"finance": 0}))
         assert len(conflicts) == 2
 
     def test_no_conflict_after_causal_ordering(self):
@@ -697,9 +705,7 @@ class TestWriteVectorTracker:
         wvt.record("eng", 1, WriteVector(state={"eng": 0}))
         wvt.record("ops", 1, WriteVector(state={"eng": 1, "ops": 0}))
         # finance writes seeing both — no conflict
-        conflicts = wvt.detect_conflicts(
-            "finance", 1, WriteVector(state={"eng": 1, "ops": 1})
-        )
+        conflicts = wvt.detect_conflicts("finance", 1, WriteVector(state={"eng": 1, "ops": 1}))
         assert conflicts == []
 
 
@@ -913,7 +919,8 @@ class TestBusWriteWithWriteVector:
     """write_message() with wv_tracker."""
 
     def test_auto_assigns_w(self, tmp_path):
-        from hermes.bus import write_message, read_bus
+        from hermes.bus import write_message
+
         bus = tmp_path / "bus.jsonl"
         st = SequenceTracker()
         wvt = WriteVectorTracker(st)
@@ -925,6 +932,7 @@ class TestBusWriteWithWriteVector:
 
     def test_preserves_explicit_w(self, tmp_path):
         from hermes.bus import write_message
+
         bus = tmp_path / "bus.jsonl"
         st = SequenceTracker()
         wvt = WriteVectorTracker(st)
@@ -933,7 +941,8 @@ class TestBusWriteWithWriteVector:
         assert written.w == {"ops": 5}
 
     def test_w_roundtrip_json(self, tmp_path):
-        from hermes.bus import write_message, read_bus
+        from hermes.bus import read_bus, write_message
+
         bus = tmp_path / "bus.jsonl"
         st = SequenceTracker()
         st.record("ops", 3)
@@ -946,7 +955,8 @@ class TestBusWriteWithWriteVector:
         assert msgs[0].seq == 1
 
     def test_w_not_in_compact(self, tmp_path):
-        from hermes.bus import write_message, read_bus
+        from hermes.bus import read_bus, write_message
+
         bus = tmp_path / "bus.jsonl"
         st = SequenceTracker()
         wvt = WriteVectorTracker(st)
@@ -963,6 +973,7 @@ class TestBusWriteWithWriteVector:
 
     def test_records_in_tracker(self, tmp_path):
         from hermes.bus import write_message
+
         bus = tmp_path / "bus.jsonl"
         st = SequenceTracker()
         wvt = WriteVectorTracker(st)
@@ -970,7 +981,8 @@ class TestBusWriteWithWriteVector:
         assert wvt.recent_count == 1
 
     def test_multiple_writes_build_vector(self, tmp_path):
-        from hermes.bus import write_message, read_bus
+        from hermes.bus import read_bus, write_message
+
         bus = tmp_path / "bus.jsonl"
         st = SequenceTracker()
         wvt = WriteVectorTracker(st)
@@ -982,7 +994,8 @@ class TestBusWriteWithWriteVector:
         assert msgs[1].seq == 1  # ops first write
 
     def test_without_tracker_no_w(self, tmp_path):
-        from hermes.bus import write_message, read_bus
+        from hermes.bus import read_bus, write_message
+
         bus = tmp_path / "bus.jsonl"
         st = SequenceTracker()
         msg = _msg("eng")
@@ -995,7 +1008,8 @@ class TestBusReadWithMVCC:
     """read_bus_with_integrity() with wv_tracker and conflict_log."""
 
     def test_detects_concurrent_on_read(self, tmp_path):
-        from hermes.bus import write_message, read_bus_with_integrity
+        from hermes.bus import read_bus_with_integrity, write_message
+
         bus = tmp_path / "bus.jsonl"
         # Write two messages with concurrent write vectors manually
         write_message(bus, _msg_w("eng", seq=1, w={"eng": 0}))
@@ -1003,7 +1017,9 @@ class TestBusReadWithMVCC:
         wvt = WriteVectorTracker(SequenceTracker())
         cl = ConflictLog(tmp_path / "conflicts.jsonl")
         msgs, anomalies = read_bus_with_integrity(
-            bus, wv_tracker=wvt, conflict_log=cl,
+            bus,
+            wv_tracker=wvt,
+            conflict_log=cl,
         )
         assert len(msgs) == 2
         concurrent = [a for a in anomalies if a.get("type") == "concurrent"]
@@ -1011,7 +1027,8 @@ class TestBusReadWithMVCC:
         assert cl.count() == 1
 
     def test_no_concurrent_when_ordered(self, tmp_path):
-        from hermes.bus import write_message, read_bus_with_integrity
+        from hermes.bus import read_bus_with_integrity, write_message
+
         bus = tmp_path / "bus.jsonl"
         write_message(bus, _msg_w("eng", seq=1, w={}))
         write_message(bus, _msg_w("ops", seq=1, w={"eng": 1}))
@@ -1021,14 +1038,17 @@ class TestBusReadWithMVCC:
         assert concurrent == []
 
     def test_conflict_log_created_on_first_conflict(self, tmp_path):
-        from hermes.bus import write_message, read_bus_with_integrity
+        from hermes.bus import read_bus_with_integrity, write_message
+
         bus = tmp_path / "bus.jsonl"
         cl_path = tmp_path / "conflicts.jsonl"
         assert not cl_path.exists()
         write_message(bus, _msg_w("eng", seq=1, w={"eng": 0}))
         write_message(bus, _msg_w("ops", seq=1, w={"ops": 0}))
         cl = ConflictLog(cl_path)
-        read_bus_with_integrity(bus, wv_tracker=WriteVectorTracker(SequenceTracker()), conflict_log=cl)
+        read_bus_with_integrity(
+            bus, wv_tracker=WriteVectorTracker(SequenceTracker()), conflict_log=cl
+        )
         assert cl_path.exists()
 
 
@@ -1041,8 +1061,7 @@ class TestMessageWField:
     """Message w field in ARC-5322."""
 
     def test_create_with_w(self):
-        msg = create_message(src="eng", dst="*", type="state", msg="test",
-                             w={"eng": 1, "ops": 2})
+        msg = create_message(src="eng", dst="*", type="state", msg="test", w={"eng": 1, "ops": 2})
         assert msg.w == {"eng": 1, "ops": 2}
 
     def test_create_without_w(self):
@@ -1050,8 +1069,7 @@ class TestMessageWField:
         assert msg.w is None
 
     def test_to_dict_includes_w(self):
-        msg = create_message(src="eng", dst="*", type="state", msg="test",
-                             w={"eng": 1})
+        msg = create_message(src="eng", dst="*", type="state", msg="test", w={"eng": 1})
         d = msg.to_dict()
         assert "w" in d
         assert d["w"] == {"eng": 1}
@@ -1062,35 +1080,55 @@ class TestMessageWField:
         assert "w" not in d
 
     def test_validate_rejects_bad_w_type(self):
-        from hermes.message import validate_message, ValidationError
+        from hermes.message import ValidationError, validate_message
+
         data = {
-            "ts": "2026-03-22", "src": "eng", "dst": "*", "type": "state",
-            "msg": "test", "ttl": 7, "ack": [], "w": "not_a_dict",
+            "ts": "2026-03-22",
+            "src": "eng",
+            "dst": "*",
+            "type": "state",
+            "msg": "test",
+            "ttl": 7,
+            "ack": [],
+            "w": "not_a_dict",
         }
         with pytest.raises(ValidationError, match="dict"):
             validate_message(data)
 
     def test_validate_rejects_bad_w_value_type(self):
-        from hermes.message import validate_message, ValidationError
+        from hermes.message import ValidationError, validate_message
+
         data = {
-            "ts": "2026-03-22", "src": "eng", "dst": "*", "type": "state",
-            "msg": "test", "ttl": 7, "ack": [], "w": {"eng": "five"},
+            "ts": "2026-03-22",
+            "src": "eng",
+            "dst": "*",
+            "type": "state",
+            "msg": "test",
+            "ttl": 7,
+            "ack": [],
+            "w": {"eng": "five"},
         }
         with pytest.raises(ValidationError, match="integers"):
             validate_message(data)
 
     def test_validate_rejects_negative_w_value(self):
-        from hermes.message import validate_message, ValidationError
+        from hermes.message import ValidationError, validate_message
+
         data = {
-            "ts": "2026-03-22", "src": "eng", "dst": "*", "type": "state",
-            "msg": "test", "ttl": 7, "ack": [], "w": {"eng": -1},
+            "ts": "2026-03-22",
+            "src": "eng",
+            "dst": "*",
+            "type": "state",
+            "msg": "test",
+            "ttl": 7,
+            "ack": [],
+            "w": {"eng": -1},
         }
         with pytest.raises(ValidationError, match="non-negative"):
             validate_message(data)
 
     def test_compact_format_no_w(self):
-        msg = create_message(src="eng", dst="*", type="state", msg="test",
-                             w={"eng": 1})
+        msg = create_message(src="eng", dst="*", type="state", msg="test", w={"eng": 1})
         compact = msg.to_compact()
         # Compact should NOT include w (verbose-only)
         assert len(compact) == 7  # ts, src, dst, type, msg, ttl, ack
@@ -1123,7 +1161,9 @@ class TestSnapshotManager:
 
     def test_create_and_load(self, tmp_path):
         bus = tmp_path / "bus.jsonl"
-        bus.write_text('{"ts":"2026-03-22","src":"eng","dst":"*","type":"state","msg":"test","ttl":7,"ack":[]}\n')
+        bus.write_text(
+            '{"ts":"2026-03-22","src":"eng","dst":"*","type":"state","msg":"test","ttl":7,"ack":[]}\n'
+        )
         st = SequenceTracker()
         st.record("eng", 1)
         ow = OwnershipRegistry()
@@ -1144,7 +1184,9 @@ class TestSnapshotManager:
 
     def test_verify_matches(self, tmp_path):
         bus = tmp_path / "bus.jsonl"
-        bus.write_text('{"ts":"2026-03-22","src":"eng","dst":"*","type":"state","msg":"test","ttl":7,"ack":[]}\n')
+        bus.write_text(
+            '{"ts":"2026-03-22","src":"eng","dst":"*","type":"state","msg":"test","ttl":7,"ack":[]}\n'
+        )
         st = SequenceTracker()
         ow = OwnershipRegistry()
         mgr = SnapshotManager(tmp_path / "snap.json")
@@ -1153,13 +1195,17 @@ class TestSnapshotManager:
 
     def test_verify_stale(self, tmp_path):
         bus = tmp_path / "bus.jsonl"
-        bus.write_text('{"ts":"2026-03-22","src":"eng","dst":"*","type":"state","msg":"test","ttl":7,"ack":[]}\n')
+        bus.write_text(
+            '{"ts":"2026-03-22","src":"eng","dst":"*","type":"state","msg":"test","ttl":7,"ack":[]}\n'
+        )
         st = SequenceTracker()
         ow = OwnershipRegistry()
         mgr = SnapshotManager(tmp_path / "snap.json")
         snap = mgr.create(st, ow, bus)
         # Modify bus after snapshot
-        bus.write_text('{"ts":"2026-03-22","src":"eng","dst":"*","type":"state","msg":"changed","ttl":7,"ack":[]}\n')
+        bus.write_text(
+            '{"ts":"2026-03-22","src":"eng","dst":"*","type":"state","msg":"changed","ttl":7,"ack":[]}\n'
+        )
         assert mgr.verify(snap, bus) is False
 
     def test_verify_empty_bus(self, tmp_path):
@@ -1193,8 +1239,7 @@ class TestReplayRequest:
         assert req.to_seq == 9
 
     def test_dispatch_msg_format(self):
-        req = ReplayRequest(src="eng", from_seq=5, to_seq=9,
-                            requested_at="2026-03-22T10:00:00")
+        req = ReplayRequest(src="eng", from_seq=5, to_seq=9, requested_at="2026-03-22T10:00:00")
         msg = req.to_dispatch_msg()
         assert msg == "REPLAY_REQUEST:eng:5-9"
         assert len(msg) <= 120
@@ -1219,7 +1264,7 @@ class TestBusGC:
         st.record("ops", 30)
         thresholds = BusGC.compute_threshold(st)
         assert thresholds["eng"] == 51  # 100 - 50 + 1
-        assert thresholds["ops"] == 1   # max(1, 30 - 50 + 1) = 1
+        assert thresholds["ops"] == 1  # max(1, 30 - 50 + 1) = 1
 
     def test_compute_threshold_custom_keep(self):
         st = SequenceTracker()
@@ -1229,6 +1274,7 @@ class TestBusGC:
 
     def test_collect_archives_old_messages(self, tmp_path):
         from hermes.bus import write_message
+
         bus = tmp_path / "bus.jsonl"
         archive = tmp_path / "archive.jsonl"
         # Write 5 messages with seq 1-5
@@ -1239,6 +1285,7 @@ class TestBusGC:
         assert count == 3
         # Verify bus has only 2 messages
         from hermes.bus import read_bus
+
         remaining = read_bus(bus)
         assert len(remaining) == 2
         assert remaining[0].seq == 4
@@ -1249,6 +1296,7 @@ class TestBusGC:
 
     def test_collect_no_op_when_nothing_to_archive(self, tmp_path):
         from hermes.bus import write_message
+
         bus = tmp_path / "bus.jsonl"
         archive = tmp_path / "archive.jsonl"
         write_message(bus, _msg("eng", seq=1))
@@ -1257,6 +1305,7 @@ class TestBusGC:
 
     def test_collect_preserves_messages_without_seq(self, tmp_path):
         from hermes.bus import write_message
+
         bus = tmp_path / "bus.jsonl"
         archive = tmp_path / "archive.jsonl"
         # Mix of seq and no-seq messages
@@ -1266,6 +1315,7 @@ class TestBusGC:
         count = BusGC.collect(bus, archive, {"eng": 3})
         assert count == 1  # Only seq=1 archived
         from hermes.bus import read_bus
+
         remaining = read_bus(bus)
         assert len(remaining) == 2  # no-seq + seq=3
 
@@ -1277,12 +1327,13 @@ class TestBusGC:
 
     def test_collect_atomic_on_failure(self, tmp_path):
         """Bus file should remain intact if compaction fails mid-write."""
-        from hermes.bus import write_message, read_bus
+        from hermes.bus import read_bus, write_message
+
         bus = tmp_path / "bus.jsonl"
         archive = tmp_path / "archive.jsonl"
         write_message(bus, _msg("eng", seq=1))
         write_message(bus, _msg("eng", seq=2))
-        original_content = bus.read_text()
+        bus.read_text()  # ensure file is readable before collect
         # Collect normally — should work
         count = BusGC.collect(bus, archive, {"eng": 2})
         assert count == 1
@@ -1290,7 +1341,8 @@ class TestBusGC:
         assert len(remaining) == 1
 
     def test_collect_multiple_sources(self, tmp_path):
-        from hermes.bus import write_message, read_bus
+        from hermes.bus import read_bus, write_message
+
         bus = tmp_path / "bus.jsonl"
         archive = tmp_path / "archive.jsonl"
         write_message(bus, _msg("eng", seq=1))
@@ -1307,6 +1359,7 @@ class TestBusGC:
     def test_conflict_log_untouched(self, tmp_path):
         """Verify that GC does not affect conflict log."""
         from hermes.bus import write_message
+
         bus = tmp_path / "bus.jsonl"
         archive = tmp_path / "archive.jsonl"
         conflicts = tmp_path / "bus-conflicts.jsonl"

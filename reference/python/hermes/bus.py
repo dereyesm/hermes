@@ -6,8 +6,10 @@ Read, write, and archive operations on the HERMES message bus.
 from __future__ import annotations
 
 import json
-from datetime import date, timedelta
+from collections.abc import Callable
+from datetime import date
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from .message import (
     ENCODING_SEALED,
@@ -19,8 +21,10 @@ from .message import (
     is_sealed,
     parse_line,
     transport_mode,
-    validate_message,
 )
+
+if TYPE_CHECKING:
+    from .integrity import ConflictLog, SequenceTracker, WriteVectorTracker
 
 
 def read_bus(bus_path: str | Path) -> list[Message]:
@@ -44,6 +48,7 @@ def read_bus(bus_path: str | Path) -> list[Message]:
             messages.append(msg)
         except (json.JSONDecodeError, ValidationError) as e:
             import sys
+
             print(f"Warning: bus line {line_num} skipped: {e}", file=sys.stderr)
 
     return messages
@@ -51,9 +56,9 @@ def read_bus(bus_path: str | Path) -> list[Message]:
 
 def read_bus_with_integrity(
     bus_path: str | Path,
-    seq_tracker: "SequenceTracker | None" = None,
-    wv_tracker: "WriteVectorTracker | None" = None,
-    conflict_log: "ConflictLog | None" = None,
+    seq_tracker: SequenceTracker | None = None,
+    wv_tracker: WriteVectorTracker | None = None,
+    conflict_log: ConflictLog | None = None,
 ) -> tuple[list[Message], list[dict]]:
     """Read bus and validate sequence + causal integrity (ARC-9001 F1+F3).
 
@@ -65,7 +70,8 @@ def read_bus_with_integrity(
     When wv_tracker is provided, messages with `w` field are checked for
     causal conflicts. Detected conflicts are logged to conflict_log if available.
     """
-    from .integrity import SequenceTracker as _ST, WriteVector as _WV
+    from .integrity import SequenceTracker as _ST
+    from .integrity import WriteVector as _WV
 
     messages = read_bus(bus_path)
     if seq_tracker is None:
@@ -85,7 +91,10 @@ def read_bus_with_integrity(
                     # F4: Log conflict
                     if conflict_log is not None:
                         conflict_log.record_concurrent(
-                            c["src1"], c["seq1"], c["src2"], c["seq2"],
+                            c["src1"],
+                            c["seq1"],
+                            c["src2"],
+                            c["seq2"],
                         )
                 ts_str = msg.ts.isoformat() if hasattr(msg.ts, "isoformat") else ""
                 wv_tracker.record(msg.src, seq, wv, ts_str)
@@ -97,8 +106,8 @@ def write_message(
     bus_path: str | Path,
     message: Message,
     compact: bool = False,
-    seq_tracker: "SequenceTracker | None" = None,
-    wv_tracker: "WriteVectorTracker | None" = None,
+    seq_tracker: SequenceTracker | None = None,
+    wv_tracker: WriteVectorTracker | None = None,
 ) -> Message:
     """Append a single message to the bus file.
 
@@ -125,35 +134,56 @@ def write_message(
     if seq_tracker is not None and message.seq is None:
         next_seq = seq_tracker.next_seq(message.src)
         message = Message(
-            ts=message.ts, src=message.src, dst=message.dst,
-            type=message.type, msg=message.msg, ttl=message.ttl,
-            ack=list(message.ack), encoding=message.encoding,
-            seq=next_seq, w=w,
+            ts=message.ts,
+            src=message.src,
+            dst=message.dst,
+            type=message.type,
+            msg=message.msg,
+            ttl=message.ttl,
+            ack=list(message.ack),
+            encoding=message.encoding,
+            seq=next_seq,
+            w=w,
         )
         seq_tracker.record(message.src, next_seq)
     elif seq_tracker is not None and message.seq is not None:
         seq_tracker.record(message.src, message.seq)
         if w is not None and message.w is None:
             message = Message(
-                ts=message.ts, src=message.src, dst=message.dst,
-                type=message.type, msg=message.msg, ttl=message.ttl,
-                ack=list(message.ack), encoding=message.encoding,
-                seq=message.seq, w=w,
+                ts=message.ts,
+                src=message.src,
+                dst=message.dst,
+                type=message.type,
+                msg=message.msg,
+                ttl=message.ttl,
+                ack=list(message.ack),
+                encoding=message.encoding,
+                seq=message.seq,
+                w=w,
             )
     elif w is not None and message.w is None:
         message = Message(
-            ts=message.ts, src=message.src, dst=message.dst,
-            type=message.type, msg=message.msg, ttl=message.ttl,
-            ack=list(message.ack), encoding=message.encoding,
-            seq=message.seq, w=w,
+            ts=message.ts,
+            src=message.src,
+            dst=message.dst,
+            type=message.type,
+            msg=message.msg,
+            ttl=message.ttl,
+            ack=list(message.ack),
+            encoding=message.encoding,
+            seq=message.seq,
+            w=w,
         )
 
     # F3: Record in tracker after write
     if wv_tracker is not None and message.seq is not None:
         from .integrity import WriteVector as _WV
+
         wv = _WV.from_dict(message.w) if message.w is not None else _WV()
         wv_tracker.record(
-            message.src, message.seq, wv,
+            message.src,
+            message.seq,
+            wv,
             message.ts.isoformat() if hasattr(message.ts, "isoformat") else "",
         )
 
@@ -174,11 +204,7 @@ def filter_for_namespace(
     - dst matches the namespace OR dst is "*" (broadcast)
     - AND the namespace has NOT already ACKed
     """
-    return [
-        m for m in messages
-        if (m.dst == namespace or m.dst == "*")
-        and namespace not in m.ack
-    ]
+    return [m for m in messages if (m.dst == namespace or m.dst == "*") and namespace not in m.ack]
 
 
 def find_stale(messages: list[Message], threshold_days: int = 3) -> list[Message]:
@@ -198,10 +224,7 @@ def find_stale(messages: list[Message], threshold_days: int = 3) -> list[Message
 def find_expired(messages: list[Message]) -> list[Message]:
     """Find messages whose TTL has expired."""
     today = date.today()
-    return [
-        m for m in messages
-        if (today - m.ts).days > m.ttl
-    ]
+    return [m for m in messages if (today - m.ts).days > m.ttl]
 
 
 def archive_expired(
@@ -249,7 +272,7 @@ def archive_expired(
 def ack_message(
     bus_path: str | Path,
     namespace: str,
-    match_fn: callable,
+    match_fn: Callable[[Message], bool],
     compact: bool = False,
 ) -> int:
     """ACK messages matching a predicate by adding namespace to their ack array.
@@ -266,11 +289,18 @@ def ack_message(
     updated = []
     for m in messages:
         if match_fn(m) and namespace not in m.ack:
-            new_ack = list(m.ack) + [namespace]
-            updated.append(Message(
-                ts=m.ts, src=m.src, dst=m.dst, type=m.type,
-                msg=m.msg, ttl=m.ttl, ack=new_ack,
-            ))
+            new_ack = [*list(m.ack), namespace]
+            updated.append(
+                Message(
+                    ts=m.ts,
+                    src=m.src,
+                    dst=m.dst,
+                    type=m.type,
+                    msg=m.msg,
+                    ttl=m.ttl,
+                    ack=new_ack,
+                )
+            )
             acked += 1
         else:
             updated.append(m)
@@ -422,12 +452,18 @@ def write_sealed_message(
 
     if ecdhe:
         sealed_array = seal_bus_message_ecdhe_compact(
-            my_keys, peer_dh_public, message.msg, envelope_meta=meta,
+            my_keys,
+            peer_dh_public,
+            message.msg,
+            envelope_meta=meta,
         )
         encoding = ENCODING_SEALED_ECDHE
     else:
         sealed_array = seal_bus_message_compact(
-            my_keys, peer_dh_public, message.msg, envelope_meta=meta,
+            my_keys,
+            peer_dh_public,
+            message.msg,
+            envelope_meta=meta,
         )
         encoding = ENCODING_SEALED
 
@@ -477,8 +513,12 @@ def open_sealed_message(
         return None
 
     plaintext = open_bus_message_compact(
-        my_keys, peer_sign_public, peer_dh_public,
-        sealed_array, envelope_meta=meta, nonce_tracker=nonce_tracker,
+        my_keys,
+        peer_sign_public,
+        peer_dh_public,
+        sealed_array,
+        envelope_meta=meta,
+        nonce_tracker=nonce_tracker,
     )
     if plaintext is None:
         return None
@@ -522,7 +562,10 @@ def read_bus_sealed(
     for m in messages:
         if is_sealed(m):
             opened = open_sealed_message(
-                m, my_keys, peer_sign_public, peer_dh_public,
+                m,
+                my_keys,
+                peer_sign_public,
+                peer_dh_public,
                 nonce_tracker=nonce_tracker,
             )
             if opened is not None:

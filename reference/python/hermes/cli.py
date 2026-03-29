@@ -26,7 +26,6 @@ import json
 import sys
 from datetime import date
 from pathlib import Path
-from typing import Any
 
 from .agora import AgoraDirectory
 from .config import (
@@ -71,13 +70,15 @@ def _load_gateway(clan_dir: Path) -> tuple[GatewayConfig, Gateway, AgoraDirector
     mappings = []
     for a in config.agents:
         internal = a.get("internal", {})
-        mappings.append(AgentMapping(
-            namespace=internal.get("namespace", ""),
-            agent=internal.get("agent", ""),
-            external_alias=a.get("external", ""),
-            published=a.get("published", True),
-            capabilities=a.get("capabilities", []),
-        ))
+        mappings.append(
+            AgentMapping(
+                namespace=internal.get("namespace", ""),
+                agent=internal.get("agent", ""),
+                external_alias=a.get("external", ""),
+                published=a.get("published", True),
+                capabilities=a.get("capabilities", []),
+            )
+        )
 
     tt = TranslationTable(clan_id=config.clan_id, mappings=mappings)
 
@@ -159,6 +160,7 @@ def cmd_status(args: argparse.Namespace) -> int:
         if key_file.exists():
             try:
                 from .crypto import ClanKeyPair
+
                 kp = ClanKeyPair.load(str(keys_dir), config.clan_id)
                 fingerprint = kp.fingerprint()
             except Exception:
@@ -173,6 +175,7 @@ def cmd_status(args: argparse.Namespace) -> int:
         try:
             daemon_pid = int(pid_file.read_text().strip())
             import os
+
             os.kill(daemon_pid, 0)
             daemon_alive = True
         except (ValueError, ProcessLookupError, PermissionError):
@@ -184,7 +187,8 @@ def cmd_status(args: argparse.Namespace) -> int:
     bus_path = clan_dir / "bus.jsonl"
     if bus_path.exists():
         try:
-            from .bus import read_bus, filter_for_namespace
+            from .bus import filter_for_namespace, read_bus
+
             all_msgs = read_bus(bus_path)
             bus_messages = len(all_msgs)
             pending = filter_for_namespace(all_msgs, config.clan_id)
@@ -496,9 +500,9 @@ def cmd_adapt(args: argparse.Namespace) -> int:
             print(f"    {s}")
 
     if result.errors:
-        print(f"\n  Errors:")
-        for e in result.errors:
-            print(f"    {e}")
+        print("\n  Errors:")
+        for err in result.errors:
+            print(f"    {err}")
         return 1
 
     print(f"\n  Adapter '{adapter_name}' completed successfully.")
@@ -552,6 +556,7 @@ def cmd_agent(args: argparse.Namespace) -> int:
             return 1
 
         import json as _json
+
         print(_json.dumps(profile.to_dict(), indent=2))
         return 0
 
@@ -610,8 +615,8 @@ def cmd_config_migrate(args: argparse.Namespace) -> int:
 
     toml_path = migrate_json_to_toml(json_path)
     print(f"Migrated: {json_path} -> {toml_path}")
-    print(f"  gateway.json kept as backup.")
-    print(f"  HERMES will now use config.toml (preferred over gateway.json).")
+    print("  gateway.json kept as backup.")
+    print("  HERMES will now use config.toml (preferred over gateway.json).")
     return 0
 
 
@@ -631,8 +636,7 @@ def cmd_hook(args: argparse.Namespace) -> int:
 
     hook_cmd = getattr(args, "hook_command", None)
     if hook_cmd is None:
-        print("Usage: hermes hook <pull-on-start|pull-on-prompt|exit-reminder>",
-              file=sys.stderr)
+        print("Usage: hermes hook <pull-on-start|pull-on-prompt|exit-reminder>", file=sys.stderr)
         return 1
 
     hook_commands[hook_cmd]()
@@ -657,8 +661,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_init.add_argument("clan_id", help="Unique clan identifier")
     p_init.add_argument("display_name", help="Human-readable clan name")
     p_init.add_argument("--agora-url", default="", help="Agora directory URL")
-    p_init.add_argument("--format", choices=["json", "toml"], default="json",
-                        help="Config format (default: json)")
+    p_init.add_argument(
+        "--format", choices=["json", "toml"], default="json", help="Config format (default: json)"
+    )
     _add_dir_arg(p_init)
 
     # status
@@ -691,14 +696,19 @@ def build_parser() -> argparse.ArgumentParser:
 
     # bus
     p_bus = sub.add_parser("bus", help="Show bus messages")
-    p_bus.add_argument("--filter-type", default=None, dest="filter_type",
-                       help="Filter by message type (e.g. STATE, alert)")
-    p_bus.add_argument("--pending", action="store_true",
-                       help="Show only messages not yet ACKed by this clan")
-    p_bus.add_argument("--compact", action="store_true",
-                       help="Output in compact JSONL format (ARC-5322 §14)")
-    p_bus.add_argument("--expand", action="store_true",
-                       help="Output in verbose JSONL format")
+    p_bus.add_argument(
+        "--filter-type",
+        default=None,
+        dest="filter_type",
+        help="Filter by message type (e.g. STATE, alert)",
+    )
+    p_bus.add_argument(
+        "--pending", action="store_true", help="Show only messages not yet ACKed by this clan"
+    )
+    p_bus.add_argument(
+        "--compact", action="store_true", help="Output in compact JSONL format (ARC-5322 §14)"
+    )
+    p_bus.add_argument("--expand", action="store_true", help="Output in verbose JSONL format")
     _add_dir_arg(p_bus)
 
     # discover
@@ -709,41 +719,61 @@ def build_parser() -> argparse.ArgumentParser:
     # adapt
     p_adapt = sub.add_parser("adapt", help="Generate agent config from ~/.hermes/")
     p_adapt.add_argument("adapter_name", help="Adapter name (e.g. claude-code)")
-    p_adapt.add_argument("--hermes-dir", default=None, dest="hermes_dir",
-                         help="HERMES directory (default: ~/.hermes/)")
-    p_adapt.add_argument("--target-dir", default=None, dest="target_dir",
-                         help="Target agent directory (default: adapter-specific)")
+    p_adapt.add_argument(
+        "--hermes-dir",
+        default=None,
+        dest="hermes_dir",
+        help="HERMES directory (default: ~/.hermes/)",
+    )
+    p_adapt.add_argument(
+        "--target-dir",
+        default=None,
+        dest="target_dir",
+        help="Target agent directory (default: adapter-specific)",
+    )
 
     # config
     p_config = sub.add_parser("config", help="Configuration management")
     config_sub = p_config.add_subparsers(dest="config_command")
-    p_config_migrate = config_sub.add_parser(
-        "migrate", help="Migrate gateway.json to config.toml"
-    )
+    p_config_migrate = config_sub.add_parser("migrate", help="Migrate gateway.json to config.toml")
     _add_dir_arg(p_config_migrate)
 
     # install
     p_install = sub.add_parser("install", help="One-command HERMES setup")
-    p_install.add_argument("--clan-id", required=True, dest="clan_id",
-                           help="Unique clan identifier")
-    p_install.add_argument("--display-name", required=True, dest="display_name",
-                           help="Human-readable clan name")
-    p_install.add_argument("--gateway-url", default="", dest="gateway_url",
-                           help="Remote gateway URL")
-    p_install.add_argument("--relay-url", default="", dest="relay_url",
-                           help="Relay URL for bilateral exchange")
-    p_install.add_argument("--skip-hooks", action="store_true", dest="skip_hooks",
-                           help="Skip Claude Code hooks installation")
-    p_install.add_argument("--skip-service", action="store_true", dest="skip_service",
-                           help="Skip OS service installation")
+    p_install.add_argument(
+        "--clan-id", required=True, dest="clan_id", help="Unique clan identifier"
+    )
+    p_install.add_argument(
+        "--display-name", required=True, dest="display_name", help="Human-readable clan name"
+    )
+    p_install.add_argument(
+        "--gateway-url", default="", dest="gateway_url", help="Remote gateway URL"
+    )
+    p_install.add_argument(
+        "--relay-url", default="", dest="relay_url", help="Relay URL for bilateral exchange"
+    )
+    p_install.add_argument(
+        "--skip-hooks",
+        action="store_true",
+        dest="skip_hooks",
+        help="Skip Claude Code hooks installation",
+    )
+    p_install.add_argument(
+        "--skip-service",
+        action="store_true",
+        dest="skip_service",
+        help="Skip OS service installation",
+    )
     _add_dir_arg(p_install)
 
     # uninstall
     p_uninstall = sub.add_parser("uninstall", help="Remove HERMES installation")
-    p_uninstall.add_argument("--purge", action="store_true",
-                             help="Delete clan directory and all data")
-    p_uninstall.add_argument("--keep-hooks", action="store_true", dest="keep_hooks",
-                             help="Preserve Claude Code hooks")
+    p_uninstall.add_argument(
+        "--purge", action="store_true", help="Delete clan directory and all data"
+    )
+    p_uninstall.add_argument(
+        "--keep-hooks", action="store_true", dest="keep_hooks", help="Preserve Claude Code hooks"
+    )
     _add_dir_arg(p_uninstall)
 
     # hook
@@ -772,7 +802,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_daemon_start = daemon_sub.add_parser("start", help="Start agent node")
     p_daemon_start.add_argument(
-        "--foreground", action="store_true",
+        "--foreground",
+        action="store_true",
         help="Run in foreground (for process managers)",
     )
     _add_dir_arg(p_daemon_start)
@@ -789,7 +820,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_hub_start = hub_sub.add_parser("start", help="Start Hub server")
     p_hub_start.add_argument(
-        "--foreground", action="store_true",
+        "--foreground",
+        action="store_true",
         help="Run in foreground (for process managers)",
     )
     _add_dir_arg(p_hub_start)
@@ -876,12 +908,8 @@ def main(argv: list[str] | None = None) -> int:
 
         hub_dir = _resolve_clan_dir(args)
         hub_commands = {
-            "init": lambda: cmd_hub_init(
-                hub_dir, force=getattr(args, "force", False)
-            ),
-            "start": lambda: cmd_hub_start(
-                hub_dir, foreground=getattr(args, "foreground", True)
-            ),
+            "init": lambda: cmd_hub_init(hub_dir, force=getattr(args, "force", False)),
+            "start": lambda: cmd_hub_start(hub_dir, foreground=getattr(args, "foreground", True)),
             "stop": lambda: cmd_hub_stop(hub_dir),
             "status": lambda: cmd_hub_status(hub_dir),
             "peers": lambda: cmd_hub_peers(hub_dir),

@@ -72,7 +72,9 @@ def hermes_executable_path() -> str:
 
 
 def init_clan_if_needed(
-    clan_dir: Path, clan_id: str, display_name: str,
+    clan_dir: Path,
+    clan_id: str,
+    display_name: str,
     agora_url: str = "",
 ) -> tuple[bool, str]:
     """Initialize clan directory if it doesn't already exist.
@@ -113,7 +115,7 @@ def generate_keypair(clan_dir: Path, clan_id: str) -> tuple[bool, str, str]:
     kp = ClanKeyPair.generate()
     kp.save(str(keys_dir), clan_id)
     fp = kp.fingerprint()
-    return True, f"Ed25519 + X25519 keys generated", fp
+    return True, "Ed25519 + X25519 keys generated", fp
 
 
 def add_agent_node_section(clan_dir: Path) -> tuple[bool, str]:
@@ -136,6 +138,7 @@ def add_agent_node_section(clan_dir: Path) -> tuple[bool, str]:
             return False, "daemon section already present in config.toml"
 
         import tomli_w
+
         data["daemon"] = {
             "enabled": True,
             "namespace": data.get("clan", {}).get("id", "heraldo"),
@@ -144,13 +147,14 @@ def add_agent_node_section(clan_dir: Path) -> tuple[bool, str]:
         }
 
         from .config import _atomic_write
+
         _atomic_write(toml_path, tomli_w.dumps(data))
         return True, "daemon section added to config.toml"
 
     if not json_path.exists():
         return False, "No config found"
 
-    with open(json_path, "r", encoding="utf-8") as f:
+    with open(json_path, encoding="utf-8") as f:
         data = json.load(f)
 
     if "agent_node" in data:
@@ -188,9 +192,7 @@ def generate_launchagent(clan_dir: str | Path) -> tuple[Path, str]:
 
     # Split compound commands (e.g. "python -m hermes.cli")
     parts = hermes_exe.split()
-    program_args = "".join(
-        f"    <string>{p}</string>\n" for p in parts
-    )
+    program_args = "".join(f"    <string>{p}</string>\n" for p in parts)
     program_args += (
         f"    <string>daemon</string>\n"
         f"    <string>start</string>\n"
@@ -275,6 +277,7 @@ cd /d "{clan_dir}"
 # Service install / uninstall
 # ---------------------------------------------------------------------------
 
+
 def install_service(plat: Platform, clan_dir: Path) -> tuple[bool, str]:
     """Write service file and load/enable the service.
 
@@ -287,7 +290,8 @@ def install_service(plat: Platform, clan_dir: Path) -> tuple[bool, str]:
             target.write_text(content)
             subprocess.run(
                 ["launchctl", "load", "-w", str(target)],
-                capture_output=True, check=True,
+                capture_output=True,
+                check=True,
             )
             return True, "LaunchAgent installed (survives reboot)"
 
@@ -297,7 +301,8 @@ def install_service(plat: Platform, clan_dir: Path) -> tuple[bool, str]:
             target.write_text(content)
             subprocess.run(
                 ["systemctl", "--user", "enable", "--now", "hermes-agent"],
-                capture_output=True, check=True,
+                capture_output=True,
+                check=True,
             )
             return True, "systemd user service enabled"
 
@@ -307,11 +312,18 @@ def install_service(plat: Platform, clan_dir: Path) -> tuple[bool, str]:
             task_name = "HermesAgentNode"
             subprocess.run(
                 [
-                    "schtasks", "/Create", "/TN", task_name,
-                    "/TR", str(bat_path),
-                    "/SC", "ONLOGON", "/F",
+                    "schtasks",
+                    "/Create",
+                    "/TN",
+                    task_name,
+                    "/TR",
+                    str(bat_path),
+                    "/SC",
+                    "ONLOGON",
+                    "/F",
                 ],
-                capture_output=True, check=True,
+                capture_output=True,
+                check=True,
             )
             return True, "Windows scheduled task created"
 
@@ -330,10 +342,7 @@ def uninstall_service(plat: Platform) -> tuple[bool, str]:
     """
     try:
         if plat == Platform.MACOS:
-            target = (
-                Path.home() / "Library" / "LaunchAgents"
-                / f"{_LAUNCHAGENT_LABEL}.plist"
-            )
+            target = Path.home() / "Library" / "LaunchAgents" / f"{_LAUNCHAGENT_LABEL}.plist"
             if target.exists():
                 subprocess.run(
                     ["launchctl", "unload", str(target)],
@@ -347,10 +356,7 @@ def uninstall_service(plat: Platform) -> tuple[bool, str]:
                 ["systemctl", "--user", "disable", "--now", "hermes-agent"],
                 capture_output=True,
             )
-            target = (
-                Path.home() / ".config" / "systemd" / "user"
-                / "hermes-agent.service"
-            )
+            target = Path.home() / ".config" / "systemd" / "user" / "hermes-agent.service"
             if target.exists():
                 target.unlink()
             return True, "systemd service removed"
@@ -501,7 +507,7 @@ def install_hooks(dry_run: bool = False) -> tuple[bool, str, dict[str, Any]]:
     settings: dict[str, Any] = {}
 
     if settings_file.exists():
-        with open(settings_file, "r", encoding="utf-8") as f:
+        with open(settings_file, encoding="utf-8") as f:
             settings = json.load(f)
 
     hooks = settings.get("hooks", {})
@@ -512,9 +518,7 @@ def install_hooks(dry_run: bool = False) -> tuple[bool, str, dict[str, Any]]:
 
         # Check if hermes hooks already installed (by marker)
         has_hermes = any(
-            h.get("_hermes") == _HERMES_HOOKS_MARKER
-            for h in existing
-            if isinstance(h, dict)
+            h.get("_hermes") == _HERMES_HOOKS_MARKER for h in existing if isinstance(h, dict)
         )
         if has_hermes:
             continue
@@ -541,7 +545,7 @@ def uninstall_hooks() -> tuple[bool, str]:
     if not settings_file.exists():
         return False, "No settings.json found"
 
-    with open(settings_file, "r", encoding="utf-8") as f:
+    with open(settings_file, encoding="utf-8") as f:
         settings = json.load(f)
 
     hooks = settings.get("hooks", {})
@@ -550,7 +554,8 @@ def uninstall_hooks() -> tuple[bool, str]:
     for event in list(hooks.keys()):
         original = hooks[event]
         filtered = [
-            h for h in original
+            h
+            for h in original
             if not (isinstance(h, dict) and h.get("_hermes") == _HERMES_HOOKS_MARKER)
         ]
         if len(filtered) != len(original):
@@ -571,6 +576,7 @@ def uninstall_hooks() -> tuple[bool, str]:
 # Desktop notifications
 # ---------------------------------------------------------------------------
 
+
 def send_notification(title: str, msg: str, plat: Platform | None = None) -> bool:
     """Send a desktop notification. Best-effort — never raises.
 
@@ -587,19 +593,20 @@ def send_notification(title: str, msg: str, plat: Platform | None = None) -> boo
             safe_title = _sanitize_for_shell(title)
             safe_msg = _sanitize_for_shell(msg)
             script = (
-                f'display notification "{safe_msg}" with title "{safe_title}"'
-                f' sound name "Glass"'
+                f'display notification "{safe_msg}" with title "{safe_title}" sound name "Glass"'
             )
             subprocess.run(
                 ["osascript", "-e", script],
-                capture_output=True, timeout=5,
+                capture_output=True,
+                timeout=5,
             )
             return True
 
         elif plat == Platform.LINUX:
             subprocess.run(
                 ["notify-send", title, msg],
-                capture_output=True, timeout=5,
+                capture_output=True,
+                timeout=5,
             )
             return True
 
@@ -608,9 +615,9 @@ def send_notification(title: str, msg: str, plat: Platform | None = None) -> boo
                 f"[Windows.UI.Notifications.ToastNotificationManager,"
                 f"Windows.UI.Notifications,ContentType=WindowsRuntime];"
                 f'$xml = "<toast><visual><binding template=\\"ToastText02\\">'
-                f"<text id=\\\"1\\\">{title}</text>"
-                f"<text id=\\\"2\\\">{msg}</text>"
-                f"</binding></visual></toast>\";"
+                f'<text id=\\"1\\">{title}</text>'
+                f'<text id=\\"2\\">{msg}</text>'
+                f'</binding></visual></toast>";'
                 f"$t = [Windows.Data.Xml.Dom.XmlDocument,Windows.Data.Xml.Dom.XmlDocument,"
                 f"ContentType=WindowsRuntime]::new();"
                 f"$t.LoadXml($xml);"
@@ -620,7 +627,8 @@ def send_notification(title: str, msg: str, plat: Platform | None = None) -> boo
             )
             subprocess.run(
                 ["powershell", "-Command", ps_cmd],
-                capture_output=True, timeout=10,
+                capture_output=True,
+                timeout=10,
             )
             return True
 
@@ -633,6 +641,7 @@ def send_notification(title: str, msg: str, plat: Platform | None = None) -> boo
 # ---------------------------------------------------------------------------
 # Orchestrators
 # ---------------------------------------------------------------------------
+
 
 def _print_banner() -> None:
     """Print the HERMES install banner."""
@@ -678,7 +687,10 @@ def run_install(
 
     # 2. Init clan
     created, msg = init_clan_if_needed(
-        clan_dir, clan_id, display_name, agora_url=gateway_url,
+        clan_dir,
+        clan_id,
+        display_name,
+        agora_url=gateway_url,
     )
     _print_step(True, msg)
     result.steps.append(msg)
@@ -791,7 +803,8 @@ def run_uninstall(
         parts = hermes_exe.split()
         subprocess.run(
             [*parts, "daemon", "stop", "--dir", str(clan_dir)],
-            capture_output=True, timeout=10,
+            capture_output=True,
+            timeout=10,
         )
         _print_step(True, "Agent Node stopped")
         result.steps.append("Daemon stopped")

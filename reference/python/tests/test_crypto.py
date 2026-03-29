@@ -3,9 +3,10 @@
 import json
 import os
 import tempfile
-from datetime import date, timedelta
+from datetime import date
 
 import pytest
+from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
@@ -16,7 +17,6 @@ from hermes.crypto import (
     COMPACT_SEALED_STATIC_LEN,
     ClanKeyPair,
     NonceTracker,
-    _build_aad_ecdhe,
     decrypt_message,
     derive_shared_secret,
     derive_shared_secret_ecdhe,
@@ -158,14 +158,14 @@ class TestEncryption:
         secret1 = os.urandom(32)
         secret2 = os.urandom(32)
         encrypted = encrypt_message(secret1, "secret message")
-        with pytest.raises(Exception):
+        with pytest.raises(InvalidTag):
             decrypt_message(secret2, encrypted["nonce"], encrypted["ciphertext"])
 
     def test_tampered_ciphertext_fails(self):
         secret = os.urandom(32)
         encrypted = encrypt_message(secret, "important data")
         tampered = encrypted["ciphertext"][:-2] + "ff"
-        with pytest.raises(Exception):
+        with pytest.raises(InvalidTag):
             decrypt_message(secret, encrypted["nonce"], tampered)
 
     def test_unicode_message(self):
@@ -304,9 +304,7 @@ class TestFullFlow:
 
             # 6. JEI reads from relay, opens message
             relay_received = json.loads(relay_json)
-            plaintext = open_bus_message(
-                jei, dani_sign_pub, dani_dh_pub, relay_received["secure"]
-            )
+            plaintext = open_bus_message(jei, dani_sign_pub, dani_dh_pub, relay_received["secure"])
             assert plaintext == "HELLO:momoshod:hermes_relay_operational"
 
             # 7. JEI responds with hello_ack
@@ -332,7 +330,7 @@ class TestAAD:
         aad1 = b'{"dst":"jei","src":"momoshod"}'
         aad2 = b'{"dst":"evil","src":"momoshod"}'
         encrypted = encrypt_message(secret, "test", aad=aad1)
-        with pytest.raises(Exception):
+        with pytest.raises(InvalidTag):
             decrypt_message(secret, encrypted["nonce"], encrypted["ciphertext"], aad=aad2)
 
     def test_aad_none_backward_compatible(self):
@@ -349,7 +347,9 @@ class TestAAD:
         meta = {"src": "momoshod", "dst": "jei", "type": "quest", "ts": "2026-03-08"}
         sealed = seal_bus_message(dani, jei.dh_public, "quest payload", envelope_meta=meta)
         assert "aad" in sealed
-        plaintext = open_bus_message(jei, dani.sign_public, dani.dh_public, sealed, envelope_meta=meta)
+        plaintext = open_bus_message(
+            jei, dani.sign_public, dani.dh_public, sealed, envelope_meta=meta
+        )
         assert plaintext == "quest payload"
 
     def test_seal_open_mismatched_meta_fails(self):
@@ -359,7 +359,9 @@ class TestAAD:
         meta1 = {"src": "momoshod", "dst": "jei", "type": "quest", "ts": "2026-03-08"}
         meta2 = {"src": "momoshod", "dst": "evil", "type": "quest", "ts": "2026-03-08"}
         sealed = seal_bus_message(dani, jei.dh_public, "quest payload", envelope_meta=meta1)
-        result = open_bus_message(jei, dani.sign_public, dani.dh_public, sealed, envelope_meta=meta2)
+        result = open_bus_message(
+            jei, dani.sign_public, dani.dh_public, sealed, envelope_meta=meta2
+        )
         assert result is None
 
     def test_seal_without_meta_backward_compatible(self):
@@ -379,7 +381,9 @@ class TestAAD:
         sealed = seal_bus_message(dani, jei.dh_public, "old message")
         # Open WITH meta — should still work (backward compat)
         meta = {"src": "momoshod", "dst": "jei", "type": "hello", "ts": "2026-03-08"}
-        plaintext = open_bus_message(jei, dani.sign_public, dani.dh_public, sealed, envelope_meta=meta)
+        plaintext = open_bus_message(
+            jei, dani.sign_public, dani.dh_public, sealed, envelope_meta=meta
+        )
         assert plaintext == "old message"
 
 
@@ -461,15 +465,23 @@ class TestNonceTrackerIntegration:
 
         # First open: should succeed
         result1 = open_bus_message(
-            jei, dani.sign_public, dani.dh_public, sealed,
-            envelope_meta=meta, nonce_tracker=tracker,
+            jei,
+            dani.sign_public,
+            dani.dh_public,
+            sealed,
+            envelope_meta=meta,
+            nonce_tracker=tracker,
         )
         assert result1 == "quest payload"
 
         # Second open with same sealed message: replay detected
         result2 = open_bus_message(
-            jei, dani.sign_public, dani.dh_public, sealed,
-            envelope_meta=meta, nonce_tracker=tracker,
+            jei,
+            dani.sign_public,
+            dani.dh_public,
+            sealed,
+            envelope_meta=meta,
+            nonce_tracker=tracker,
         )
         assert result2 is None
 
@@ -524,18 +536,14 @@ class TestECDHE:
         jei = ClanKeyPair.generate()
         meta = {"src": "momoshod", "dst": "jei", "type": "quest", "ts": "2026-03-16"}
 
-        sealed = seal_bus_message_ecdhe(
-            dani, jei.dh_public, "tamper test", envelope_meta=meta
-        )
+        sealed = seal_bus_message_ecdhe(dani, jei.dh_public, "tamper test", envelope_meta=meta)
 
         # Replace eph_pub with a different key
         fake_eph = X25519PrivateKey.generate().public_key()
         sealed["eph_pub"] = fake_eph.public_bytes(Encoding.Raw, PublicFormat.Raw).hex()
 
         # Signature verification should fail (signature covers ciphertext + original eph_pub)
-        result = open_bus_message(
-            jei, dani.sign_public, dani.dh_public, sealed, envelope_meta=meta
-        )
+        result = open_bus_message(jei, dani.sign_public, dani.dh_public, sealed, envelope_meta=meta)
         assert result is None
 
     def test_ecdhe_aad_binding(self):
@@ -544,9 +552,7 @@ class TestECDHE:
         jei = ClanKeyPair.generate()
         meta = {"src": "momoshod", "dst": "jei", "type": "quest", "ts": "2026-03-16"}
 
-        sealed = seal_bus_message_ecdhe(
-            dani, jei.dh_public, "aad binding test", envelope_meta=meta
-        )
+        sealed = seal_bus_message_ecdhe(dani, jei.dh_public, "aad binding test", envelope_meta=meta)
 
         # Open with modified envelope_meta — AAD mismatch should cause failure
         bad_meta = {"src": "momoshod", "dst": "evil", "type": "quest", "ts": "2026-03-16"}
@@ -571,9 +577,7 @@ class TestECDHE:
         other_eph = X25519PrivateKey.generate().public_key()
         sealed["eph_pub"] = other_eph.public_bytes(Encoding.Raw, PublicFormat.Raw).hex()
 
-        result = open_bus_message(
-            jei, dani.sign_public, dani.dh_public, sealed, envelope_meta=meta
-        )
+        result = open_bus_message(jei, dani.sign_public, dani.dh_public, sealed, envelope_meta=meta)
         assert result is None
 
     def test_ecdhe_backward_compat(self):
@@ -609,15 +613,11 @@ class TestECDHE:
         meta = {"src": "momoshod", "dst": "jei", "type": "quest", "ts": "2026-03-16"}
 
         # ECDHE message
-        sealed_ecdhe = seal_bus_message_ecdhe(
-            dani, jei.dh_public, "ecdhe msg", envelope_meta=meta
-        )
+        sealed_ecdhe = seal_bus_message_ecdhe(dani, jei.dh_public, "ecdhe msg", envelope_meta=meta)
         assert "eph_pub" in sealed_ecdhe
 
         # Static message
-        sealed_static = seal_bus_message(
-            dani, jei.dh_public, "static msg", envelope_meta=meta
-        )
+        sealed_static = seal_bus_message(dani, jei.dh_public, "static msg", envelope_meta=meta)
         assert "eph_pub" not in sealed_static
 
         # Both should open correctly with the same open_bus_message function
@@ -649,8 +649,9 @@ class TestECDHEInterop:
 
         # Divergence 1: JEI HKDF info
         raw_shared = eph_private.exchange(receiver_dh_pub)
-        hkdf = HKDF(algorithm=hashes.SHA256(), length=32, salt=None,
-                     info=b"HERMES-ARC8446-v3-ECDHE")
+        hkdf = HKDF(
+            algorithm=hashes.SHA256(), length=32, salt=None, info=b"HERMES-ARC8446-v3-ECDHE"
+        )
         shared_secret = hkdf.derive(raw_shared)
 
         # Divergence 2: AAD without eph_pub
@@ -813,18 +814,14 @@ class TestCompactSealedEnvelope:
         """Open compact should reject arrays with wrong element count."""
         dani = ClanKeyPair.generate()
         jei = ClanKeyPair.generate()
-        result = open_bus_message_compact(
-            jei, dani.sign_public, dani.dh_public, ["a", "b", "c"]
-        )
+        result = open_bus_message_compact(jei, dani.sign_public, dani.dh_public, ["a", "b", "c"])
         assert result is None
 
     def test_compact_rejects_non_list(self):
         """Open compact should reject non-list input."""
         dani = ClanKeyPair.generate()
         jei = ClanKeyPair.generate()
-        result = open_bus_message_compact(
-            jei, dani.sign_public, dani.dh_public, {"not": "a list"}
-        )
+        result = open_bus_message_compact(jei, dani.sign_public, dani.dh_public, {"not": "a list"})
         assert result is None
 
     def test_compact_vs_verbose_same_crypto(self):
@@ -862,9 +859,7 @@ class TestCompactSealedEnvelope:
         jei = ClanKeyPair.generate()
 
         sealed = seal_bus_message_compact(dani, jei.dh_public, "no meta")
-        plaintext = open_bus_message_compact(
-            jei, dani.sign_public, dani.dh_public, sealed
-        )
+        plaintext = open_bus_message_compact(jei, dani.sign_public, dani.dh_public, sealed)
         assert plaintext == "no meta"
 
     def test_ecdhe_compact_without_envelope_meta(self):
@@ -873,9 +868,7 @@ class TestCompactSealedEnvelope:
         jei = ClanKeyPair.generate()
 
         sealed = seal_bus_message_ecdhe_compact(dani, jei.dh_public, "no meta ecdhe")
-        plaintext = open_bus_message_compact(
-            jei, dani.sign_public, dani.dh_public, sealed
-        )
+        plaintext = open_bus_message_compact(jei, dani.sign_public, dani.dh_public, sealed)
         assert plaintext == "no meta ecdhe"
 
     def test_compact_size_savings(self):
@@ -884,9 +877,7 @@ class TestCompactSealedEnvelope:
         jei = ClanKeyPair.generate()
         meta = {"src": "momoshod", "dst": "jei", "type": "quest", "ts": "2026-03-17"}
 
-        sealed_v = seal_bus_message_ecdhe(
-            dani, jei.dh_public, "size test", envelope_meta=meta
-        )
+        sealed_v = seal_bus_message_ecdhe(dani, jei.dh_public, "size test", envelope_meta=meta)
         sealed_c = seal_bus_message_ecdhe_compact(
             dani, jei.dh_public, "size test", envelope_meta=meta
         )

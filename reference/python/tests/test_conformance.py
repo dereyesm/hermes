@@ -12,7 +12,6 @@ To run: python -m pytest tests/test_conformance.py -v
 """
 
 import json
-import os
 from datetime import date
 from pathlib import Path
 
@@ -20,14 +19,12 @@ import pytest
 
 from hermes.bus import ack_message, read_bus, write_message
 from hermes.message import (
-    MAX_MSG_LENGTH,
     VALID_TYPES,
     Message,
     ValidationError,
     create_message,
     validate_message,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -70,7 +67,7 @@ class TestL1MessageFormat:
         bus = tmp_path / "bus.jsonl"
         write_message(bus, msg)
         raw = bus.read_text(encoding="utf-8")
-        lines = [l for l in raw.split("\n") if l.strip()]
+        lines = [line for line in raw.split("\n") if line.strip()]
         assert len(lines) == 1
         parsed = json.loads(lines[0])
         assert isinstance(parsed, dict)
@@ -201,8 +198,15 @@ class TestL1MessageFormat:
     # (This is a policy requirement — tested via absence of credential fields.)
     def test_l1_12_no_credential_fields(self):
         msg = validate_message(_valid_msg())
-        d = {"ts": msg.ts.isoformat(), "src": msg.src, "dst": msg.dst,
-             "type": msg.type, "msg": msg.msg, "ttl": msg.ttl, "ack": msg.ack}
+        d = {
+            "ts": msg.ts.isoformat(),
+            "src": msg.src,
+            "dst": msg.dst,
+            "type": msg.type,
+            "msg": msg.msg,
+            "ttl": msg.ttl,
+            "ack": msg.ack,
+        }
         for key in ("password", "secret", "api_key", "token", "credential"):
             assert key not in d
 
@@ -309,7 +313,7 @@ class TestL1BusOperations:
         line1 = bus.read_text(encoding="utf-8").strip()
         m2 = create_message(src="alpha", dst="beta", type="event", msg="appended")
         write_message(bus, m2)
-        lines = [l for l in bus.read_text(encoding="utf-8").split("\n") if l.strip()]
+        lines = [line for line in bus.read_text(encoding="utf-8").split("\n") if line.strip()]
         assert lines[0] == line1  # first line unchanged
 
     # L1-23: SHOULD read from last known offset.

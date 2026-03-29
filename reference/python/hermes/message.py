@@ -12,18 +12,20 @@ import json
 import re
 import sys
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date
 
 # ARC-5322: Valid message types
-VALID_TYPES = frozenset({
-    "state",
-    "alert",
-    "event",
-    "request",
-    "data_cross",
-    "dispatch",
-    "dojo_event",
-})
+VALID_TYPES = frozenset(
+    {
+        "state",
+        "alert",
+        "event",
+        "request",
+        "data_cross",
+        "dispatch",
+        "dojo_event",
+    }
+)
 
 # ARC-5322: Default TTLs per message type
 DEFAULT_TTLS: dict[str, int] = {
@@ -175,7 +177,7 @@ def validate_message(data: dict) -> Message:
         raise ValidationError(f"Extra fields not allowed: {', '.join(sorted(extra))}")
 
     # encoding: optional, defaults to "raw"
-    encoding_raw = data.get("encoding", None)
+    encoding_raw = data.get("encoding")
     if encoding_raw is not None:
         if not isinstance(encoding_raw, str):
             raise ValidationError(f"'encoding' must be a string, got {type(encoding_raw).__name__}")
@@ -190,8 +192,10 @@ def validate_message(data: dict) -> Message:
         raise ValidationError(f"'ts' must be a string, got {type(ts_raw).__name__}")
     try:
         ts = date.fromisoformat(ts_raw)
-    except ValueError:
-        raise ValidationError(f"Invalid date format for 'ts': '{ts_raw}'. Expected YYYY-MM-DD")
+    except ValueError as err:
+        raise ValidationError(
+            f"Invalid date format for 'ts': '{ts_raw}'. Expected YYYY-MM-DD"
+        ) from err
 
     # src: valid namespace, no broadcast
     validate_namespace(data["src"], allow_broadcast=False)
@@ -205,7 +209,7 @@ def validate_message(data: dict) -> Message:
     if dst != "*" and src == dst:
         raise ValidationError(f"Source and destination must differ: '{src}' == '{dst}'")
 
-    # type: must be in the valid set
+    # msg_type: must be in the valid set
     msg_type = data["type"]
     if msg_type not in VALID_TYPES:
         raise ValidationError(
@@ -223,12 +227,11 @@ def validate_message(data: dict) -> Message:
     # When encoding is absent or "raw", enforce 120-char limit
     # When encoding is "cbor" or "ref", skip the limit
     effective_encoding = encoding_raw if encoding_raw is not None else "raw"
-    if effective_encoding == "raw":
-        if len(msg) > MAX_MSG_LENGTH:
-            raise ValidationError(
-                f"'msg' exceeds {MAX_MSG_LENGTH} chars (got {len(msg)}). "
-                f"Consider splitting into multiple messages (atomicity principle)"
-            )
+    if effective_encoding == "raw" and len(msg) > MAX_MSG_LENGTH:
+        raise ValidationError(
+            f"'msg' exceeds {MAX_MSG_LENGTH} chars (got {len(msg)}). "
+            f"Consider splitting into multiple messages (atomicity principle)"
+        )
 
     if any(ord(c) < 32 and c not in ("\t",) for c in msg):
         raise ValidationError("'msg' must not contain control characters")
@@ -252,7 +255,7 @@ def validate_message(data: dict) -> Message:
         seen.add(ns)
 
     # seq: optional, positive integer (ARC-9001 F1)
-    seq_raw = data.get("seq", None)
+    seq_raw = data.get("seq")
     if seq_raw is not None:
         if not isinstance(seq_raw, int) or isinstance(seq_raw, bool):
             raise ValidationError(f"'seq' must be an integer, got {type(seq_raw).__name__}")
@@ -260,7 +263,7 @@ def validate_message(data: dict) -> Message:
             raise ValidationError(f"'seq' must be positive (>= 1), got {seq_raw}")
 
     # w: optional, write vector dict (ARC-9001 F3)
-    w_raw = data.get("w", None)
+    w_raw = data.get("w")
     if w_raw is not None:
         if not isinstance(w_raw, dict):
             raise ValidationError(f"'w' must be a dict, got {type(w_raw).__name__}")
@@ -268,13 +271,23 @@ def validate_message(data: dict) -> Message:
             if not isinstance(k, str):
                 raise ValidationError(f"'w' keys must be strings, got {type(k).__name__}")
             if not isinstance(v, int) or isinstance(v, bool):
-                raise ValidationError(f"'w' values must be integers, got {type(v).__name__} for key '{k}'")
+                raise ValidationError(
+                    f"'w' values must be integers, got {type(v).__name__} for key '{k}'"
+                )
             if v < 0:
                 raise ValidationError(f"'w' values must be non-negative, got {v} for key '{k}'")
 
     return Message(
-        ts=ts, src=src, dst=dst, type=msg_type, msg=msg, ttl=ttl,
-        ack=list(ack), encoding=encoding_raw, seq=seq_raw, w=w_raw,
+        ts=ts,
+        src=src,
+        dst=dst,
+        type=msg_type,
+        msg=msg,
+        ttl=ttl,
+        ack=list(ack),
+        encoding=encoding_raw,
+        seq=seq_raw,
+        w=w_raw,
     )
 
 
@@ -298,15 +311,20 @@ def validate_compact(data: list) -> Message:
 
     # §14.3: epoch-day → date
     if not isinstance(epoch_day, int) or isinstance(epoch_day, bool):
-        raise ValidationError(f"Compact ts (index 0) must be an integer, got {type(epoch_day).__name__}")
+        raise ValidationError(
+            f"Compact ts (index 0) must be an integer, got {type(epoch_day).__name__}"
+        )
     if epoch_day < 0:
         raise ValidationError(f"Compact ts (index 0) must be non-negative, got {epoch_day}")
     from datetime import timedelta
+
     ts = COMPACT_EPOCH + timedelta(days=epoch_day)
 
     # §14.4: type int → string
     if not isinstance(type_int, int) or isinstance(type_int, bool):
-        raise ValidationError(f"Compact type (index 3) must be an integer, got {type(type_int).__name__}")
+        raise ValidationError(
+            f"Compact type (index 3) must be an integer, got {type(type_int).__name__}"
+        )
     if type_int not in INT_TO_TYPE:
         raise ValidationError(
             f"Invalid compact type {type_int}. Valid range: 0-{max(INT_TO_TYPE.keys())}"
@@ -343,7 +361,7 @@ def parse_line(line: str) -> Message:
     try:
         data = json.loads(stripped)
     except json.JSONDecodeError as e:
-        raise ValidationError(f"JSON parse error: {e}")
+        raise ValidationError(f"JSON parse error: {e}") from e
 
     if isinstance(data, dict):
         return validate_message(data)

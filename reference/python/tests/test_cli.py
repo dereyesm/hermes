@@ -27,11 +27,17 @@ class TestInit:
     def test_init_with_agora_url(self, tmp_path):
         import json
 
-        main([
-            "init", "url-clan", "URL Clan",
-            "--agora-url", "https://github.com/hermes-agora/directory",
-            "--dir", str(tmp_path),
-        ])
+        main(
+            [
+                "init",
+                "url-clan",
+                "URL Clan",
+                "--agora-url",
+                "https://github.com/hermes-agora/directory",
+                "--dir",
+                str(tmp_path),
+            ]
+        )
         config = json.loads((tmp_path / "gateway.json").read_text())
         assert config["agora"]["url"] == "https://github.com/hermes-agora/directory"
 
@@ -63,9 +69,7 @@ class TestPublish:
 
         main(["init", "pub2", "Pub 2", "--dir", str(tmp_path)])
         main(["publish", "--dir", str(tmp_path)])
-        profile = json.loads(
-            (tmp_path / ".agora" / "profiles" / "pub2.json").read_text()
-        )
+        profile = json.loads((tmp_path / ".agora" / "profiles" / "pub2.json").read_text())
         assert profile["clan_id"] == "pub2"
         assert "agents" in profile
         assert "public_key" in profile
@@ -84,11 +88,13 @@ class TestPeer:
 
         # Point both to shared agora by symlinking
         import shutil
+
         # Remove default .agora dirs and replace with shared
         shutil.rmtree(clan_a / ".agora")
         shutil.rmtree(clan_b / ".agora")
         shared_agora.mkdir()
         from hermes.agora import AgoraDirectory
+
         agora = AgoraDirectory(shared_agora)
         agora.ensure_structure()
         (clan_a / ".agora").symlink_to(shared_agora)
@@ -108,6 +114,7 @@ class TestPeer:
 
         # Alpha should have hello in inbox
         from hermes.agora import AgoraDirectory
+
         agora = AgoraDirectory(clan_a / ".agora")
         messages = agora.read_inbox("alpha")
         assert len(messages) == 1
@@ -142,6 +149,7 @@ class TestSend:
         assert rc == 0
 
         from hermes.agora import AgoraDirectory
+
         agora = AgoraDirectory(tmp_path / ".agora")
         messages = agora.read_inbox("receiver")
         assert len(messages) == 1
@@ -150,10 +158,15 @@ class TestSend:
 
     def test_send_blocked_by_filter(self, tmp_path):
         main(["init", "leaky", "Leaky", "--dir", str(tmp_path)])
-        rc = main([
-            "send", "target", "Check bus.jsonl for secrets",
-            "--dir", str(tmp_path),
-        ])
+        rc = main(
+            [
+                "send",
+                "target",
+                "Check bus.jsonl for secrets",
+                "--dir",
+                str(tmp_path),
+            ]
+        )
         assert rc == 1
 
 
@@ -169,13 +182,17 @@ class TestInbox:
         main(["init", "recv", "Receiver", "--dir", str(tmp_path)])
         # Drop a message manually
         from hermes.agora import AgoraDirectory
+
         agora = AgoraDirectory(tmp_path / ".agora")
-        agora.send_message("recv", {
-            "type": "quest_proposal",
-            "source_clan": "other-clan",
-            "payload": "Need help with finance",
-            "timestamp": "2026-03-06",
-        })
+        agora.send_message(
+            "recv",
+            {
+                "type": "quest_proposal",
+                "source_clan": "other-clan",
+                "payload": "Need help with finance",
+                "timestamp": "2026-03-06",
+            },
+        )
 
         rc = main(["inbox", "--dir", str(tmp_path)])
         assert rc == 0
@@ -192,12 +209,14 @@ class TestDiscover:
         # Add an agent to config
         config_path = tmp_path / "gateway.json"
         config = json.loads(config_path.read_text())
-        config["agents"] = [{
-            "internal": {"namespace": "finance", "agent": "auditor"},
-            "external": "gold-auditor",
-            "published": True,
-            "capabilities": ["finance/audit", "finance/tax"],
-        }]
+        config["agents"] = [
+            {
+                "internal": {"namespace": "finance", "agent": "auditor"},
+                "external": "gold-auditor",
+                "published": True,
+                "capabilities": ["finance/audit", "finance/tax"],
+            }
+        ]
         config_path.write_text(json.dumps(config, indent=2))
 
         # Publish profile
@@ -205,6 +224,7 @@ class TestDiscover:
 
         # Discover
         from hermes.agora import AgoraDirectory
+
         agora = AgoraDirectory(tmp_path / ".agora")
         matches = agora.discover("finance")
         assert len(matches) == 1
@@ -222,7 +242,11 @@ class TestBusCommand:
         capsys.readouterr()  # discard init output
         bus_path = tmp_path / "bus.jsonl"
         msg = create_message(
-            src="alpha", dst="*", type="state", msg="test message", ttl=7,
+            src="alpha",
+            dst="*",
+            type="state",
+            msg="test message",
+            ttl=7,
             ts=date(2026, 3, 17),
         )
         bus_path.write_text(msg.to_jsonl() + "\n")
@@ -258,7 +282,11 @@ class TestBusCommand:
         bus_path = tmp_path / "bus.jsonl"
         # Add a compact message
         msg2 = create_message(
-            src="beta", dst="*", type="event", msg="compact msg", ttl=3,
+            src="beta",
+            dst="*",
+            type="event",
+            msg="compact msg",
+            ttl=3,
             ts=date(2026, 3, 17),
         )
         with bus_path.open("a") as f:
@@ -277,7 +305,11 @@ class TestBusCommand:
         self._setup_clan_with_bus(tmp_path, capsys)
         bus_path = tmp_path / "bus.jsonl"
         msg2 = create_message(
-            src="beta", dst="*", type="alert", msg="alert msg", ttl=5,
+            src="beta",
+            dst="*",
+            type="alert",
+            msg="alert msg",
+            ttl=5,
             ts=date(2026, 3, 17),
         )
         with bus_path.open("a") as f:
@@ -295,6 +327,7 @@ class TestEndToEnd:
 
     def test_first_contact(self, tmp_path):
         import shutil
+
         from hermes.agora import AgoraDirectory
 
         # Shared Agora
@@ -346,6 +379,4 @@ class TestEndToEnd:
         # Jeimmy reads inbox — hello + quest_response
         msgs_j2 = agora.read_inbox("jeimmy-clan")
         assert len(msgs_j2) == 2
-        assert any(
-            m.get("payload") == "First Contact achieved!" for m in msgs_j2
-        )
+        assert any(m.get("payload") == "First Contact achieved!" for m in msgs_j2)

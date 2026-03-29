@@ -41,9 +41,7 @@ class AgoraDirectory:
         clan_id = profile["clan_id"]
         profile_path = self.path / "profiles" / f"{clan_id}.json"
         profile_path.parent.mkdir(parents=True, exist_ok=True)
-        profile_path.write_text(
-            json.dumps(profile, indent=2, ensure_ascii=False) + "\n"
-        )
+        profile_path.write_text(json.dumps(profile, indent=2, ensure_ascii=False) + "\n")
         return profile_path
 
     def read_profile(self, clan_id: str) -> dict[str, Any] | None:
@@ -75,9 +73,7 @@ class AgoraDirectory:
         seq = len(list(inbox_dir.glob("*.json")))
         msg_id = f"{date.today().isoformat()}-{msg_type}-{seq:04d}"
         msg_path = inbox_dir / f"{msg_id}.json"
-        msg_path.write_text(
-            json.dumps(message, indent=2, ensure_ascii=False) + "\n"
-        )
+        msg_path.write_text(json.dumps(message, indent=2, ensure_ascii=False) + "\n")
         return msg_path
 
     def read_inbox(self, clan_id: str) -> list[dict[str, Any]]:
@@ -118,12 +114,14 @@ class AgoraDirectory:
             for agent in profile.get("agents", []):
                 for cap in agent.get("capabilities", []):
                     if cap.startswith(capability) or capability.startswith(cap):
-                        matches.append({
-                            "clan_id": clan_id,
-                            "agent_alias": agent["alias"],
-                            "capabilities": agent["capabilities"],
-                            "resonance": agent.get("resonance", 0),
-                        })
+                        matches.append(
+                            {
+                                "clan_id": clan_id,
+                                "agent_alias": agent["alias"],
+                                "capabilities": agent["capabilities"],
+                                "resonance": agent.get("resonance", 0),
+                            }
+                        )
                         break  # Don't duplicate agent in results
 
         # Sort by resonance descending
@@ -139,7 +137,5 @@ class AgoraDirectory:
         att_dir.mkdir(parents=True, exist_ok=True)
         att_id = attestation.get("id", f"att-{date.today().isoformat()}")
         att_path = att_dir / f"{att_id}.json"
-        att_path.write_text(
-            json.dumps(attestation, indent=2, ensure_ascii=False) + "\n"
-        )
+        att_path.write_text(json.dumps(attestation, indent=2, ensure_ascii=False) + "\n")
         return att_path

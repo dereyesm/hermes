@@ -1,27 +1,11 @@
 """Tests for HERMES message validation and bus operations."""
 
 import json
-import os
-import tempfile
 from datetime import date, timedelta
 from pathlib import Path
 
 import pytest
 
-from hermes.message import (
-    COMPACT_EPOCH,
-    INT_TO_TYPE,
-    MAX_MSG_LENGTH,
-    TYPE_TO_INT,
-    VALID_ENCODINGS,
-    Message,
-    ValidationError,
-    create_message,
-    parse_line,
-    validate_compact,
-    validate_message,
-    validate_namespace,
-)
 from hermes.bus import (
     ack_message,
     archive_expired,
@@ -31,8 +15,20 @@ from hermes.bus import (
     read_bus,
     write_message,
 )
+from hermes.message import (
+    COMPACT_EPOCH,
+    INT_TO_TYPE,
+    MAX_MSG_LENGTH,
+    TYPE_TO_INT,
+    Message,
+    ValidationError,
+    create_message,
+    parse_line,
+    validate_compact,
+    validate_message,
+    validate_namespace,
+)
 from hermes.sync import FinAction, SynResult, fin, syn, syn_report
-
 
 # ─── Namespace Validation ───────────────────────────────────────────
 
@@ -174,23 +170,27 @@ class TestValidateMessage:
 
 class TestCreateMessage:
     def test_defaults(self):
-        msg = create_message(
-            src="engineering", dst="*", type="alert", msg="system_down"
-        )
+        msg = create_message(src="engineering", dst="*", type="alert", msg="system_down")
         assert msg.ts == date.today()
         assert msg.ttl == 5  # alert default
         assert msg.ack == []
 
     def test_custom_ttl(self):
         msg = create_message(
-            src="engineering", dst="finance", type="data_cross",
-            msg="costs_q4_2400usd@aws", ttl=14,
+            src="engineering",
+            dst="finance",
+            type="data_cross",
+            msg="costs_q4_2400usd@aws",
+            ttl=14,
         )
         assert msg.ttl == 14
 
     def test_custom_date(self):
         msg = create_message(
-            src="ops", dst="*", type="event", msg="deploy_complete",
+            src="ops",
+            dst="*",
+            type="event",
+            msg="deploy_complete",
             ts=date(2026, 6, 1),
         )
         assert msg.ts == date(2026, 6, 1)
@@ -242,9 +242,7 @@ class TestPayloadEncoding:
 
     def test_ref_encoding_allows_file_path(self):
         """encoding=ref allows file paths as payload."""
-        msg = validate_message(_valid_data(
-            msg="/shared/reports/q1-analysis.json", encoding="ref"
-        ))
+        msg = validate_message(_valid_data(msg="/shared/reports/q1-analysis.json", encoding="ref"))
         assert msg.encoding == "ref"
 
     def test_invalid_encoding_rejected(self):
@@ -260,8 +258,11 @@ class TestPayloadEncoding:
     def test_serialization_includes_cbor_encoding(self):
         """to_dict includes encoding when cbor."""
         msg = create_message(
-            src="eng", dst="ops", type="data_cross",
-            msg="o2Rjb3N0GQl4", encoding="cbor",
+            src="eng",
+            dst="ops",
+            type="data_cross",
+            msg="o2Rjb3N0GQl4",
+            encoding="cbor",
         )
         d = msg.to_dict()
         assert d["encoding"] == "cbor"
@@ -269,8 +270,11 @@ class TestPayloadEncoding:
     def test_roundtrip_with_encoding(self):
         """Serialization/deserialization preserves encoding."""
         msg = create_message(
-            src="eng", dst="ops", type="data_cross",
-            msg="/path/to/data.csv", encoding="ref",
+            src="eng",
+            dst="ops",
+            type="data_cross",
+            msg="/path/to/data.csv",
+            encoding="ref",
         )
         d = msg.to_dict()
         msg2 = validate_message(d)
@@ -279,8 +283,11 @@ class TestPayloadEncoding:
 
     def test_create_message_with_encoding(self):
         msg = create_message(
-            src="eng", dst="ops", type="data_cross",
-            msg="o2Rjb3N0GQl4" * 20, encoding="cbor",
+            src="eng",
+            dst="ops",
+            type="data_cross",
+            msg="o2Rjb3N0GQl4" * 20,
+            encoding="cbor",
         )
         assert msg.encoding == "cbor"
         assert len(msg.msg) > 120
@@ -330,8 +337,13 @@ class TestBusOperations:
 
     def test_filter_excludes_acked(self):
         msg = Message(
-            ts=date.today(), src="eng", dst="*", type="state",
-            msg="done", ttl=7, ack=["finance"],
+            ts=date.today(),
+            src="eng",
+            dst="*",
+            type="state",
+            msg="done",
+            ttl=7,
+            ack=["finance"],
         )
         filtered = filter_for_namespace([msg], "finance")
         assert len(filtered) == 0
@@ -339,13 +351,21 @@ class TestBusOperations:
     def test_find_stale(self):
         old = Message(
             ts=date.today() - timedelta(days=5),
-            src="eng", dst="*", type="alert", msg="old_alert",
-            ttl=7, ack=[],
+            src="eng",
+            dst="*",
+            type="alert",
+            msg="old_alert",
+            ttl=7,
+            ack=[],
         )
         recent = Message(
             ts=date.today(),
-            src="eng", dst="*", type="state", msg="new",
-            ttl=7, ack=[],
+            src="eng",
+            dst="*",
+            type="state",
+            msg="new",
+            ttl=7,
+            ack=[],
         )
         stale = find_stale([old, recent], threshold_days=3)
         assert len(stale) == 1
@@ -354,13 +374,21 @@ class TestBusOperations:
     def test_find_expired(self):
         expired = Message(
             ts=date.today() - timedelta(days=10),
-            src="eng", dst="*", type="event", msg="old_event",
-            ttl=3, ack=[],
+            src="eng",
+            dst="*",
+            type="event",
+            msg="old_event",
+            ttl=3,
+            ack=[],
         )
         active = Message(
             ts=date.today(),
-            src="eng", dst="*", type="state", msg="current",
-            ttl=7, ack=[],
+            src="eng",
+            dst="*",
+            type="state",
+            msg="current",
+            ttl=7,
+            ack=[],
         )
         result = find_expired([expired, active])
         assert len(result) == 1
@@ -373,8 +401,12 @@ class TestBusOperations:
         # Write one expired and one active message
         expired = Message(
             ts=date.today() - timedelta(days=10),
-            src="eng", dst="*", type="event", msg="expired_event",
-            ttl=3, ack=[],
+            src="eng",
+            dst="*",
+            type="event",
+            msg="expired_event",
+            ttl=3,
+            ack=[],
         )
         active = create_message(src="eng", dst="*", type="state", msg="active")
 
@@ -454,8 +486,12 @@ class TestCompactBusOperations:
 
         expired = Message(
             ts=date.today() - timedelta(days=10),
-            src="eng", dst="*", type="event", msg="old_compact",
-            ttl=3, ack=[],
+            src="eng",
+            dst="*",
+            type="event",
+            msg="old_compact",
+            ttl=3,
+            ack=[],
         )
         active = create_message(src="eng", dst="*", type="state", msg="active_compact")
 
@@ -480,7 +516,9 @@ class TestCompactBusOperations:
 
         for i in range(10):
             msg = create_message(
-                src="eng", dst="*", type="state",
+                src="eng",
+                dst="*",
+                type="state",
                 msg=f"message number {i} with some payload",
             )
             write_message(bus_v, msg, compact=False)
@@ -515,8 +553,9 @@ class TestSynProtocol:
     def test_syn_report_format(self):
         result = SynResult(
             pending=[
-                Message(ts=date.today(), src="ops", dst="*", type="alert",
-                        msg="deadline", ttl=5, ack=[]),
+                Message(
+                    ts=date.today(), src="ops", dst="*", type="alert", msg="deadline", ttl=5, ack=[]
+                ),
             ],
             stale=[],
             total_bus_messages=1,
@@ -577,6 +616,7 @@ class TestCompactConstants:
     def test_type_enum_coverage(self):
         """All valid types have an integer mapping."""
         from hermes.message import VALID_TYPES
+
         for t in VALID_TYPES:
             assert t in TYPE_TO_INT, f"Type '{t}' missing from TYPE_TO_INT"
 
@@ -593,7 +633,10 @@ class TestCompactConstants:
 class TestCompactSerialization:
     def test_to_compact_basic(self):
         msg = create_message(
-            src="engineering", dst="*", type="state", msg="deployed",
+            src="engineering",
+            dst="*",
+            type="state",
+            msg="deployed",
             ts=date(2026, 3, 15),
         )
         arr = msg.to_compact()
@@ -608,8 +651,11 @@ class TestCompactSerialization:
 
     def test_to_compact_with_encoding(self):
         msg = create_message(
-            src="eng", dst="ops", type="data_cross",
-            msg="o2Rjb3N0GQl4", encoding="cbor",
+            src="eng",
+            dst="ops",
+            type="data_cross",
+            msg="o2Rjb3N0GQl4",
+            encoding="cbor",
             ts=date(2026, 3, 15),
         )
         arr = msg.to_compact()
@@ -618,7 +664,10 @@ class TestCompactSerialization:
 
     def test_to_compact_jsonl_format(self):
         msg = create_message(
-            src="eng", dst="*", type="state", msg="ok",
+            src="eng",
+            dst="*",
+            type="state",
+            msg="ok",
             ts=date(2026, 3, 15),
         )
         line = msg.to_compact_jsonl()
@@ -629,8 +678,11 @@ class TestCompactSerialization:
     def test_to_compact_jsonl_size(self):
         """Compact format should be significantly smaller than verbose."""
         msg = create_message(
-            src="momoshod", dst="nymyka", type="state",
-            msg="x" * 120, ts=date(2026, 3, 15),
+            src="momoshod",
+            dst="nymyka",
+            type="state",
+            msg="x" * 120,
+            ts=date(2026, 3, 15),
         )
         verbose = msg.to_jsonl()
         compact = msg.to_compact_jsonl()
@@ -640,8 +692,13 @@ class TestCompactSerialization:
 
     def test_to_compact_with_ack(self):
         msg = Message(
-            ts=date(2026, 3, 15), src="eng", dst="*", type="alert",
-            msg="deadline", ttl=5, ack=["ops", "finance"],
+            ts=date(2026, 3, 15),
+            src="eng",
+            dst="*",
+            type="alert",
+            msg="deadline",
+            ttl=5,
+            ack=["ops", "finance"],
         )
         arr = msg.to_compact()
         assert arr[6] == ["ops", "finance"]
@@ -711,8 +768,12 @@ class TestCompactRoundtrip:
     def test_verbose_to_compact_roundtrip(self):
         """Message survives verbose → compact → verbose."""
         original = create_message(
-            src="engineering", dst="operations", type="request",
-            msg="need_capacity_estimate", ts=date(2026, 3, 15), ttl=5,
+            src="engineering",
+            dst="operations",
+            type="request",
+            msg="need_capacity_estimate",
+            ts=date(2026, 3, 15),
+            ttl=5,
         )
         compact_arr = original.to_compact()
         restored = validate_compact(compact_arr)
@@ -727,7 +788,10 @@ class TestCompactRoundtrip:
     def test_compact_jsonl_roundtrip(self):
         """Message survives to_compact_jsonl → parse_line."""
         original = create_message(
-            src="eng", dst="*", type="state", msg="ok",
+            src="eng",
+            dst="*",
+            type="state",
+            msg="ok",
             ts=date(2026, 3, 15),
         )
         line = original.to_compact_jsonl()
@@ -738,7 +802,10 @@ class TestCompactRoundtrip:
     def test_verbose_jsonl_roundtrip(self):
         """parse_line handles verbose format too."""
         original = create_message(
-            src="eng", dst="*", type="state", msg="ok",
+            src="eng",
+            dst="*",
+            type="state",
+            msg="ok",
             ts=date(2026, 3, 15),
         )
         line = original.to_jsonl()
@@ -748,8 +815,11 @@ class TestCompactRoundtrip:
     def test_all_types_roundtrip(self):
         for type_str in TYPE_TO_INT:
             msg = create_message(
-                src="eng", dst="ops" if type_str != "state" else "*",
-                type=type_str, msg="test", ts=date(2026, 3, 15),
+                src="eng",
+                dst="ops" if type_str != "state" else "*",
+                type=type_str,
+                msg="test",
+                ts=date(2026, 3, 15),
             )
             compact = msg.to_compact_jsonl()
             restored = parse_line(compact)
@@ -757,8 +827,11 @@ class TestCompactRoundtrip:
 
     def test_roundtrip_with_encoding(self):
         msg = create_message(
-            src="eng", dst="ops", type="data_cross",
-            msg="/path/to/data.csv", encoding="ref",
+            src="eng",
+            dst="ops",
+            type="data_cross",
+            msg="/path/to/data.csv",
+            encoding="ref",
             ts=date(2026, 3, 15),
         )
         compact = msg.to_compact_jsonl()
@@ -769,7 +842,9 @@ class TestCompactRoundtrip:
 
 class TestParseLine:
     def test_auto_detect_verbose(self):
-        line = '{"ts":"2026-03-15","src":"eng","dst":"*","type":"state","msg":"ok","ttl":7,"ack":[]}'
+        line = (
+            '{"ts":"2026-03-15","src":"eng","dst":"*","type":"state","msg":"ok","ttl":7,"ack":[]}'
+        )
         msg = parse_line(line)
         assert msg.src == "eng"
 

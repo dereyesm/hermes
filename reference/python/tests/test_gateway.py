@@ -19,7 +19,6 @@ from hermes.gateway import (
 )
 from hermes.message import Message
 
-
 # ─── Fixtures ──────────────────────────────────────────────────────
 
 
@@ -156,28 +155,20 @@ class TestTranslationTable:
 
 class TestOutboundFilter:
     def test_allowed_type_clean_payload(self, outbound_filter):
-        allowed, reason = outbound_filter.evaluate(
-            "profile_update", "Updated agent capabilities."
-        )
+        allowed, reason = outbound_filter.evaluate("profile_update", "Updated agent capabilities.")
         assert allowed is True
         assert reason == "ok"
 
     def test_attestation_type_allowed(self, outbound_filter):
-        allowed, _ = outbound_filter.evaluate(
-            "attestation", "Quality excellent."
-        )
+        allowed, _ = outbound_filter.evaluate("attestation", "Quality excellent.")
         assert allowed is True
 
     def test_quest_response_allowed(self, outbound_filter):
-        allowed, _ = outbound_filter.evaluate(
-            "quest_response", "Debt strategy delivered."
-        )
+        allowed, _ = outbound_filter.evaluate("quest_response", "Debt strategy delivered.")
         assert allowed is True
 
     def test_unknown_type_denied(self, outbound_filter):
-        allowed, reason = outbound_filter.evaluate(
-            "internal_state", "sprint data"
-        )
+        allowed, reason = outbound_filter.evaluate("internal_state", "sprint data")
         assert allowed is False
         assert "not in allowed" in reason
 
@@ -189,37 +180,28 @@ class TestOutboundFilter:
         assert "prohibited" in reason
 
     def test_prohibited_routes_reference(self, outbound_filter):
-        allowed, reason = outbound_filter.evaluate(
-            "attestation", "See routes.md for topology."
-        )
+        allowed, reason = outbound_filter.evaluate("attestation", "See routes.md for topology.")
         assert allowed is False
         assert "prohibited" in reason
 
     def test_prohibited_credentials(self, outbound_filter):
-        allowed, reason = outbound_filter.evaluate(
-            "quest_response", "The api_key is abc123."
-        )
+        allowed, reason = outbound_filter.evaluate("quest_response", "The api_key is abc123.")
         assert allowed is False
         assert "prohibited" in reason
 
     def test_prohibited_bounty_data(self, outbound_filter):
-        allowed, reason = outbound_filter.evaluate(
-            "profile_update", "Agent has Bounty score 85."
-        )
+        allowed, reason = outbound_filter.evaluate("profile_update", "Agent has Bounty score 85.")
         assert allowed is False
         assert "prohibited" in reason
 
     def test_prohibited_xp_data(self, outbound_filter):
-        allowed, reason = outbound_filter.evaluate(
-            "profile_update", "Current XP is 1200."
-        )
+        allowed, reason = outbound_filter.evaluate("profile_update", "Current XP is 1200.")
         assert allowed is False
         assert "prohibited" in reason
 
     def test_clean_payload_passes(self, outbound_filter):
         allowed, _ = outbound_filter.evaluate(
-            "attestation",
-            "Provided debt restructuring strategy that reduced costs by 15%."
+            "attestation", "Provided debt restructuring strategy that reduced costs by 15%."
         )
         assert allowed is True
 
@@ -407,9 +389,7 @@ class TestResonanceCalculator:
     def test_recency_decay(self, resonance_calculator):
         today = date(2026, 6, 1)
         half_year_ago = (today - timedelta(days=182)).isoformat()
-        att = _make_attestation(
-            quality=3, reliability=3, collaboration=3, timestamp=half_year_ago
-        )
+        att = _make_attestation(quality=3, reliability=3, collaboration=3, timestamp=half_year_ago)
         score = resonance_calculator.compute([att], today=today)
         # attestation_score = 3.0, recency = 1 - 182/365 ~ 0.5014
         # diversity = 1 + 0.1*1 = 1.1
@@ -427,12 +407,20 @@ class TestResonanceCalculator:
     def test_diversity_bonus(self, resonance_calculator):
         today = date.today()
         att1 = _make_attestation(
-            from_clan="clan-a", quest_id="q1", quality=3, reliability=3,
-            collaboration=3, timestamp=today.isoformat()
+            from_clan="clan-a",
+            quest_id="q1",
+            quality=3,
+            reliability=3,
+            collaboration=3,
+            timestamp=today.isoformat(),
         )
         att2 = _make_attestation(
-            from_clan="clan-b", quest_id="q2", quality=3, reliability=3,
-            collaboration=3, timestamp=today.isoformat()
+            from_clan="clan-b",
+            quest_id="q2",
+            quality=3,
+            reliability=3,
+            collaboration=3,
+            timestamp=today.isoformat(),
         )
         score = resonance_calculator.compute([att1, att2], today=today)
         # attestation_score = 3 each, recency = 1.0 each
@@ -443,12 +431,20 @@ class TestResonanceCalculator:
     def test_multiple_attestations_same_clan(self, resonance_calculator):
         today = date.today()
         att1 = _make_attestation(
-            from_clan="clan-a", quest_id="q1", quality=4, reliability=4,
-            collaboration=4, timestamp=today.isoformat()
+            from_clan="clan-a",
+            quest_id="q1",
+            quality=4,
+            reliability=4,
+            collaboration=4,
+            timestamp=today.isoformat(),
         )
         att2 = _make_attestation(
-            from_clan="clan-a", quest_id="q2", quality=4, reliability=4,
-            collaboration=4, timestamp=today.isoformat()
+            from_clan="clan-a",
+            quest_id="q2",
+            quality=4,
+            reliability=4,
+            collaboration=4,
+            timestamp=today.isoformat(),
         )
         score = resonance_calculator.compute([att1, att2], today=today)
         # unique clans = 1 -> diversity = 1 + 0.1*1 = 1.1
@@ -499,11 +495,14 @@ class TestGateway:
         assert "shadow-eng" not in aliases
 
     def test_process_inbound_valid(self, gateway):
-        msg = gateway.process_inbound("nakama-crew", {
-            "target_agent": "aureus",
-            "type": "attestation",
-            "payload": "Great quest.",
-        })
+        msg = gateway.process_inbound(
+            "nakama-crew",
+            {
+                "target_agent": "aureus",
+                "type": "attestation",
+                "payload": "Great quest.",
+            },
+        )
         assert msg is not None
         assert isinstance(msg, Message)
         assert msg.src == "gateway"
@@ -511,19 +510,25 @@ class TestGateway:
         assert msg.msg.startswith("AGORA:")
 
     def test_process_inbound_unknown_clan(self, gateway):
-        msg = gateway.process_inbound("shadow-corp", {
-            "target_agent": "aureus",
-            "type": "attestation",
-            "payload": "test",
-        })
+        msg = gateway.process_inbound(
+            "shadow-corp",
+            {
+                "target_agent": "aureus",
+                "type": "attestation",
+                "payload": "test",
+            },
+        )
         assert msg is None
 
     def test_process_inbound_unknown_agent(self, gateway):
-        msg = gateway.process_inbound("nakama-crew", {
-            "target_agent": "nonexistent",
-            "type": "attestation",
-            "payload": "test",
-        })
+        msg = gateway.process_inbound(
+            "nakama-crew",
+            {
+                "target_agent": "nonexistent",
+                "type": "attestation",
+                "payload": "test",
+            },
+        )
         assert msg is None
 
     def test_format_outbound_allowed(self, gateway):

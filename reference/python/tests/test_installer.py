@@ -4,18 +4,14 @@ from __future__ import annotations
 
 import io
 import json
-import os
-import textwrap
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
 from hermes.installer import (
-    InstallResult,
-    Platform,
-    _HERMES_HOOKS_MARKER,
     _LAUNCHAGENT_LABEL,
+    Platform,
     _atomic_json_write,
     _sanitize_for_shell,
     add_agent_node_section,
@@ -32,7 +28,6 @@ from hermes.installer import (
     send_notification,
     uninstall_hooks,
 )
-
 
 # ---------------------------------------------------------------------------
 # Platform Detection
@@ -86,9 +81,7 @@ class TestInitClanIfNeeded:
     """Test init_clan_if_needed()."""
 
     def test_creates_new_clan(self, tmp_path):
-        created, msg = init_clan_if_needed(
-            tmp_path / "test-clan", "test", "Test Clan"
-        )
+        created, msg = init_clan_if_needed(tmp_path / "test-clan", "test", "Test Clan")
         assert created is True
         assert "initialized" in msg
         assert (tmp_path / "test-clan" / "gateway.json").exists()
@@ -240,9 +233,7 @@ class TestHooksInstaller:
         settings_file = tmp_path / "settings.json"
         existing = {
             "hooks": {
-                "SessionStart": [
-                    {"type": "command", "command": "echo hello", "timeout": 1000}
-                ]
+                "SessionStart": [{"type": "command", "command": "echo hello", "timeout": 1000}]
             }
         }
         settings_file.write_text(json.dumps(existing))
@@ -270,9 +261,9 @@ class TestHooksInstaller:
         # Install hermes hooks + a custom hook
         install_hooks()
         data = json.loads(settings_file.read_text())
-        data["hooks"]["SessionStart"].insert(0, {
-            "type": "command", "command": "echo custom", "timeout": 1000
-        })
+        data["hooks"]["SessionStart"].insert(
+            0, {"type": "command", "command": "echo custom", "timeout": 1000}
+        )
         settings_file.write_text(json.dumps(data))
 
         modified, msg = uninstall_hooks()
@@ -284,8 +275,9 @@ class TestHooksInstaller:
         assert result["hooks"]["SessionStart"][0]["command"] == "echo custom"
 
     def test_uninstall_no_settings(self, tmp_path, monkeypatch):
-        monkeypatch.setattr("hermes.installer._settings_path",
-                            lambda: tmp_path / "nonexistent.json")
+        monkeypatch.setattr(
+            "hermes.installer._settings_path", lambda: tmp_path / "nonexistent.json"
+        )
         modified, msg = uninstall_hooks()
         assert modified is False
 
@@ -335,7 +327,7 @@ class TestNotifications:
     def test_sanitizes_shell_chars(self, monkeypatch):
         mock_run = MagicMock()
         monkeypatch.setattr("hermes.installer.subprocess.run", mock_run)
-        send_notification('Te"st', 'He`llo\\world', Platform.MACOS)
+        send_notification('Te"st', "He`llo\\world", Platform.MACOS)
         script_arg = mock_run.call_args[0][0][2]
         # User-injected double-quotes should be replaced with single quotes
         assert "Te'st" in script_arg
@@ -488,9 +480,12 @@ class TestRunUninstall:
         monkeypatch.setattr("hermes.installer.platform.machine", lambda: "arm64")
         monkeypatch.setattr("hermes.installer.send_notification", lambda *a, **k: True)
 
+        # Use subdirectory to avoid deleting pytest's tmp_path root (causes OSError on cleanup)
+        clan_dir = tmp_path / "test-clan"
+
         # Install first
-        run_install("x", "X", tmp_path, skip_hooks=True, skip_service=True)
-        assert (tmp_path / "gateway.json").exists()
+        run_install("x", "X", clan_dir, skip_hooks=True, skip_service=True)
+        assert (clan_dir / "gateway.json").exists()
 
         # Mock service uninstall (no real launchctl)
         monkeypatch.setattr(
@@ -499,9 +494,9 @@ class TestRunUninstall:
         )
         monkeypatch.setattr("hermes.installer.shutil.which", lambda x: None)
 
-        result = run_uninstall(clan_dir=tmp_path, purge=True, keep_hooks=True)
+        result = run_uninstall(clan_dir=clan_dir, purge=True, keep_hooks=True)
         assert result.success is True
-        assert not tmp_path.exists()  # Purged
+        assert not clan_dir.exists()  # Purged
 
     def test_uninstall_preserve(self, tmp_path, monkeypatch):
         monkeypatch.setattr("hermes.installer.platform.system", lambda: "Linux")
@@ -534,13 +529,23 @@ class TestHookCommands:
         # Create clan dir with bus
         clan_dir = tmp_path / ".hermes"
         clan_dir.mkdir()
-        (clan_dir / "gateway.json").write_text(json.dumps({
-            "clan_id": "test", "display_name": "Test"
-        }))
-        (clan_dir / "bus.jsonl").write_text(json.dumps({
-            "ts": "2026-03-18", "src": "peer", "dst": "test",
-            "type": "alert", "msg": "Hello!", "ttl": 7, "ack": []
-        }) + "\n")
+        (clan_dir / "gateway.json").write_text(
+            json.dumps({"clan_id": "test", "display_name": "Test"})
+        )
+        (clan_dir / "bus.jsonl").write_text(
+            json.dumps(
+                {
+                    "ts": "2026-03-18",
+                    "src": "peer",
+                    "dst": "test",
+                    "type": "alert",
+                    "msg": "Hello!",
+                    "ttl": 7,
+                    "ack": [],
+                }
+            )
+            + "\n"
+        )
 
         monkeypatch.setattr("hermes.hooks._default_clan_dir", lambda: clan_dir)
 
@@ -562,9 +567,9 @@ class TestHookCommands:
 
         clan_dir = tmp_path / ".hermes"
         clan_dir.mkdir()
-        (clan_dir / "gateway.json").write_text(json.dumps({
-            "clan_id": "test", "display_name": "Test"
-        }))
+        (clan_dir / "gateway.json").write_text(
+            json.dumps({"clan_id": "test", "display_name": "Test"})
+        )
         (clan_dir / "bus.jsonl").write_text("")
 
         monkeypatch.setattr("hermes.hooks._default_clan_dir", lambda: clan_dir)
@@ -593,13 +598,23 @@ class TestHookCommands:
 
         clan_dir = tmp_path / ".hermes"
         clan_dir.mkdir()
-        (clan_dir / "gateway.json").write_text(json.dumps({
-            "clan_id": "test", "display_name": "Test"
-        }))
-        (clan_dir / "bus.jsonl").write_text(json.dumps({
-            "ts": "2026-03-18", "src": "peer", "dst": "*",
-            "type": "event", "msg": "Something happened", "ttl": 7, "ack": []
-        }) + "\n")
+        (clan_dir / "gateway.json").write_text(
+            json.dumps({"clan_id": "test", "display_name": "Test"})
+        )
+        (clan_dir / "bus.jsonl").write_text(
+            json.dumps(
+                {
+                    "ts": "2026-03-18",
+                    "src": "peer",
+                    "dst": "*",
+                    "type": "event",
+                    "msg": "Something happened",
+                    "ttl": 7,
+                    "ack": [],
+                }
+            )
+            + "\n"
+        )
 
         monkeypatch.setattr("hermes.hooks._default_clan_dir", lambda: clan_dir)
         monkeypatch.setattr("sys.stdin", io.StringIO("{}"))
@@ -625,13 +640,17 @@ class TestCLIIntegration:
         from hermes.cli import build_parser
 
         parser = build_parser()
-        args = parser.parse_args([
-            "install",
-            "--clan-id", "test",
-            "--display-name", "Test Clan",
-            "--skip-hooks",
-            "--skip-service",
-        ])
+        args = parser.parse_args(
+            [
+                "install",
+                "--clan-id",
+                "test",
+                "--display-name",
+                "Test Clan",
+                "--skip-hooks",
+                "--skip-service",
+            ]
+        )
         assert args.command == "install"
         assert args.clan_id == "test"
         assert args.display_name == "Test Clan"
@@ -659,14 +678,21 @@ class TestCLIIntegration:
         from hermes.cli import build_parser
 
         parser = build_parser()
-        args = parser.parse_args([
-            "install",
-            "--clan-id", "jei",
-            "--display-name", "Clan JEI",
-            "--gateway-url", "https://gw.example.com",
-            "--relay-url", "https://relay.example.com",
-            "--dir", "/tmp/test",
-        ])
+        args = parser.parse_args(
+            [
+                "install",
+                "--clan-id",
+                "jei",
+                "--display-name",
+                "Clan JEI",
+                "--gateway-url",
+                "https://gw.example.com",
+                "--relay-url",
+                "https://relay.example.com",
+                "--dir",
+                "/tmp/test",
+            ]
+        )
         assert args.clan_id == "jei"
         assert args.gateway_url == "https://gw.example.com"
         assert args.relay_url == "https://relay.example.com"

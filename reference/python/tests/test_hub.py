@@ -2,16 +2,13 @@
 
 import asyncio
 import json
-import os
 import time
-from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 import pytest
 
 from hermes.hub import (
     AuthHandler,
-    ConnectionEntry,
     ConnectionTable,
     HubConfig,
     HubServer,
@@ -24,7 +21,6 @@ from hermes.hub import (
     load_hub_config,
     load_peers,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -441,9 +437,7 @@ class TestMessageRouter:
         loop = asyncio.new_event_loop()
         try:
             for i in range(5):
-                loop.run_until_complete(
-                    router.route({"dst": "jei", "msg": str(i)}, "x")
-                )
+                loop.run_until_complete(router.route({"dst": "jei", "msg": str(i)}, "x"))
         finally:
             loop.close()
 
@@ -457,9 +451,7 @@ class TestMessageRouter:
 
         loop = asyncio.new_event_loop()
         try:
-            result = loop.run_until_complete(
-                router.route({"dst": "jei", "msg": "new"}, "x")
-            )
+            result = loop.run_until_complete(router.route({"dst": "jei", "msg": "new"}, "x"))
         finally:
             loop.close()
 
@@ -584,12 +576,14 @@ class TestHubServer:
             challenge_frame = json.loads(ws.send.call_args[0][0])
             nonce = challenge_frame["nonce"]
             sig = privkey.sign(bytes.fromhex(nonce)).hex()
-            return json.dumps({
-                "type": "auth",
-                "clan_id": "test_clan",
-                "nonce_response": sig,
-                "sign_pub": pubkey_hex,
-            })
+            return json.dumps(
+                {
+                    "type": "auth",
+                    "clan_id": "test_clan",
+                    "nonce_response": sig,
+                    "sign_pub": pubkey_hex,
+                }
+            )
 
         ws.recv = mock_recv
 
@@ -606,12 +600,14 @@ class TestHubServer:
         ws = _make_ws_mock()
 
         async def mock_recv():
-            return json.dumps({
-                "type": "auth",
-                "clan_id": "momoshod",
-                "nonce_response": "ff" * 64,
-                "sign_pub": "aa" * 32,
-            })
+            return json.dumps(
+                {
+                    "type": "auth",
+                    "clan_id": "momoshod",
+                    "nonce_response": "ff" * 64,
+                    "sign_pub": "aa" * 32,
+                }
+            )
 
         ws.recv = mock_recv
 
@@ -652,12 +648,14 @@ class TestHubServer:
 class TestCLIHub:
     def test_hub_status_no_state(self, tmp_path, capsys):
         from hermes.hub import cmd_hub_status
+
         ret = cmd_hub_status(tmp_path)
         assert ret == 1
         assert "No Hub state" in capsys.readouterr().out
 
     def test_hub_status_with_state(self, tmp_path, capsys):
         from hermes.hub import cmd_hub_status
+
         state = HubState(pid=9999, started_at="2026-03-23", total_msgs_routed=42)
         state.save(tmp_path / "hub-state.json")
         ret = cmd_hub_status(tmp_path)
@@ -668,15 +666,17 @@ class TestCLIHub:
 
     def test_hub_peers_empty(self, tmp_path, capsys):
         from hermes.hub import cmd_hub_peers
+
         (tmp_path / "hub-peers.json").write_text('{"peers":{}}')
-        (tmp_path / "gateway.json").write_text('{}')
+        (tmp_path / "gateway.json").write_text("{}")
         ret = cmd_hub_peers(tmp_path)
         assert ret == 0
         assert "No peers" in capsys.readouterr().out
 
     def test_hub_peers_list(self, tmp_hub, capsys):
         from hermes.hub import cmd_hub_peers
-        (tmp_hub / "gateway.json").write_text('{}')
+
+        (tmp_hub / "gateway.json").write_text("{}")
         ret = cmd_hub_peers(tmp_hub)
         assert ret == 0
         out = capsys.readouterr().out
@@ -708,15 +708,25 @@ class TestHubInit:
     def test_creates_peers_file(self, tmp_path, capsys):
         peer_dir = tmp_path / "keys" / "peers"
         peer_dir.mkdir(parents=True)
-        (peer_dir / "alpha.pub").write_text(json.dumps({
-            "ed25519_pub": "aa" * 32, "x25519_pub": "bb" * 32,
-        }))
-        _make_gateway(tmp_path, peers=[{
-            "clan_id": "alpha",
-            "public_key_file": "keys/peers/alpha.pub",
-            "status": "active",
-            "added": "2026-03-20",
-        }])
+        (peer_dir / "alpha.pub").write_text(
+            json.dumps(
+                {
+                    "ed25519_pub": "aa" * 32,
+                    "x25519_pub": "bb" * 32,
+                }
+            )
+        )
+        _make_gateway(
+            tmp_path,
+            peers=[
+                {
+                    "clan_id": "alpha",
+                    "public_key_file": "keys/peers/alpha.pub",
+                    "status": "active",
+                    "added": "2026-03-20",
+                }
+            ],
+        )
 
         ret = cmd_hub_init(tmp_path)
         assert ret == 0
@@ -752,13 +762,29 @@ class TestHubInit:
         # raw hex (64 chars)
         (peer_dir / "rawpeer.pub").write_text("ee" * 32)
         # JSON format
-        (peer_dir / "jsonpeer.pub").write_text(json.dumps({
-            "sign_public": "ff" * 32, "dh_public": "11" * 32,
-        }))
-        _make_gateway(tmp_path, peers=[
-            {"clan_id": "rawpeer", "public_key_file": "keys/peers/rawpeer.pub", "added": "2026-01-01"},
-            {"clan_id": "jsonpeer", "public_key_file": "keys/peers/jsonpeer.pub", "added": "2026-02-01"},
-        ])
+        (peer_dir / "jsonpeer.pub").write_text(
+            json.dumps(
+                {
+                    "sign_public": "ff" * 32,
+                    "dh_public": "11" * 32,
+                }
+            )
+        )
+        _make_gateway(
+            tmp_path,
+            peers=[
+                {
+                    "clan_id": "rawpeer",
+                    "public_key_file": "keys/peers/rawpeer.pub",
+                    "added": "2026-01-01",
+                },
+                {
+                    "clan_id": "jsonpeer",
+                    "public_key_file": "keys/peers/jsonpeer.pub",
+                    "added": "2026-02-01",
+                },
+            ],
+        )
 
         ret = cmd_hub_init(tmp_path)
         assert ret == 0

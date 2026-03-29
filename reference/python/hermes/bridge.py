@@ -28,7 +28,6 @@ from typing import Any
 
 from .message import Message
 
-
 # ─── Configuration (Section 7.1) ─────────────────────────────────
 
 
@@ -98,17 +97,13 @@ def translate_error(condition: str) -> tuple[dict[str, Any], dict[str, Any]]:
     Returns (a2a_error, mcp_error) where each is a dict with
     'code' and 'message' keys.
     """
-    a2a_msg, mcp_code, _ = _ERROR_MAP.get(
-        condition, ("Task failed: unknown error", -32603, 500)
-    )
+    a2a_msg, mcp_code, _ = _ERROR_MAP.get(condition, ("Task failed: unknown error", -32603, 500))
     a2a_error = {"code": -32603, "message": a2a_msg}
     mcp_error = {"code": mcp_code, "message": condition.replace("_", " ")}
     return a2a_error, mcp_error
 
 
-def translate_error_a2a(
-    condition: str, request_id: int | str = 1
-) -> dict[str, Any]:
+def translate_error_a2a(condition: str, request_id: int | str = 1) -> dict[str, Any]:
     """Translate a HERMES error condition to an A2A JSON-RPC error response."""
     a2a_err, _ = translate_error(condition)
     return {
@@ -118,9 +113,7 @@ def translate_error_a2a(
     }
 
 
-def translate_error_mcp(
-    condition: str, request_id: int | str = 1
-) -> dict[str, Any]:
+def translate_error_mcp(condition: str, request_id: int | str = 1) -> dict[str, Any]:
     """Translate a HERMES error condition to an MCP JSON-RPC error response."""
     _, mcp_err = translate_error(condition)
     return {
@@ -189,9 +182,7 @@ class A2ABridge:
         parts = message.get("parts", [])
         text = " ".join(p.get("text", "") for p in parts if "text" in p).strip()
 
-        payload = _truncate_payload(
-            f"[CID:{task_id}] {text}" if text else f"[CID:{task_id}]"
-        )
+        payload = _truncate_payload(f"[CID:{task_id}] {text}" if text else f"[CID:{task_id}]")
 
         return Message(
             ts=date.today(),
@@ -322,11 +313,13 @@ class A2ABridge:
                 domain = skill_id.split("/")[0]
             else:
                 domain = f"x-{_sanitize_alias(skill_id)}"
-            capabilities.append({
-                "domain": domain,
-                "path": skill_id if "/" in skill_id else f"{domain}/{skill_id}",
-                "confidence": "secondary",
-            })
+            capabilities.append(
+                {
+                    "domain": domain,
+                    "path": skill_id if "/" in skill_id else f"{domain}/{skill_id}",
+                    "confidence": "secondary",
+                }
+            )
 
         caps = card.get("capabilities", {})
         streaming = caps.get("streaming", False)
@@ -423,9 +416,7 @@ class MCPBridge:
             "id": request_id,
         }
 
-    def build_tool_list(
-        self, published_agents: list[dict[str, Any]]
-    ) -> list[dict[str, Any]]:
+    def build_tool_list(self, published_agents: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Build an MCP tool list from HERMES published agents (Section 7.2)."""
         tools: list[dict[str, Any]] = []
         for agent in published_agents:
@@ -439,36 +430,38 @@ class MCPBridge:
                 tool_name = f"{alias}_{specialization}".replace("-", "_")
                 description = _description_from_path(path)
 
-                tools.append({
-                    "name": tool_name,
-                    "description": description,
-                    "inputSchema": {
-                        "type": "object",
-                        "properties": {
-                            "input": {
-                                "type": "string",
-                                "description": "Request input",
+                tools.append(
+                    {
+                        "name": tool_name,
+                        "description": description,
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "input": {
+                                    "type": "string",
+                                    "description": "Request input",
+                                },
                             },
+                            "required": ["input"],
                         },
-                        "required": ["input"],
-                    },
-                })
+                    }
+                )
         return tools
 
-    def build_resource_list(
-        self, namespaces: list[dict[str, Any]]
-    ) -> list[dict[str, Any]]:
+    def build_resource_list(self, namespaces: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Build an MCP resource list from HERMES namespaces (Section 4.3)."""
         resources: list[dict[str, Any]] = []
         for ns in namespaces:
             ns_id = ns.get("id", "unknown")
             description = ns.get("description", f"HERMES namespace: {ns_id}")
-            resources.append({
-                "uri": f"hermes://{ns_id}",
-                "name": ns_id,
-                "description": description,
-                "mimeType": "application/json",
-            })
+            resources.append(
+                {
+                    "uri": f"hermes://{ns_id}",
+                    "name": ns_id,
+                    "description": description,
+                    "mimeType": "application/json",
+                }
+            )
         return resources
 
 
@@ -501,7 +494,7 @@ def _resolve_namespace_from_tool(tool_name: str) -> str:
 def _resolve_namespace_from_uri(uri: str) -> str:
     """Derive the target namespace from a hermes:// URI."""
     if uri.startswith("hermes://"):
-        path = uri[len("hermes://"):]
+        path = uri[len("hermes://") :]
         ns = path.split("/")[0]
         if re.match(r"^[a-z][a-z0-9\-]*$", ns):
             return ns

@@ -5,12 +5,9 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-import signal
-import tempfile
 import time
 from datetime import date, timedelta
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -19,9 +16,8 @@ from hermes.agent import (
     AgentNode,
     AgentNodeConfig,
     BusObserver,
-    DispatchResult,
-    DispatchSlot,
     Dispatcher,
+    DispatchSlot,
     GatewayLink,
     MessageEvaluator,
     NodeState,
@@ -30,10 +26,10 @@ from hermes.agent import (
 )
 from hermes.message import Message, create_message
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def tmp_clan(tmp_path):
@@ -98,6 +94,7 @@ def _write_bus_message(bus_path: Path, **kwargs) -> Message:
 # AgentNodeConfig Tests
 # ---------------------------------------------------------------------------
 
+
 class TestAgentNodeConfig:
     def test_load_from_gateway_json(self, gateway_json, tmp_clan):
         config = load_agent_config(gateway_json)
@@ -118,11 +115,15 @@ class TestAgentNodeConfig:
 
     def test_load_disabled(self, tmp_clan):
         path = tmp_clan / "gateway.json"
-        path.write_text(json.dumps({
-            "clan_id": "x",
-            "display_name": "X",
-            "agent_node": {"enabled": False},
-        }))
+        path.write_text(
+            json.dumps(
+                {
+                    "clan_id": "x",
+                    "display_name": "X",
+                    "agent_node": {"enabled": False},
+                }
+            )
+        )
         with pytest.raises(ValueError, match="disabled"):
             load_agent_config(path)
 
@@ -138,6 +139,7 @@ class TestAgentNodeConfig:
 # ---------------------------------------------------------------------------
 # NodeState Tests
 # ---------------------------------------------------------------------------
+
 
 class TestNodeState:
     def test_roundtrip(self):
@@ -167,6 +169,7 @@ class TestNodeState:
 # ---------------------------------------------------------------------------
 # StateManager Tests
 # ---------------------------------------------------------------------------
+
 
 class TestStateManager:
     def test_acquire_lock_success(self, tmp_clan):
@@ -247,6 +250,7 @@ class TestStateManager:
 # ---------------------------------------------------------------------------
 # BusObserver Tests
 # ---------------------------------------------------------------------------
+
 
 class TestBusObserver:
     def test_read_empty_bus(self, tmp_clan):
@@ -330,6 +334,7 @@ class TestBusObserver:
 # GatewayLink Tests
 # ---------------------------------------------------------------------------
 
+
 class TestGatewayLink:
     def test_headers_with_gateway_key(self, sample_config):
         sample_config.gateway_key = "secret123"
@@ -378,6 +383,7 @@ class TestGatewayLink:
 # MessageEvaluator Tests
 # ---------------------------------------------------------------------------
 
+
 class TestMessageEvaluator:
     def test_dispatch_addressed_to_us(self, sample_config):
         ev = MessageEvaluator(sample_config)
@@ -393,7 +399,10 @@ class TestMessageEvaluator:
         sample_config.escalation_threshold_hours = 4
         ev = MessageEvaluator(sample_config)
         msg = create_message(
-            src="source", dst="test-node", type="alert", msg="old alert",
+            src="source",
+            dst="test-node",
+            type="alert",
+            msg="old alert",
             ts=date.today() - timedelta(days=1),
         )
         assert ev.evaluate(msg) == Action.ESCALATE
@@ -415,16 +424,18 @@ class TestMessageEvaluator:
 
     def test_dojo_event_ignored(self, sample_config):
         ev = MessageEvaluator(sample_config)
-        msg = create_message(
-            src="dojo", dst="test-node", type="dojo_event", msg="levelup:x"
-        )
+        msg = create_message(src="dojo", dst="test-node", type="dojo_event", msg="levelup:x")
         assert ev.evaluate(msg) == Action.IGNORE
 
     def test_already_acked_ignored(self, sample_config):
         ev = MessageEvaluator(sample_config)
         msg = Message(
-            ts=date.today(), src="source", dst="test-node",
-            type="dispatch", msg="do something", ttl=7,
+            ts=date.today(),
+            src="source",
+            dst="test-node",
+            type="dispatch",
+            msg="do something",
+            ttl=7,
             ack=["test-node"],
         )
         assert ev.evaluate(msg) == Action.IGNORE
@@ -436,9 +447,7 @@ class TestMessageEvaluator:
 
     def test_data_cross_escalates(self, sample_config):
         ev = MessageEvaluator(sample_config)
-        msg = create_message(
-            src="finance", dst="test-node", type="data_cross", msg="expense data"
-        )
+        msg = create_message(src="finance", dst="test-node", type="data_cross", msg="expense data")
         assert ev.evaluate(msg) == Action.ESCALATE
 
     def test_unaddressed_event_with_forward_type(self, sample_config):
@@ -455,6 +464,7 @@ class TestMessageEvaluator:
 # ---------------------------------------------------------------------------
 # Dispatcher Tests
 # ---------------------------------------------------------------------------
+
 
 class TestDispatcher:
     def test_available_slots(self, sample_config):
@@ -522,6 +532,7 @@ class TestDispatcher:
 # Integration Tests
 # ---------------------------------------------------------------------------
 
+
 class TestAgentNodeLifecycle:
     def test_state_manager_full_cycle(self, tmp_clan):
         sm = StateManager(tmp_clan)
@@ -573,7 +584,10 @@ class TestAgentNodeLifecycle:
 
         # An old alert — escalate
         m3 = create_message(
-            src="system", dst="test-node", type="alert", msg="disk full",
+            src="system",
+            dst="test-node",
+            type="alert",
+            msg="disk full",
             ts=date.today() - timedelta(days=2),
         )
         assert ev.evaluate(m3) == Action.ESCALATE
@@ -583,9 +597,11 @@ class TestAgentNodeLifecycle:
 # CLI Command Tests
 # ---------------------------------------------------------------------------
 
+
 class TestCLICommands:
     def test_daemon_status_not_running(self, tmp_clan, capsys):
         from hermes.agent import cmd_daemon_status
+
         ret = cmd_daemon_status(tmp_clan)
         assert ret == 0
         captured = capsys.readouterr()
@@ -593,6 +609,7 @@ class TestCLICommands:
 
     def test_daemon_stop_not_running(self, tmp_clan, capsys):
         from hermes.agent import cmd_daemon_stop
+
         ret = cmd_daemon_stop(tmp_clan)
         assert ret == 1
         captured = capsys.readouterr()
@@ -600,6 +617,7 @@ class TestCLICommands:
 
     def test_daemon_start_no_config(self, tmp_clan, capsys):
         from hermes.agent import cmd_daemon_start
+
         ret = cmd_daemon_start(tmp_clan)
         assert ret == 1
         captured = capsys.readouterr()
@@ -609,6 +627,7 @@ class TestCLICommands:
 # ---------------------------------------------------------------------------
 # ASP Integration Tests (F4-F5)
 # ---------------------------------------------------------------------------
+
 
 class TestAgentNodeConfigASP:
     """Tests for ASP-related config fields."""
@@ -709,6 +728,7 @@ class TestASPInitialization:
         node._init_asp(state)
 
         from hermes.asp import AgentState
+
         assert node.asp_state_tracker.get_state("scanner") == AgentState.ACTIVE
 
     def test_init_asp_restores_state(self, tmp_clan, sample_config):
@@ -744,6 +764,7 @@ class TestASPInitialization:
 
         # set_active on IDLE → ACTIVE
         from hermes.asp import AgentState
+
         assert node.asp_state_tracker.get_state("scanner") == AgentState.ACTIVE
         # Dispatch count preserved
         payload = node.asp_state_tracker.heartbeat_payload()

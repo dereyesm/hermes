@@ -2,7 +2,6 @@
 
 import json
 from datetime import date, datetime, timedelta
-from pathlib import Path
 
 import pytest
 
@@ -15,7 +14,6 @@ from hermes.asp import (
     ApprovalGateManager,
     ConcurrencyTracker,
     DispatchCommandRenderer,
-    DispatchDecision,
     DispatchEngine,
     DispatchOutcome,
     DispatchRule,
@@ -24,13 +22,11 @@ from hermes.asp import (
     MessageCategory,
     MessageClassifier,
     NotificationThrottler,
-    PendingApproval,
     QueueOverflow,
     ResourceLimits,
     _trigger_matches,
 )
 from hermes.message import Message
-
 
 # ─── Helpers ──────────────────────────────────────────────────────
 
@@ -237,17 +233,23 @@ class TestMessageClassifierSourceIntegrity:
 
     def test_registered_agent_valid(self):
         mc = MessageClassifier(local_namespaces={"heraldo"})
-        assert mc.verify_source(
-            _msg(src="mail-scanner"),
-            registered_agent_ids={"mail-scanner"},
-        ) is True
+        assert (
+            mc.verify_source(
+                _msg(src="mail-scanner"),
+                registered_agent_ids={"mail-scanner"},
+            )
+            is True
+        )
 
     def test_unregistered_agent_invalid(self):
         mc = MessageClassifier(local_namespaces={"heraldo"})
-        assert mc.verify_source(
-            _msg(src="rogue-agent"),
-            registered_agent_ids={"mail-scanner"},
-        ) is False
+        assert (
+            mc.verify_source(
+                _msg(src="rogue-agent"),
+                registered_agent_ids={"mail-scanner"},
+            )
+            is False
+        )
 
     def test_custom_gateway_namespace(self):
         mc = MessageClassifier(
@@ -386,7 +388,9 @@ class TestAgentProfileValidation:
     def test_missing_rule_id(self):
         data = {
             **SENSOR_PROFILE,
-            "dispatch_rules": [{"trigger": {"type": "scheduled", "cron": "* * * * *"}, "approval_required": False}],
+            "dispatch_rules": [
+                {"trigger": {"type": "scheduled", "cron": "* * * * *"}, "approval_required": False}
+            ],
         }
         with pytest.raises(AgentProfileError, match="rule_id"):
             AgentProfile.from_dict(data)
@@ -435,7 +439,11 @@ class TestAgentProfileValidation:
         data = {
             **SENSOR_PROFILE,
             "dispatch_rules": [
-                {"rule_id": "r1", "trigger": {"type": "scheduled", "cron": "* * * * *"}, "approval_required": "yes"}
+                {
+                    "rule_id": "r1",
+                    "trigger": {"type": "scheduled", "cron": "* * * * *"},
+                    "approval_required": "yes",
+                }
             ],
         }
         with pytest.raises(AgentProfileError, match="must be boolean"):
@@ -604,22 +612,19 @@ class TestTriggerMatching:
         assert _trigger_matches(trigger, msg) is False
 
     def test_src_match(self):
-        trigger = DispatchTrigger(
-            type="event-driven", match_type="dispatch", match_src="heraldo"
-        )
+        trigger = DispatchTrigger(type="event-driven", match_type="dispatch", match_src="heraldo")
         msg = _msg(src="heraldo", msg_type="dispatch")
         assert _trigger_matches(trigger, msg) is True
 
     def test_src_mismatch(self):
-        trigger = DispatchTrigger(
-            type="event-driven", match_type="dispatch", match_src="heraldo"
-        )
+        trigger = DispatchTrigger(type="event-driven", match_type="dispatch", match_src="heraldo")
         msg = _msg(src="dojo", msg_type="dispatch")
         assert _trigger_matches(trigger, msg) is False
 
     def test_prefix_match(self):
         trigger = DispatchTrigger(
-            type="event-driven", match_type="dispatch",
+            type="event-driven",
+            match_type="dispatch",
             match_msg_prefix="REPORT:",
         )
         msg = _msg(msg_type="dispatch", msg_text="REPORT:monthly summary")
@@ -627,7 +632,8 @@ class TestTriggerMatching:
 
     def test_prefix_mismatch(self):
         trigger = DispatchTrigger(
-            type="event-driven", match_type="dispatch",
+            type="event-driven",
+            match_type="dispatch",
             match_msg_prefix="REPORT:",
         )
         msg = _msg(msg_type="dispatch", msg_text="SCAN:inbox")
@@ -652,9 +658,7 @@ class TestTriggerMatching:
         assert _trigger_matches(trigger, msg) is True
 
     def test_case_insensitive_src(self):
-        trigger = DispatchTrigger(
-            type="event-driven", match_type="dispatch", match_src="HERALDO"
-        )
+        trigger = DispatchTrigger(type="event-driven", match_type="dispatch", match_src="HERALDO")
         msg = _msg(src="heraldo", msg_type="dispatch")
         assert _trigger_matches(trigger, msg) is True
 
@@ -744,16 +748,22 @@ class TestClassifierRegistryIntegration:
         mc = MessageClassifier(local_namespaces={"heraldo"})
 
         # Registered agent source is valid
-        assert mc.verify_source(
-            _msg(src="mail-scanner"),
-            registered_agent_ids=reg.all_agent_ids(),
-        ) is True
+        assert (
+            mc.verify_source(
+                _msg(src="mail-scanner"),
+                registered_agent_ids=reg.all_agent_ids(),
+            )
+            is True
+        )
 
         # Unknown source is invalid
-        assert mc.verify_source(
-            _msg(src="rogue-agent"),
-            registered_agent_ids=reg.all_agent_ids(),
-        ) is False
+        assert (
+            mc.verify_source(
+                _msg(src="rogue-agent"),
+                registered_agent_ids=reg.all_agent_ids(),
+            )
+            is False
+        )
 
     def test_classify_then_match(self, agents_dir):
         reg = AgentRegistry(agents_dir)
@@ -885,6 +895,7 @@ class TestApprovalGateManager:
 
     def test_add_hashes_msg(self):
         import hashlib
+
         mgr = ApprovalGateManager()
         msg = self._trigger_msg()
         pa = mgr.add("agent", "rule", msg)
@@ -1148,9 +1159,7 @@ class TestDispatchEngine:
         # Fast forward past timeout (12 hours for financial rule)
         future = now + timedelta(hours=13)
         decisions = engine.expire_approvals(future)
-        timeout_decisions = [
-            d for d in decisions if d.outcome == DispatchOutcome.APPROVAL_TIMEOUT
-        ]
+        timeout_decisions = [d for d in decisions if d.outcome == DispatchOutcome.APPROVAL_TIMEOUT]
         assert len(timeout_decisions) >= 1
 
     def test_evaluate_does_not_mutate_message(self, engine):
@@ -1177,7 +1186,9 @@ class TestDispatchEngine:
         reg = AgentRegistry(d)
         reg.load_all()
         engine = DispatchEngine(
-            reg, ConcurrencyTracker(), ApprovalGateManager(),
+            reg,
+            ConcurrencyTracker(),
+            ApprovalGateManager(),
             DispatchCommandRenderer(),
         )
         msg = _msg(msg_type="dispatch", msg_text="REPORT:test")
@@ -1192,7 +1203,9 @@ class TestDispatchEngine:
         reg = AgentRegistry(d)
         reg.load_all()
         engine = DispatchEngine(
-            reg, ConcurrencyTracker(), ApprovalGateManager(),
+            reg,
+            ConcurrencyTracker(),
+            ApprovalGateManager(),
             DispatchCommandRenderer(),
         )
         msg = _msg(msg_type="dispatch", msg_text="REPORT:test")
@@ -1324,9 +1337,7 @@ class TestF3Integration:
         reg = AgentRegistry(agents_dir)
         reg.load_all()
         ct = ConcurrencyTracker()
-        engine = DispatchEngine(
-            reg, ct, ApprovalGateManager(), DispatchCommandRenderer()
-        )
+        engine = DispatchEngine(reg, ct, ApprovalGateManager(), DispatchCommandRenderer())
 
         msg = _msg(msg_type="dispatch", msg_text="REPORT:weekly")
         decisions = engine.evaluate_message(msg)
@@ -1370,9 +1381,7 @@ class TestF3Integration:
         reg = AgentRegistry(agents_dir)
         reg.load_all()
         am = ApprovalGateManager()
-        engine = DispatchEngine(
-            reg, ConcurrencyTracker(), am, DispatchCommandRenderer()
-        )
+        engine = DispatchEngine(reg, ConcurrencyTracker(), am, DispatchCommandRenderer())
 
         now = datetime(2026, 3, 20, 12, 0)
         trigger = _msg(msg_type="dispatch", msg_text="REPORT:FINANCIAL:q4")

@@ -30,7 +30,6 @@ from hermes.terminal import (
     print_inbox,
 )
 
-
 # ---------------------------------------------------------------------------
 # Mock data structures
 # ---------------------------------------------------------------------------
@@ -395,8 +394,17 @@ class TestPrintBusMessagesPlain:
 
     def test_with_messages(self, capsys):
         messages = [
-            MockMessage(ts="2026-03-28", src="jei", dst="*", type="state", msg="hello world", ack=[]),
-            MockMessage(ts="2026-03-28", src="nymyka", dst="momoshod", type="event", msg="ping", ack=["momoshod"]),
+            MockMessage(
+                ts="2026-03-28", src="jei", dst="*", type="state", msg="hello world", ack=[]
+            ),
+            MockMessage(
+                ts="2026-03-28",
+                src="nymyka",
+                dst="momoshod",
+                type="event",
+                msg="ping",
+                ack=["momoshod"],
+            ),
         ]
         with patch.object(terminal, "HAS_RICH", False):
             print_bus_messages(messages, namespace="momoshod")
@@ -406,16 +414,20 @@ class TestPrintBusMessagesPlain:
 
     def test_ack_mark(self, capsys):
         messages = [
-            MockMessage(ts="2026-03-28", src="jei", dst="*", type="state", msg="acked", ack=["momoshod"]),
-            MockMessage(ts="2026-03-28", src="nymyka", dst="*", type="event", msg="pending", ack=[]),
+            MockMessage(
+                ts="2026-03-28", src="jei", dst="*", type="state", msg="acked", ack=["momoshod"]
+            ),
+            MockMessage(
+                ts="2026-03-28", src="nymyka", dst="*", type="event", msg="pending", ack=[]
+            ),
         ]
         with patch.object(terminal, "HAS_RICH", False):
             print_bus_messages(messages, namespace="momoshod")
         out = capsys.readouterr().out
         # First message should have check mark
-        lines = [l for l in out.strip().split("\n") if l.strip()]
+        lines = [ln for ln in out.strip().split("\n") if ln.strip()]
         # acked message should contain the checkmark
-        assert any("✓" in l and "jei" in l for l in lines)
+        assert any("✓" in ln and "jei" in ln for ln in lines)
 
     def test_no_namespace(self, capsys):
         messages = [
@@ -441,7 +453,14 @@ class TestPrintBusMessagesRich:
     def test_rich_with_messages(self, capsys):
         messages = [
             MockMessage(ts="2026-03-28", src="jei", dst="*", type="state", msg="hello", ack=[]),
-            MockMessage(ts="2026-03-28", src="nymyka", dst="momoshod", type="alert", msg="urgent", ack=["momoshod"]),
+            MockMessage(
+                ts="2026-03-28",
+                src="nymyka",
+                dst="momoshod",
+                type="alert",
+                msg="urgent",
+                ack=["momoshod"],
+            ),
         ]
         with patch.object(terminal, "HAS_RICH", True):
             print_bus_messages(messages, namespace="momoshod")

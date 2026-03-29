@@ -6,17 +6,7 @@ Inspired by TCP/IP. No servers, no databases — just files and convention.
 
 __version__ = "0.4.2-alpha"
 
-from .message import (
-    RELIABLE_TYPES,
-    VALID_TYPES,
-    Message,
-    ValidationError,
-    create_message,
-    extract_cid,
-    extract_re,
-    transport_mode,
-    validate_message,
-)
+from .agora import AgoraDirectory
 from .bus import (
     ack_message,
     archive_expired,
@@ -30,13 +20,6 @@ from .bus import (
     read_bus,
     write_message,
 )
-from .sync import (
-    FinAction,
-    SynResult,
-    fin,
-    syn,
-    syn_report,
-)
 from .config import (
     GatewayConfig,
     PeerConfig,
@@ -44,7 +27,6 @@ from .config import (
     load_config,
     save_config,
 )
-from .agora import AgoraDirectory
 from .dojo import (
     Dojo,
     Plane,
@@ -54,8 +36,26 @@ from .dojo import (
     SkillAvailability,
     SkillProfile,
 )
+from .message import (
+    RELIABLE_TYPES,
+    VALID_TYPES,
+    Message,
+    ValidationError,
+    create_message,
+    extract_cid,
+    extract_re,
+    transport_mode,
+    validate_message,
+)
+from .sync import (
+    FinAction,
+    SynResult,
+    fin,
+    syn,
+    syn_report,
+)
 
-__all__ = [
+__all__ = [  # noqa: RUF022 — grouped by category for readability
     # Core types
     "Message",
     "ValidationError",

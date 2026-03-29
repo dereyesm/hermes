@@ -6,7 +6,6 @@ find_expired, archive_expired, ack_message.
 
 import json
 from datetime import date, timedelta
-from pathlib import Path
 
 import pytest
 
@@ -31,7 +30,6 @@ from hermes.message import (
     is_sealed,
 )
 
-
 # ─── Fixtures ──────────────────────────────────────────────────────
 
 
@@ -51,12 +49,15 @@ def archive_file(tmp_path):
     return f
 
 
-def _make_msg(src="eng", dst="*", type="state", msg="test", ttl=7,
-              ts=None, ack=None):
+def _make_msg(src="eng", dst="*", type="state", msg="test", ttl=7, ts=None, ack=None):
     """Helper to create a Message with sensible defaults."""
     return Message(
         ts=ts or date.today(),
-        src=src, dst=dst, type=type, msg=msg, ttl=ttl,
+        src=src,
+        dst=dst,
+        type=type,
+        msg=msg,
+        ttl=ttl,
         ack=ack or [],
     )
 
@@ -80,9 +81,9 @@ class TestReadBus:
 
     def test_multiple_messages(self, bus_file):
         for i in range(5):
-            write_message(bus_file, create_message(
-                src="eng", dst="*", type="state", msg=f"msg-{i}"
-            ))
+            write_message(
+                bus_file, create_message(src="eng", dst="*", type="state", msg=f"msg-{i}")
+            )
         result = read_bus(bus_file)
         assert len(result) == 5
         assert [m.msg for m in result] == [f"msg-{i}" for i in range(5)]
@@ -91,9 +92,7 @@ class TestReadBus:
         # Write one valid, one invalid, one valid
         valid = create_message(src="eng", dst="*", type="state", msg="valid")
         bus_file.write_text(
-            valid.to_jsonl() + "\n"
-            + '{"broken": true}\n'
-            + valid.to_jsonl() + "\n",
+            valid.to_jsonl() + "\n" + '{"broken": true}\n' + valid.to_jsonl() + "\n",
             encoding="utf-8",
         )
         result = read_bus(bus_file)
@@ -188,9 +187,9 @@ class TestFilterForNamespace:
 
     def test_mixed_scenario(self):
         msgs = [
-            _make_msg(src="ops", dst="eng"),           # match: unicast
-            _make_msg(src="ops", dst="fin"),           # no match
-            _make_msg(src="ops", dst="*"),              # match: broadcast
+            _make_msg(src="ops", dst="eng"),  # match: unicast
+            _make_msg(src="ops", dst="fin"),  # no match
+            _make_msg(src="ops", dst="*"),  # match: broadcast
             _make_msg(src="ops", dst="*", ack=["eng"]),  # acked
             _make_msg(src="ops", dst="eng", ack=["eng"]),  # acked unicast
         ]
@@ -243,8 +242,8 @@ class TestFindStale:
     def test_mixed_stale_and_fresh(self):
         msgs = [
             _make_msg(ts=date.today() - timedelta(days=10)),  # stale
-            _make_msg(ts=date.today()),                         # fresh
-            _make_msg(ts=date.today() - timedelta(days=5)),   # stale
+            _make_msg(ts=date.today()),  # fresh
+            _make_msg(ts=date.today() - timedelta(days=5)),  # stale
         ]
         result = find_stale(msgs)
         assert len(result) == 2
@@ -284,9 +283,9 @@ class TestFindExpired:
     def test_mixed_expired_and_active(self):
         msgs = [
             _make_msg(ts=date.today() - timedelta(days=20), ttl=3),  # expired
-            _make_msg(ts=date.today(), ttl=7),                         # active
-            _make_msg(ts=date.today() - timedelta(days=6), ttl=7),   # active (6 <= 7)
-            _make_msg(ts=date.today() - timedelta(days=8), ttl=5),   # expired
+            _make_msg(ts=date.today(), ttl=7),  # active
+            _make_msg(ts=date.today() - timedelta(days=6), ttl=7),  # active (6 <= 7)
+            _make_msg(ts=date.today() - timedelta(days=8), ttl=5),  # expired
         ]
         result = find_expired(msgs)
         assert len(result) == 2
@@ -304,9 +303,7 @@ class TestArchiveExpired:
         assert len(read_bus(bus_file)) == 1
 
     def test_all_expired(self, bus_file, archive_file):
-        expired = _make_msg(
-            ts=date.today() - timedelta(days=20), ttl=3, msg="old"
-        )
+        expired = _make_msg(ts=date.today() - timedelta(days=20), ttl=3, msg="old")
         write_message(bus_file, expired)
         count = archive_expired(bus_file, archive_file)
         assert count == 1
@@ -314,9 +311,7 @@ class TestArchiveExpired:
         assert len(read_bus(archive_file)) == 1
 
     def test_mixed_expired_and_active(self, bus_file, archive_file):
-        expired = _make_msg(
-            ts=date.today() - timedelta(days=20), ttl=3, msg="expired"
-        )
+        expired = _make_msg(ts=date.today() - timedelta(days=20), ttl=3, msg="expired")
         active = create_message(src="eng", dst="*", type="state", msg="active")
         write_message(bus_file, expired)
         write_message(bus_file, active)
@@ -335,16 +330,12 @@ class TestArchiveExpired:
     def test_archive_appends_not_overwrites(self, bus_file, archive_file):
         """Running archive twice should append to archive, not overwrite."""
         # First batch
-        exp1 = _make_msg(
-            ts=date.today() - timedelta(days=20), ttl=3, msg="batch1"
-        )
+        exp1 = _make_msg(ts=date.today() - timedelta(days=20), ttl=3, msg="batch1")
         write_message(bus_file, exp1)
         archive_expired(bus_file, archive_file)
 
         # Second batch
-        exp2 = _make_msg(
-            ts=date.today() - timedelta(days=20), ttl=3, msg="batch2"
-        )
+        exp2 = _make_msg(ts=date.today() - timedelta(days=20), ttl=3, msg="batch2")
         write_message(bus_file, exp2)
         archive_expired(bus_file, archive_file)
 
@@ -390,9 +381,9 @@ class TestAckMessage:
 
     def test_multiple_matches(self, bus_file):
         for i in range(3):
-            write_message(bus_file, create_message(
-                src="eng", dst="*", type="state", msg=f"msg-{i}"
-            ))
+            write_message(
+                bus_file, create_message(src="eng", dst="*", type="state", msg=f"msg-{i}")
+            )
 
         count = ack_message(bus_file, "ops", lambda m: True)
         assert count == 3
@@ -401,18 +392,14 @@ class TestAckMessage:
         assert all("ops" in m.ack for m in msgs)
 
     def test_selective_ack(self, bus_file):
-        write_message(bus_file, create_message(
-            src="eng", dst="*", type="alert", msg="urgent"
-        ))
-        write_message(bus_file, create_message(
-            src="eng", dst="*", type="state", msg="normal"
-        ))
+        write_message(bus_file, create_message(src="eng", dst="*", type="alert", msg="urgent"))
+        write_message(bus_file, create_message(src="eng", dst="*", type="state", msg="normal"))
 
         count = ack_message(bus_file, "ops", lambda m: m.type == "alert")
         assert count == 1
 
         msgs = read_bus(bus_file)
-        assert "ops" in msgs[0].ack     # alert was acked
+        assert "ops" in msgs[0].ack  # alert was acked
         assert "ops" not in msgs[1].ack  # state was not
 
     def test_ack_preserves_existing_acks(self, bus_file):
@@ -465,7 +452,10 @@ class TestSealedBus:
 
         raw = read_bus(bus_file)
         opened = open_sealed_message(
-            raw[0], receiver, sender.sign_public, sender.dh_public,
+            raw[0],
+            receiver,
+            sender.sign_public,
+            sender.dh_public,
         )
         assert opened is not None
         assert opened.msg == "roundtrip-static"
@@ -479,7 +469,10 @@ class TestSealedBus:
 
         raw = read_bus(bus_file)
         opened = open_sealed_message(
-            raw[0], receiver, sender.sign_public, sender.dh_public,
+            raw[0],
+            receiver,
+            sender.sign_public,
+            sender.dh_public,
         )
         assert opened is not None
         assert opened.msg == "roundtrip-ecdhe"
@@ -494,7 +487,10 @@ class TestSealedBus:
         write_sealed_message(bus_file, secret, sender, receiver.dh_public, ecdhe=True)
 
         result = read_bus_sealed(
-            bus_file, receiver, sender.sign_public, sender.dh_public,
+            bus_file,
+            receiver,
+            sender.sign_public,
+            sender.dh_public,
         )
         assert len(result) == 2
         assert result[0].msg == "plain-msg"
@@ -509,7 +505,10 @@ class TestSealedBus:
         write_sealed_message(bus_file, msg, sender, receiver.dh_public, ecdhe=True)
 
         result = read_bus_sealed(
-            bus_file, wrong, sender.sign_public, sender.dh_public,
+            bus_file,
+            wrong,
+            sender.sign_public,
+            sender.dh_public,
         )
         assert len(result) == 0
 
@@ -518,7 +517,12 @@ class TestSealedBus:
         sender, receiver = clan_keys
         msg = create_message(src="alpha", dst="beta", type="state", msg="compact-wire")
         write_sealed_message(
-            bus_file, msg, sender, receiver.dh_public, compact=True, ecdhe=True,
+            bus_file,
+            msg,
+            sender,
+            receiver.dh_public,
+            compact=True,
+            ecdhe=True,
         )
 
         raw_line = bus_file.read_text(encoding="utf-8").strip()
@@ -531,7 +535,12 @@ class TestSealedBus:
         sender, receiver = clan_keys
         msg = create_message(src="alpha", dst="beta", type="state", msg="verbose-wire")
         write_sealed_message(
-            bus_file, msg, sender, receiver.dh_public, compact=False, ecdhe=True,
+            bus_file,
+            msg,
+            sender,
+            receiver.dh_public,
+            compact=False,
+            ecdhe=True,
         )
 
         raw_line = bus_file.read_text(encoding="utf-8").strip()
@@ -549,12 +558,20 @@ class TestSealedBus:
         sealed_msg = raw[0]
         # Tamper: change src in the outer message
         tampered = Message(
-            ts=sealed_msg.ts, src="evil", dst=sealed_msg.dst,
-            type=sealed_msg.type, msg=sealed_msg.msg, ttl=sealed_msg.ttl,
-            ack=list(sealed_msg.ack), encoding=sealed_msg.encoding,
+            ts=sealed_msg.ts,
+            src="evil",
+            dst=sealed_msg.dst,
+            type=sealed_msg.type,
+            msg=sealed_msg.msg,
+            ttl=sealed_msg.ttl,
+            ack=list(sealed_msg.ack),
+            encoding=sealed_msg.encoding,
         )
         opened = open_sealed_message(
-            tampered, receiver, sender.sign_public, sender.dh_public,
+            tampered,
+            receiver,
+            sender.sign_public,
+            sender.dh_public,
         )
         # Should fail because envelope_meta (AAD) doesn't match
         assert opened is None
@@ -570,7 +587,10 @@ class TestSealedBus:
         raw = read_bus(bus_file)
         # First open succeeds
         opened = open_sealed_message(
-            raw[0], receiver, sender.sign_public, sender.dh_public,
+            raw[0],
+            receiver,
+            sender.sign_public,
+            sender.dh_public,
             nonce_tracker=tracker,
         )
         assert opened is not None
@@ -578,7 +598,10 @@ class TestSealedBus:
 
         # Replay (same nonce) fails
         replayed = open_sealed_message(
-            raw[0], receiver, sender.sign_public, sender.dh_public,
+            raw[0],
+            receiver,
+            sender.sign_public,
+            sender.dh_public,
             nonce_tracker=tracker,
         )
         assert replayed is None

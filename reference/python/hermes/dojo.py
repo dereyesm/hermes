@@ -11,13 +11,11 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from datetime import date
 from enum import Enum
 from pathlib import Path
-from typing import Optional
-
 
 # --- Enums ---
+
 
 class Plane(str, Enum):
     """The three operational planes defined by ARC-2314."""
@@ -57,6 +55,7 @@ class SkillAvailability(str, Enum):
 
 # --- Data Classes ---
 
+
 @dataclass(frozen=True)
 class SkillProfile:
     """A Skill's capability profile for Dojo quest matching (ARC-2314 s7.2).
@@ -75,10 +74,7 @@ class SkillProfile:
 
         Supports prefix matching: "eng" matches "eng.protocol-design".
         """
-        for cap in self.capabilities:
-            if cap == required or cap.startswith(required + "."):
-                return True
-        return False
+        return any(cap == required or cap.startswith(required + ".") for cap in self.capabilities)
 
     def matches_any(self, required: list[str]) -> bool:
         """Check if this Skill matches any of the required capabilities."""
@@ -103,7 +99,7 @@ class Quest:
     title: str
     skills: list[str]
     priority: str = "normal"
-    deadline: Optional[str] = None
+    deadline: str | None = None
     acceptance_criteria: list[str] = field(default_factory=list)
     status: QuestStatus = QuestStatus.PENDING
     xp_reward: int = 10
@@ -125,6 +121,7 @@ class Quest:
 
 
 # --- Dojo (Orchestration Plane) ---
+
 
 class Dojo:
     """The Orchestration Plane agent — ARC-2314 Grand Dojo implementation.
@@ -156,13 +153,13 @@ class Dojo:
         """Remove a Skill from the roster."""
         self._roster.pop(skill_id, None)
 
-    def get_skill(self, skill_id: str) -> Optional[SkillProfile]:
+    def get_skill(self, skill_id: str) -> SkillProfile | None:
         """Look up a Skill by ID."""
         return self._roster.get(skill_id)
 
     def list_skills(
         self,
-        availability: Optional[SkillAvailability] = None,
+        availability: SkillAvailability | None = None,
     ) -> list[SkillProfile]:
         """List Skills, optionally filtered by availability."""
         skills = list(self._roster.values())
@@ -199,8 +196,8 @@ class Dojo:
         title: str,
         required_capabilities: list[str],
         priority: str = "normal",
-        deadline: Optional[str] = None,
-        acceptance_criteria: Optional[list[str]] = None,
+        deadline: str | None = None,
+        acceptance_criteria: list[str] | None = None,
         xp_reward: int = 10,
     ) -> Quest:
         """Create a quest and auto-assign matching Skills.
@@ -209,9 +206,7 @@ class Dojo:
         """
         matched = self.match_skills(required_capabilities)
         if not matched:
-            raise ValueError(
-                f"No active skills match capabilities: {required_capabilities}"
-            )
+            raise ValueError(f"No active skills match capabilities: {required_capabilities}")
 
         skill_ids = [s.skill_id for s in matched]
         quest = Quest(
@@ -231,23 +226,19 @@ class Dojo:
         """Move a quest from PENDING to IN_PROGRESS (ARC-2314 s6.2 step 3)."""
         quest = self._find_quest(quest_id)
         if quest.status != QuestStatus.PENDING:
-            raise ValueError(
-                f"Quest '{quest_id}' is {quest.status.value}, cannot dispatch"
-            )
+            raise ValueError(f"Quest '{quest_id}' is {quest.status.value}, cannot dispatch")
         quest.status = QuestStatus.IN_PROGRESS
         return quest
 
     def complete_quest(
         self,
         quest_id: str,
-        results: Optional[dict] = None,
+        results: dict | None = None,
     ) -> Quest:
         """Mark a quest as completed and award XP (ARC-2314 s6.2 steps 7-8)."""
         quest = self._find_quest(quest_id)
         if quest.status != QuestStatus.IN_PROGRESS:
-            raise ValueError(
-                f"Quest '{quest_id}' is {quest.status.value}, cannot complete"
-            )
+            raise ValueError(f"Quest '{quest_id}' is {quest.status.value}, cannot complete")
         quest.status = QuestStatus.COMPLETED
         quest.results = results or {}
 
@@ -273,9 +264,7 @@ class Dojo:
         """Cancel a pending quest."""
         quest = self._find_quest(quest_id)
         if quest.status not in (QuestStatus.PENDING, QuestStatus.IN_PROGRESS):
-            raise ValueError(
-                f"Quest '{quest_id}' is {quest.status.value}, cannot cancel"
-            )
+            raise ValueError(f"Quest '{quest_id}' is {quest.status.value}, cannot cancel")
         quest.status = QuestStatus.CANCELLED
         self._backlog.remove(quest)
         self._completed.append(quest)
@@ -283,7 +272,7 @@ class Dojo:
 
     def list_backlog(
         self,
-        status: Optional[QuestStatus] = None,
+        status: QuestStatus | None = None,
     ) -> list[Quest]:
         """List quests in the backlog, optionally filtered by status."""
         if status is not None:
@@ -322,15 +311,23 @@ class Dojo:
         """
         forbidden = {
             "messenger": {
-                "dispatch_quest", "create_quest", "complete_quest",
-                "manage_backlog", "compute_xp",
+                "dispatch_quest",
+                "create_quest",
+                "complete_quest",
+                "manage_backlog",
+                "compute_xp",
             },
             "skill": {
-                "route_message", "discover_clan", "translate_identity",
-                "dispatch_quest", "manage_backlog",
+                "route_message",
+                "discover_clan",
+                "translate_identity",
+                "dispatch_quest",
+                "manage_backlog",
             },
             "dojo": {
-                "route_message", "discover_clan", "translate_identity",
+                "route_message",
+                "discover_clan",
+                "translate_identity",
                 "execute_work",
             },
         }

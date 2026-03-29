@@ -1,14 +1,11 @@
 """Tests for HERMES Adapter — Agent-agnostic bridge (installable-model.md Phase 2)."""
 
-import json
 from pathlib import Path
 
 import pytest
 
 from hermes.adapter import (
-    ADAPTERS,
     AdaptResult,
-    AdapterBase,
     ClaudeCodeAdapter,
     CursorAdapter,
     _safe_symlink,
@@ -18,7 +15,6 @@ from hermes.adapter import (
     run_adapter,
 )
 from hermes.config import GatewayConfig, PeerConfig, init_clan, save_config_toml
-
 
 # ─── Fixtures ──────────────────────────────────────────────────────
 
@@ -222,18 +218,14 @@ class TestClaudeCodeAdapterBus:
     """Bus symlink tests."""
 
     def test_links_bus_active(self, hermes_dir_with_bus, target_dir):
-        adapter = ClaudeCodeAdapter(
-            hermes_dir=hermes_dir_with_bus, target_dir=target_dir
-        )
-        result = adapter.adapt()
+        adapter = ClaudeCodeAdapter(hermes_dir=hermes_dir_with_bus, target_dir=target_dir)
+        adapter.adapt()
         bus_link = target_dir / "sync" / "bus.jsonl"
         assert bus_link.is_symlink()
         assert "test message" in bus_link.read_text()
 
     def test_bus_link_resolves_to_hermes(self, hermes_dir_with_bus, target_dir):
-        adapter = ClaudeCodeAdapter(
-            hermes_dir=hermes_dir_with_bus, target_dir=target_dir
-        )
+        adapter = ClaudeCodeAdapter(hermes_dir=hermes_dir_with_bus, target_dir=target_dir)
         adapter.adapt()
         bus_link = target_dir / "sync" / "bus.jsonl"
         resolved = bus_link.resolve()
@@ -256,7 +248,9 @@ class TestClaudeCodeAdapterBus:
         init_clan(hdir, "clan-test", "Test Clan", config_format="toml")
         # Create legacy bus.jsonl at root
         legacy_bus = hdir / "bus.jsonl"
-        legacy_bus.write_text('{"ts":"2026-03-19","src":"x","dst":"*","type":"state","msg":"legacy","ttl":7,"ack":[]}\n')
+        legacy_bus.write_text(
+            '{"ts":"2026-03-19","src":"x","dst":"*","type":"state","msg":"legacy","ttl":7,"ack":[]}\n'
+        )
         # Remove bus/active.jsonl if it exists
         bus_active = hdir / "bus" / "active.jsonl"
         if bus_active.exists():
@@ -278,10 +272,8 @@ class TestClaudeCodeAdapterSkills:
     """Dimension skill linking tests."""
 
     def test_links_global_skills(self, hermes_dir_with_dims, target_dir):
-        adapter = ClaudeCodeAdapter(
-            hermes_dir=hermes_dir_with_dims, target_dir=target_dir
-        )
-        result = adapter.adapt()
+        adapter = ClaudeCodeAdapter(hermes_dir=hermes_dir_with_dims, target_dir=target_dir)
+        adapter.adapt()
 
         consejo = target_dir / "skills" / "global" / "consejo"
         palas = target_dir / "skills" / "global" / "palas"
@@ -290,9 +282,7 @@ class TestClaudeCodeAdapterSkills:
         assert (consejo / "SKILL.md").read_text() == "# Consejo Skill\n"
 
     def test_links_dimension_skills(self, hermes_dir_with_dims, target_dir):
-        adapter = ClaudeCodeAdapter(
-            hermes_dir=hermes_dir_with_dims, target_dir=target_dir
-        )
+        adapter = ClaudeCodeAdapter(hermes_dir=hermes_dir_with_dims, target_dir=target_dir)
         adapter.adapt()
 
         niky = target_dir / "skills" / "nymyka" / "niky-ceo"
@@ -306,9 +296,7 @@ class TestClaudeCodeAdapterSkills:
         assert "No dimension skills found" in result.steps
 
     def test_reports_linked_count(self, hermes_dir_with_dims, target_dir):
-        adapter = ClaudeCodeAdapter(
-            hermes_dir=hermes_dir_with_dims, target_dir=target_dir
-        )
+        adapter = ClaudeCodeAdapter(hermes_dir=hermes_dir_with_dims, target_dir=target_dir)
         result = adapter.adapt()
         skill_step = [s for s in result.steps if "Skills linked" in s]
         assert len(skill_step) == 1
@@ -323,9 +311,7 @@ class TestClaudeCodeAdapterRules:
     """Dimension rule linking tests."""
 
     def test_links_rules_with_prefix(self, hermes_dir_with_dims, target_dir):
-        adapter = ClaudeCodeAdapter(
-            hermes_dir=hermes_dir_with_dims, target_dir=target_dir
-        )
+        adapter = ClaudeCodeAdapter(hermes_dir=hermes_dir_with_dims, target_dir=target_dir)
         adapter.adapt()
 
         rules_dir = target_dir / "rules"
@@ -347,9 +333,7 @@ class TestClaudeCodeAdapterPeers:
     """Peer display in CLAUDE.md."""
 
     def test_claude_md_includes_peers(self, hermes_dir_with_peers, target_dir):
-        adapter = ClaudeCodeAdapter(
-            hermes_dir=hermes_dir_with_peers, target_dir=target_dir
-        )
+        adapter = ClaudeCodeAdapter(hermes_dir=hermes_dir_with_peers, target_dir=target_dir)
         adapter.adapt()
         content = (target_dir / "CLAUDE.md").read_text()
         assert "clan-jei" in content
@@ -371,9 +355,7 @@ class TestClaudeCodeAdapterDimensions:
     """Dimension listing in CLAUDE.md."""
 
     def test_lists_dimensions(self, hermes_dir_with_dims, target_dir):
-        adapter = ClaudeCodeAdapter(
-            hermes_dir=hermes_dir_with_dims, target_dir=target_dir
-        )
+        adapter = ClaudeCodeAdapter(hermes_dir=hermes_dir_with_dims, target_dir=target_dir)
         adapter.adapt()
         content = (target_dir / "CLAUDE.md").read_text()
         assert "`global`" in content
@@ -393,18 +375,14 @@ class TestClaudeCodeAdapterIdempotency:
     """Adapter is safe to run multiple times."""
 
     def test_run_twice_no_errors(self, hermes_dir_with_dims, target_dir):
-        adapter = ClaudeCodeAdapter(
-            hermes_dir=hermes_dir_with_dims, target_dir=target_dir
-        )
+        adapter = ClaudeCodeAdapter(hermes_dir=hermes_dir_with_dims, target_dir=target_dir)
         r1 = adapter.adapt()
         r2 = adapter.adapt()
         assert r1.success is True
         assert r2.success is True
 
     def test_run_twice_unchanged(self, hermes_dir_with_dims, target_dir):
-        adapter = ClaudeCodeAdapter(
-            hermes_dir=hermes_dir_with_dims, target_dir=target_dir
-        )
+        adapter = ClaudeCodeAdapter(hermes_dir=hermes_dir_with_dims, target_dir=target_dir)
         adapter.adapt()
         r2 = adapter.adapt()
         # Second run should report "unchanged" for most steps
@@ -412,9 +390,7 @@ class TestClaudeCodeAdapterIdempotency:
         assert "Bus symlink unchanged" in r2.steps
 
     def test_symlinks_survive_rerun(self, hermes_dir_with_dims, target_dir):
-        adapter = ClaudeCodeAdapter(
-            hermes_dir=hermes_dir_with_dims, target_dir=target_dir
-        )
+        adapter = ClaudeCodeAdapter(hermes_dir=hermes_dir_with_dims, target_dir=target_dir)
         adapter.adapt()
         adapter.adapt()
         # Skills still linked
@@ -591,9 +567,7 @@ class TestCursorAdapterSkills:
     """Skill compilation tests."""
 
     def test_compiles_skills_into_cursorrules(self, hermes_dir_with_dims, cursor_target_dir):
-        adapter = CursorAdapter(
-            hermes_dir=hermes_dir_with_dims, target_dir=cursor_target_dir
-        )
+        adapter = CursorAdapter(hermes_dir=hermes_dir_with_dims, target_dir=cursor_target_dir)
         adapter.adapt()
         content = (cursor_target_dir / ".cursorrules").read_text()
         assert "## Skills" in content
@@ -602,9 +576,7 @@ class TestCursorAdapterSkills:
         assert "Niky CEO" in content
 
     def test_skills_grouped_by_dimension(self, hermes_dir_with_dims, cursor_target_dir):
-        adapter = CursorAdapter(
-            hermes_dir=hermes_dir_with_dims, target_dir=cursor_target_dir
-        )
+        adapter = CursorAdapter(hermes_dir=hermes_dir_with_dims, target_dir=cursor_target_dir)
         adapter.adapt()
         content = (cursor_target_dir / ".cursorrules").read_text()
         assert "Dimension: global" in content
@@ -624,9 +596,7 @@ class TestCursorAdapterRules:
     """Rule compilation tests."""
 
     def test_compiles_rules_into_cursorrules(self, hermes_dir_with_dims, cursor_target_dir):
-        adapter = CursorAdapter(
-            hermes_dir=hermes_dir_with_dims, target_dir=cursor_target_dir
-        )
+        adapter = CursorAdapter(hermes_dir=hermes_dir_with_dims, target_dir=cursor_target_dir)
         adapter.adapt()
         content = (cursor_target_dir / ".cursorrules").read_text()
         assert "## Rules" in content
@@ -634,9 +604,7 @@ class TestCursorAdapterRules:
         assert "SOPs" in content
 
     def test_rules_grouped_by_dimension(self, hermes_dir_with_dims, cursor_target_dir):
-        adapter = CursorAdapter(
-            hermes_dir=hermes_dir_with_dims, target_dir=cursor_target_dir
-        )
+        adapter = CursorAdapter(hermes_dir=hermes_dir_with_dims, target_dir=cursor_target_dir)
         adapter.adapt()
         content = (cursor_target_dir / ".cursorrules").read_text()
         # Rules only exist in nymyka dimension in fixture
@@ -656,10 +624,8 @@ class TestCursorAdapterBus:
     """Bus symlink tests for Cursor."""
 
     def test_links_bus(self, hermes_dir_with_bus, cursor_target_dir):
-        adapter = CursorAdapter(
-            hermes_dir=hermes_dir_with_bus, target_dir=cursor_target_dir
-        )
-        result = adapter.adapt()
+        adapter = CursorAdapter(hermes_dir=hermes_dir_with_bus, target_dir=cursor_target_dir)
+        adapter.adapt()
         bus_link = cursor_target_dir / ".cursor" / "bus.jsonl"
         assert bus_link.is_symlink()
         assert "test message" in bus_link.read_text()
@@ -679,9 +645,7 @@ class TestCursorAdapterPeers:
     """Peer display in .cursorrules."""
 
     def test_cursorrules_includes_peers(self, hermes_dir_with_peers, cursor_target_dir):
-        adapter = CursorAdapter(
-            hermes_dir=hermes_dir_with_peers, target_dir=cursor_target_dir
-        )
+        adapter = CursorAdapter(hermes_dir=hermes_dir_with_peers, target_dir=cursor_target_dir)
         adapter.adapt()
         content = (cursor_target_dir / ".cursorrules").read_text()
         assert "clan-jei" in content
@@ -701,18 +665,14 @@ class TestCursorAdapterIdempotency:
     """Cursor adapter is safe to run multiple times."""
 
     def test_run_twice_no_errors(self, hermes_dir_with_dims, cursor_target_dir):
-        adapter = CursorAdapter(
-            hermes_dir=hermes_dir_with_dims, target_dir=cursor_target_dir
-        )
+        adapter = CursorAdapter(hermes_dir=hermes_dir_with_dims, target_dir=cursor_target_dir)
         r1 = adapter.adapt()
         r2 = adapter.adapt()
         assert r1.success is True
         assert r2.success is True
 
     def test_run_twice_unchanged(self, hermes_dir_with_dims, cursor_target_dir):
-        adapter = CursorAdapter(
-            hermes_dir=hermes_dir_with_dims, target_dir=cursor_target_dir
-        )
+        adapter = CursorAdapter(hermes_dir=hermes_dir_with_dims, target_dir=cursor_target_dir)
         adapter.adapt()
         r2 = adapter.adapt()
         assert ".cursorrules unchanged" in r2.steps
@@ -800,8 +760,6 @@ class TestAdapterRegistryCursor:
         assert cls is CursorAdapter
 
     def test_run_cursor_adapter(self, hermes_dir, cursor_target_dir):
-        result = run_adapter(
-            "cursor", hermes_dir=hermes_dir, target_dir=cursor_target_dir
-        )
+        result = run_adapter("cursor", hermes_dir=hermes_dir, target_dir=cursor_target_dir)
         assert result.success is True
         assert result.adapter_name == "cursor"

@@ -37,10 +37,9 @@ TYPE_COLORS = {
 
 try:
     from rich.console import Console
+    from rich.panel import Panel
     from rich.table import Table
     from rich.text import Text
-    from rich.panel import Panel
-    from rich.columns import Columns
 
     HAS_RICH = True
 except ImportError:
@@ -57,6 +56,7 @@ def get_console() -> Any:
 # ---------------------------------------------------------------------------
 # Status display
 # ---------------------------------------------------------------------------
+
 
 def print_clan_status(
     clan_id: str,
@@ -159,7 +159,7 @@ def print_clan_status(
             t.add_row(a["alias"], f"{res:.2f}", caps)
         console.print(t)
     else:
-        console.print(f"  [dim]No published agents. Add agents to your config file.[/dim]")
+        console.print("  [dim]No published agents. Add agents to your config file.[/dim]")
 
     # Peers table
     if peers:
@@ -172,12 +172,13 @@ def print_clan_status(
             t.add_row(p.clan_id, Text(p.status, style=status_style), p.added)
         console.print(t)
     else:
-        console.print(f"  [dim]No peers. Run 'hermes peer add <clan-id>'.[/dim]")
+        console.print("  [dim]No peers. Run 'hermes peer add <clan-id>'.[/dim]")
 
 
 # ---------------------------------------------------------------------------
 # Daemon status
 # ---------------------------------------------------------------------------
+
 
 def print_daemon_status(
     alive: bool,
@@ -206,10 +207,12 @@ def print_daemon_status(
     console = Console()
 
     if pid is None:
-        console.print(Panel(
-            Text("Agent Node: not running", style="dim"),
-            border_style=SLATE,
-        ))
+        console.print(
+            Panel(
+                Text("Agent Node: not running", style="dim"),
+                border_style=SLATE,
+            )
+        )
         return
 
     status_text = Text()
@@ -244,7 +247,7 @@ def print_daemon_status(
 
     title = Text()
     title.append(" HERMES ", style="bold white")
-    title.append("Agent Node", style=f"bold")
+    title.append("Agent Node", style="bold")
 
     console.print(Panel(t, title=title, border_style=TEAL if alive else CRIMSON))
 
@@ -253,11 +256,12 @@ def print_daemon_status(
 # Inbox display
 # ---------------------------------------------------------------------------
 
+
 def print_inbox(clan_id: str, messages: list[dict]) -> None:
     """Print inbox messages with color-coded types."""
     if not messages:
         if HAS_RICH:
-            Console().print(f"[dim]Inbox empty.[/dim]")
+            Console().print("[dim]Inbox empty.[/dim]")
         else:
             print("Inbox empty.")
         return
@@ -303,6 +307,7 @@ def print_inbox(clan_id: str, messages: list[dict]) -> None:
 # Bus display (for future `hermes bus` command)
 # ---------------------------------------------------------------------------
 
+
 def print_bus_messages(messages: list[Any], namespace: str | None = None) -> None:
     """Print bus messages with brand-colored types."""
     if not messages:
@@ -323,14 +328,14 @@ def print_bus_messages(messages: list[Any], namespace: str | None = None) -> Non
     t = Table(border_style=SLATE, title_style="bold white")
     t.add_column("", width=1)  # ACK mark
     t.add_column("Date", style=SLATE, width=10)
-    t.add_column("From", style=f"bold", min_width=12)
+    t.add_column("From", style="bold", min_width=12)
     t.add_column("→", justify="center", width=1, style="dim")
-    t.add_column("To", style=f"bold", min_width=12)
+    t.add_column("To", style="bold", min_width=12)
     t.add_column("Type", justify="center", width=10)
     t.add_column("Message", max_width=45)
 
     for msg in messages:
-        ack_mark = Text("✓", style=TEAL) if namespace and namespace in msg.ack else Text(" ")
+        ack_mark = Text("✓", style=TEAL) if namespace and namespace in msg.ack else Text(" ")  # type: ignore[assignment,no-redef]
         type_color = TYPE_COLORS.get(msg.type, "white")
         t.add_row(
             ack_mark,
