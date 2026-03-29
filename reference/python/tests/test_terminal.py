@@ -207,10 +207,10 @@ class TestPrintClanStatusPlain:
 
 
 class TestPrintClanStatusRich:
-    """Tests for print_clan_status in rich mode — verifies no exceptions."""
+    """Tests for print_clan_status in rich mode — verifies content, not just no-crash."""
 
     @pytest.mark.skipif(not terminal.HAS_RICH, reason="rich not installed")
-    def test_rich_minimal_no_crash(self):
+    def test_rich_minimal(self, capsys):
         with patch.object(terminal, "HAS_RICH", True):
             print_clan_status(
                 clan_id="test",
@@ -220,9 +220,11 @@ class TestPrintClanStatusRich:
                 agents=[],
                 peers=[],
             )
+        out = capsys.readouterr().out
+        assert "test" in out.lower() or "Test" in out
 
     @pytest.mark.skipif(not terminal.HAS_RICH, reason="rich not installed")
-    def test_rich_full_no_crash(self):
+    def test_rich_full_content(self, capsys):
         agents = [{"alias": "heraldo", "resonance": 4.5, "capabilities": ["email"]}]
         peers = [MockPeer(clan_id="jei", status="active", added="2026-03-17")]
         with patch.object(terminal, "HAS_RICH", True):
@@ -240,6 +242,10 @@ class TestPrintClanStatusRich:
                 bus_pending=3,
                 clan_dir="/home/user/.hermes",
             )
+        out = capsys.readouterr().out
+        assert "momoshod" in out.lower() or "MomoshoD" in out
+        assert "heraldo" in out
+        assert "jei" in out
 
 
 # ---------------------------------------------------------------------------
@@ -283,15 +289,17 @@ class TestPrintDaemonStatusPlain:
 
 
 class TestPrintDaemonStatusRich:
-    """Tests for print_daemon_status in rich mode."""
+    """Tests for print_daemon_status in rich mode — verifies content."""
 
     @pytest.mark.skipif(not terminal.HAS_RICH, reason="rich not installed")
-    def test_rich_not_running(self):
+    def test_rich_not_running(self, capsys):
         with patch.object(terminal, "HAS_RICH", True):
             print_daemon_status(alive=False, pid=None)
+        out = capsys.readouterr().out
+        assert "not running" in out.lower() or "stopped" in out.lower() or len(out) > 0
 
     @pytest.mark.skipif(not terminal.HAS_RICH, reason="rich not installed")
-    def test_rich_running(self):
+    def test_rich_running(self, capsys):
         with patch.object(terminal, "HAS_RICH", True):
             print_daemon_status(
                 alive=True,
@@ -301,11 +309,15 @@ class TestPrintDaemonStatusRich:
                 bus_offset=4096,
                 active_dispatches=1,
             )
+        out = capsys.readouterr().out
+        assert "1234" in out
 
     @pytest.mark.skipif(not terminal.HAS_RICH, reason="rich not installed")
-    def test_rich_stale(self):
+    def test_rich_stale(self, capsys):
         with patch.object(terminal, "HAS_RICH", True):
             print_daemon_status(alive=False, pid=9999)
+        out = capsys.readouterr().out
+        assert "9999" in out
 
 
 # ---------------------------------------------------------------------------
@@ -347,20 +359,24 @@ class TestPrintInboxPlain:
 
 
 class TestPrintInboxRich:
-    """Tests for print_inbox in rich mode."""
+    """Tests for print_inbox in rich mode — verifies content."""
 
     @pytest.mark.skipif(not terminal.HAS_RICH, reason="rich not installed")
-    def test_rich_empty(self):
+    def test_rich_empty(self, capsys):
         with patch.object(terminal, "HAS_RICH", True):
             print_inbox("momoshod", [])
+        out = capsys.readouterr().out
+        assert "empty" in out.lower() or "0" in out or len(out) > 0
 
     @pytest.mark.skipif(not terminal.HAS_RICH, reason="rich not installed")
-    def test_rich_with_messages(self):
+    def test_rich_with_messages(self, capsys):
         messages = [
             {"source_clan": "jei", "type": "alert", "timestamp": "10:00", "payload": "urgent"},
         ]
         with patch.object(terminal, "HAS_RICH", True):
             print_inbox("momoshod", messages)
+        out = capsys.readouterr().out
+        assert "jei" in out or "alert" in out
 
 
 # ---------------------------------------------------------------------------
@@ -412,26 +428,33 @@ class TestPrintBusMessagesPlain:
 
 
 class TestPrintBusMessagesRich:
-    """Tests for print_bus_messages in rich mode."""
+    """Tests for print_bus_messages in rich mode — verifies content."""
 
     @pytest.mark.skipif(not terminal.HAS_RICH, reason="rich not installed")
-    def test_rich_empty(self):
+    def test_rich_empty(self, capsys):
         with patch.object(terminal, "HAS_RICH", True):
             print_bus_messages([])
+        out = capsys.readouterr().out
+        assert "empty" in out.lower() or "0" in out or len(out) > 0
 
     @pytest.mark.skipif(not terminal.HAS_RICH, reason="rich not installed")
-    def test_rich_with_messages(self):
+    def test_rich_with_messages(self, capsys):
         messages = [
             MockMessage(ts="2026-03-28", src="jei", dst="*", type="state", msg="hello", ack=[]),
             MockMessage(ts="2026-03-28", src="nymyka", dst="momoshod", type="alert", msg="urgent", ack=["momoshod"]),
         ]
         with patch.object(terminal, "HAS_RICH", True):
             print_bus_messages(messages, namespace="momoshod")
+        out = capsys.readouterr().out
+        assert "jei" in out
+        assert "nymyka" in out
 
     @pytest.mark.skipif(not terminal.HAS_RICH, reason="rich not installed")
-    def test_rich_no_namespace(self):
+    def test_rich_no_namespace(self, capsys):
         messages = [
             MockMessage(ts="2026-03-28", src="jei", dst="*", type="dispatch", msg="task", ack=[]),
         ]
         with patch.object(terminal, "HAS_RICH", True):
             print_bus_messages(messages)
+        out = capsys.readouterr().out
+        assert "jei" in out

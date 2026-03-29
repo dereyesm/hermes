@@ -4,8 +4,8 @@
 > Se actualiza al cierre de sesion cuando hay nuevos patrones confirmados (3+ ocurrencias).
 > El SKILL.md define QUE hace Protocol Architect. Este archivo define COMO lo hace bien.
 
-## Ultima actualizacion: 2026-03-27
-## Fuente: 20 specs, 1087 tests, 5 QUESTs, 9 Arena sessions (582 XP)
+## Ultima actualizacion: 2026-03-28
+## Fuente: 20 specs, 1146 tests, 5 QUESTs, 10 Arena sessions (643.5 XP)
 
 ---
 
@@ -146,9 +146,10 @@
 | BR-010 | 2026-03-18 | BR 5-skill | 4.3 | 86 | installer.py + hooks.py + 605 tests |
 | PVP-015 | 2026-03-18 | PvP w/research | 4.7 | 47 | ARC-0369 spec (856 lines, TR-369 mapping) |
 | BR-018 | 2026-03-23 | BR 3-skill | 3.9 | 78 | Real-time architecture decision (Hub vs P2P vs Hybrid) |
+| MULTI-021 | 2026-03-28 | Multi 3-skill | 4.1 | 61.5 | Sprint quality eval: ARC-1122 + 5 D2 + 59 tests |
 
 **Medals**: TE (1), PU (3), AR (1), FA (1) — 6 total
-**Total XP**: 600 | **Avg score**: 4.30 | **Sessions**: 9
+**Total XP**: 661.5 | **Avg score**: 4.28 | **Sessions**: 10
 
 ### Patterns from Arena
 
@@ -167,9 +168,9 @@
 |-------|--------|-------------|
 | QUEST-001 | COMPLETE (2026-03-08) | Security review with cybersec — first inter-clan Arena |
 | QUEST-002 | COMPLETE (2026-03-16) | ECDHE implementation — bilateral keys established |
-| QUEST-003 | Phase 2 in progress | 3 v3 divergences: HKDF info, AAD scope, sig order. Lesson: align on test vectors first |
-| QUEST-004 | Awaiting JEI (2026-03-19) | Claude Code assessment — DANI 71% baseline |
-| QUEST-005 | Proposal sent (2026-03-21) | Knowledge Exchange Protocol — ATR-KEP-001 roadmap |
+| QUEST-003 | CLOSED (2026-03-25) | ARC-8446 v1.2 canonical confirmed. 3 v3 divergences resolved. Fallback sunset ~24 Apr |
+| QUEST-004 | CLOSED (2026-03-22) | Claude Code assessment — JEI ~54% vs DANI 71%. Gap 17pp |
+| QUEST-005 | IN PROGRESS (artifact received 2026-03-25) | Knowledge Exchange — JEI artifact received, bilateral merge Abr 5 |
 | QUEST-CROSS-001 | ACK received | CTO review of ARC-4601 — first cross-clan dispatch |
 
 ---
@@ -178,10 +179,10 @@
 
 | Metrica | Valor |
 |---------|-------|
-| Specs designed | 20 (19 IMPL + 1 DRAFT) |
-| Tests maintained | 921 |
+| Specs designed | 20 (18 IMPL + 1 INFO + 1 DRAFT) |
+| Tests maintained | 1146 |
 | Python modules | 17 |
-| Arena sessions | 8 (522 XP) |
+| Arena sessions | 10 (661.5 XP) |
 | QUESTs completed | 3 (QUEST-001, 002, CROSS-001) |
 | QUESTs in progress | 3 (003, 004, 005) |
 | Bilateral clans | 2 (JEI, Nymyka) |
