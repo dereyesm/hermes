@@ -17,6 +17,9 @@ Usage:
     python -m hermes.cli uninstall [--purge] [--keep-hooks] [--dir PATH]
     python -m hermes.cli hook <pull-on-start|pull-on-prompt|exit-reminder>
     python -m hermes.cli adapt <adapter-name> [--hermes-dir PATH] [--target-dir PATH]
+    python -m hermes.cli llm list [--dir PATH]
+    python -m hermes.cli llm status [--dir PATH]
+    python -m hermes.cli llm test [--backend NAME] [--dir PATH]
 """
 
 from __future__ import annotations
@@ -643,6 +646,101 @@ def cmd_hook(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_llm(args: argparse.Namespace) -> int:
+    """Manage LLM backends."""
+    from .llm import AdapterManager, create_adapter
+
+    clan_dir = _resolve_clan_dir(args)
+    config = load_config(clan_dir)
+
+    llm_cmd = getattr(args, "llm_command", None)
+    if llm_cmd is None:
+        print("Usage: hermes llm <list|status|test>", file=sys.stderr)
+        return 1
+
+    if llm_cmd == "list":
+        if not config.llm_backends:
+            print("No LLM backends configured.")
+            print("Add [llm] section to config.toml or gateway.json.")
+            return 0
+        print(f"LLM backends ({len(config.llm_backends)}):")
+        for b in config.llm_backends:
+            status = "enabled" if b.enabled else "disabled"
+            default = " (default)" if b.backend == config.llm_default_backend else ""
+            model_info = f" model={b.model}" if b.model else ""
+            print(f"  {b.backend}{model_info} [{status}]{default}")
+            if b.api_key_env:
+                import os
+
+                has_key = bool(os.environ.get(b.api_key_env))
+                key_status = "set" if has_key else "NOT SET"
+                print(f"    env: {b.api_key_env} ({key_status})")
+        return 0
+
+    if llm_cmd == "status":
+        if not config.llm_backends:
+            print("No LLM backends configured.")
+            return 0
+        print("LLM backend health:")
+        for b in config.llm_backends:
+            if not b.enabled:
+                print(f"  {b.backend}: disabled")
+                continue
+            try:
+                kwargs: dict = {}
+                if b.model:
+                    kwargs["model"] = b.model
+                if b.api_key_env:
+                    kwargs["api_key_env"] = b.api_key_env
+                adapter = create_adapter(b.backend, **kwargs)
+                healthy = adapter.health_check()
+                status = "healthy" if healthy else "unhealthy"
+                symbol = "+" if healthy else "-"
+                print(f"  [{symbol}] {adapter.name()}: {status}")
+            except (ValueError, ImportError) as exc:
+                print(f"  [-] {b.backend}: error ({exc})")
+        return 0
+
+    if llm_cmd == "test":
+        backend_name = getattr(args, "backend", None)
+        manager = AdapterManager()
+        for b in config.llm_backends:
+            if not b.enabled:
+                continue
+            try:
+                kwargs = {}
+                if b.model:
+                    kwargs["model"] = b.model
+                if b.api_key_env:
+                    kwargs["api_key_env"] = b.api_key_env
+                adapter = create_adapter(b.backend, **kwargs)
+                manager.add(adapter)
+            except (ValueError, ImportError):
+                pass
+
+        if backend_name:
+            adapter = manager.get_by_name(backend_name)
+        else:
+            adapter = manager.get_healthy()
+
+        if adapter is None:
+            print("No healthy LLM backend available.", file=sys.stderr)
+            return 1
+
+        print(f"Testing {adapter.name()}...")
+        resp = adapter.complete(
+            "You are a HERMES protocol test bot. Respond briefly.",
+            "What protocol are you part of?",
+            max_tokens=100,
+        )
+        print(f"Response: {resp.text}")
+        if resp.usage:
+            print(f"Usage: {resp.usage}")
+        return 0
+
+    return 1
+
+
 def _add_dir_arg(parser: argparse.ArgumentParser) -> None:
     """Add --dir argument to a subparser."""
     parser.add_argument("--dir", default=".", help="Clan directory (default: current)")
@@ -839,6 +937,20 @@ def build_parser() -> argparse.ArgumentParser:
     p_hub_peers = hub_sub.add_parser("peers", help="List registered peers")
     _add_dir_arg(p_hub_peers)
 
+    # llm (Multi-LLM adapters)
+    p_llm = sub.add_parser("llm", help="Manage LLM backends")
+    llm_sub = p_llm.add_subparsers(dest="llm_command")
+
+    p_llm_list = llm_sub.add_parser("list", help="List configured LLM backends")
+    _add_dir_arg(p_llm_list)
+
+    p_llm_status = llm_sub.add_parser("status", help="Show LLM backend health status")
+    _add_dir_arg(p_llm_status)
+
+    p_llm_test = llm_sub.add_parser("test", help="Send a test prompt to a backend")
+    p_llm_test.add_argument("--backend", default=None, help="Backend name (default: first healthy)")
+    _add_dir_arg(p_llm_test)
+
     return parser
 
 
@@ -902,6 +1014,9 @@ def main(argv: list[str] | None = None) -> int:
             parser.parse_args(["daemon", "--help"])
             return 0
         return daemon_commands[args.daemon_command]()
+
+    if args.command == "llm":
+        return cmd_llm(args)
 
     if args.command == "hub":
         from .hub import cmd_hub_init, cmd_hub_peers, cmd_hub_start, cmd_hub_status, cmd_hub_stop

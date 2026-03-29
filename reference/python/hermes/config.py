@@ -29,6 +29,16 @@ class PeerConfig:
 
 
 @dataclass
+class LLMBackendConfig:
+    """Configuration for a single LLM backend."""
+
+    backend: str  # "gemini" or "claude"
+    model: str = ""  # e.g. "gemini-2.5-flash", "claude-sonnet-4-6"
+    api_key_env: str = ""  # env var name, e.g. "GEMINI_API_KEY"
+    enabled: bool = True
+
+
+@dataclass
 class GatewayConfig:
     """Complete gateway configuration per ARC-3022 Section 16."""
 
@@ -47,9 +57,26 @@ class GatewayConfig:
     inbound_rate_limit: int = 10
     inbound_quarantine_first_contact: bool = True
     inbound_auto_accept_hello: bool = True
+    llm_backends: list[LLMBackendConfig] = field(default_factory=list)
+    llm_default_backend: str = ""  # name prefix, e.g. "gemini"
 
 
 # ─── Internal helpers ─────────────────────────────────────────────
+
+
+def _parse_llm_backends(raw: list[dict]) -> list[LLMBackendConfig]:
+    """Parse a list of LLM backend dicts into LLMBackendConfig objects."""
+    backends = []
+    for b in raw:
+        backends.append(
+            LLMBackendConfig(
+                backend=b.get("backend", ""),
+                model=b.get("model", ""),
+                api_key_env=b.get("api_key_env", ""),
+                enabled=b.get("enabled", True),
+            )
+        )
+    return backends
 
 
 def _parse_peers(raw_peers: list[dict]) -> list[PeerConfig]:
@@ -109,6 +136,8 @@ def _load_config_json(path: Path) -> GatewayConfig:
             "quarantine_first_contact", True
         ),
         inbound_auto_accept_hello=data.get("inbound", {}).get("auto_accept_hello", True),
+        llm_backends=_parse_llm_backends(data.get("llm", {}).get("backends", [])),
+        llm_default_backend=data.get("llm", {}).get("default_backend", ""),
     )
 
 
@@ -160,6 +189,20 @@ def _save_config_json(config: GatewayConfig, path: Path) -> None:
             "local_cache": config.agora_local_cache,
         },
     }
+
+    if config.llm_backends or config.llm_default_backend:
+        data["llm"] = {
+            "default_backend": config.llm_default_backend,
+            "backends": [
+                {
+                    "backend": b.backend,
+                    "model": b.model,
+                    "api_key_env": b.api_key_env,
+                    "enabled": b.enabled,
+                }
+                for b in config.llm_backends
+            ],
+        }
 
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
@@ -215,6 +258,20 @@ def _config_to_toml_dict(config: GatewayConfig) -> dict:
     if config.agents:
         data["agents"] = config.agents
 
+    if config.llm_backends or config.llm_default_backend:
+        data["llm"] = {
+            "default_backend": config.llm_default_backend,
+            "backends": [
+                {
+                    "backend": b.backend,
+                    "model": b.model,
+                    "api_key_env": b.api_key_env,
+                    "enabled": b.enabled,
+                }
+                for b in config.llm_backends
+            ],
+        }
+
     if config.peers:
         data["peers"] = [
             {
@@ -261,6 +318,8 @@ def load_config_toml(path: Path) -> GatewayConfig:
     agora = data.get("agora", {})
     inbound = data.get("inbound", {})
 
+    llm = data.get("llm", {})
+
     return GatewayConfig(
         clan_id=clan["id"],
         display_name=clan["display_name"],
@@ -277,6 +336,8 @@ def load_config_toml(path: Path) -> GatewayConfig:
         inbound_rate_limit=inbound.get("rate_limit_per_clan", 10),
         inbound_quarantine_first_contact=inbound.get("quarantine_first_contact", True),
         inbound_auto_accept_hello=inbound.get("auto_accept_hello", True),
+        llm_backends=_parse_llm_backends(llm.get("backends", [])),
+        llm_default_backend=llm.get("default_backend", ""),
     )
 
 
