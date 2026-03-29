@@ -19,7 +19,7 @@ import os
 import signal
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -60,6 +60,7 @@ def load_hub_config(config_path: Path) -> HubConfig:
     text = config_path.read_text()
     if config_path.suffix == ".toml":
         import tomllib
+
         data = tomllib.loads(text)
     else:
         data = json.loads(text)
@@ -200,8 +201,7 @@ class StoreForwardQueue:
         for dst in list(self._queues.keys()):
             before = len(self._queues[dst])
             self._queues[dst] = [
-                m for m in self._queues[dst]
-                if (now - m.queued_at) < m.ttl_seconds
+                m for m in self._queues[dst] if (now - m.queued_at) < m.ttl_seconds
             ]
             removed += before - len(self._queues[dst])
             if not self._queues[dst]:
@@ -243,12 +243,8 @@ class AuthHandler:
                 Ed25519PublicKey,
             )
 
-            pub_key = Ed25519PublicKey.from_public_bytes(
-                bytes.fromhex(sign_pub_hex)
-            )
-            pub_key.verify(
-                bytes.fromhex(signature_hex), bytes.fromhex(nonce_hex)
-            )
+            pub_key = Ed25519PublicKey.from_public_bytes(bytes.fromhex(sign_pub_hex))
+            pub_key.verify(bytes.fromhex(signature_hex), bytes.fromhex(nonce_hex))
             return True
         except Exception:
             return False
@@ -400,7 +396,7 @@ class HubServer:
         self.router = MessageRouter(self.connections, self.queue)
         self.state = HubState(
             pid=os.getpid(),
-            started_at=datetime.now(timezone.utc).isoformat(),
+            started_at=datetime.now(UTC).isoformat(),
         )
         self._server = None
         self._started_at = time.time()
@@ -413,6 +409,7 @@ class HubServer:
         ssl_context = None
         if self.config.tls_cert and self.config.tls_key:
             import ssl
+
             ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
             ssl_context.load_cert_chain(self.config.tls_cert, self.config.tls_key)
 
@@ -424,12 +421,12 @@ class HubServer:
             len(self.peers),
         )
 
-        self._server = await websockets.serve(
+        self._server = await websockets.serve(  # type: ignore[assignment]
             self._handle_connection,
             self.config.listen_host,
             self.config.listen_port,
             ssl=ssl_context,
-            process_request=self._process_http if self.config.legacy_endpoints else None,
+            process_request=self._process_http if self.config.legacy_endpoints else None,  # type: ignore[arg-type]
         )
 
         self.state.save(self.hub_dir / "hub-state.json")
@@ -467,7 +464,7 @@ class HubServer:
                 return
 
             # Step 2: Register connection
-            entry = self.connections.add(clan_id, ws)
+            self.connections.add(clan_id, ws)
             logger.info("Peer connected: %s", clan_id)
 
             # Step 3: Notify other peers
@@ -493,11 +490,15 @@ class HubServer:
 
                 elif frame_type == "ping":
                     depth = self.queue.depth(clan_id)
-                    await ws.send(json.dumps({
-                        "type": "pong",
-                        "ts": datetime.now(timezone.utc).isoformat(),
-                        "queue_depth": depth,
-                    }))
+                    await ws.send(
+                        json.dumps(
+                            {
+                                "type": "pong",
+                                "ts": datetime.now(UTC).isoformat(),
+                                "queue_depth": depth,
+                            }
+                        )
+                    )
 
         except Exception as e:
             if clan_id:
@@ -516,7 +517,7 @@ class HubServer:
         try:
             raw = await asyncio.wait_for(ws.recv(), timeout=self.config.auth_timeout)
             frame = json.loads(raw)
-        except (asyncio.TimeoutError, json.JSONDecodeError):
+        except (TimeoutError, json.JSONDecodeError):
             await ws.send(json.dumps({"type": "auth_fail", "reason": "timeout"}))
             await ws.close()
             return None
@@ -531,19 +532,27 @@ class HubServer:
         pub = frame.get("sign_pub", "")
 
         if not self.auth.verify_response(clan_id, nonce, sig, pub):
-            await ws.send(json.dumps({
-                "type": "auth_fail",
-                "reason": "authentication failed",
-            }))
+            await ws.send(
+                json.dumps(
+                    {
+                        "type": "auth_fail",
+                        "reason": "authentication failed",
+                    }
+                )
+            )
             await ws.close()
             return None
 
         depth = self.queue.depth(clan_id)
-        await ws.send(json.dumps({
-            "type": "auth_ok",
-            "clan_id": clan_id,
-            "queue_depth": depth,
-        }))
+        await ws.send(
+            json.dumps(
+                {
+                    "type": "auth_ok",
+                    "clan_id": clan_id,
+                    "queue_depth": depth,
+                }
+            )
+        )
         return clan_id
 
     async def _drain_queue(self, ws: Any, clan_id: str) -> None:
@@ -552,19 +561,25 @@ class HubServer:
             messages, remaining = self.queue.drain(clan_id)
             if not messages:
                 break
-            await ws.send(json.dumps({
-                "type": "drain",
-                "messages": messages,
-                "remaining": remaining,
-            }))
+            await ws.send(
+                json.dumps(
+                    {
+                        "type": "drain",
+                        "messages": messages,
+                        "remaining": remaining,
+                    }
+                )
+            )
 
     async def _broadcast_presence(self, clan_id: str, status: str) -> None:
         """Notify connected peers of presence change (§15.5.1)."""
-        frame = json.dumps({
-            "type": "presence",
-            "clan_id": clan_id,
-            "status": status,
-        })
+        frame = json.dumps(
+            {
+                "type": "presence",
+                "clan_id": clan_id,
+                "status": status,
+            }
+        )
         for entry in self.connections.all_except(clan_id):
             try:
                 await entry.ws.send(frame)
@@ -640,6 +655,7 @@ def cmd_hub_start(hub_dir: Path, foreground: bool = False) -> int:
             except OSError:
                 pass  # Stale lock
         import shutil
+
         shutil.rmtree(lock_dir)
         os.mkdir(lock_dir)
 
@@ -665,6 +681,7 @@ def cmd_hub_start(hub_dir: Path, foreground: bool = False) -> int:
         loop.run_until_complete(hub.stop())
         loop.close()
         import shutil
+
         shutil.rmtree(lock_dir, ignore_errors=True)
     return 0
 
@@ -743,7 +760,7 @@ def cmd_hub_init(hub_dir: Path, force: bool = False) -> int:
             hub_peers[gw.clan_id] = {
                 "sign_pub": sign_hex,
                 "display_name": gw.display_name,
-                "registered_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "registered_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
             }
 
     # Peer registration

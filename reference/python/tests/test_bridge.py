@@ -20,7 +20,6 @@ from hermes.bridge import (
 )
 from hermes.message import Message
 
-
 # ─── Fixtures ──────────────────────────────────────────────────────
 
 
@@ -141,48 +140,78 @@ class TestA2ABridge:
     def test_task_state_submitted(self, a2a_bridge):
         """Submitted: dispatch with no ack, no RE."""
         msg = Message(
-            ts=date(2026, 3, 15), src="gateway", dst="finance",
-            type="dispatch", msg="[CID:t-001] Test task", ttl=5, ack=[],
+            ts=date(2026, 3, 15),
+            src="gateway",
+            dst="finance",
+            type="dispatch",
+            msg="[CID:t-001] Test task",
+            ttl=5,
+            ack=[],
         )
         assert a2a_bridge.translate_task_state(msg) == "submitted"
 
     def test_task_state_working(self, a2a_bridge):
         """Working: ack present, no RE."""
         msg = Message(
-            ts=date(2026, 3, 15), src="gateway", dst="finance",
-            type="dispatch", msg="[CID:t-001] Test task", ttl=5, ack=["finance"],
+            ts=date(2026, 3, 15),
+            src="gateway",
+            dst="finance",
+            type="dispatch",
+            msg="[CID:t-001] Test task",
+            ttl=5,
+            ack=["finance"],
         )
         assert a2a_bridge.translate_task_state(msg) == "working"
 
     def test_task_state_completed(self, a2a_bridge):
         """Completed: RE token with state type."""
         msg = Message(
-            ts=date(2026, 3, 15), src="finance", dst="gateway",
-            type="state", msg="[RE:t-001] Result delivered", ttl=7, ack=[],
+            ts=date(2026, 3, 15),
+            src="finance",
+            dst="gateway",
+            type="state",
+            msg="[RE:t-001] Result delivered",
+            ttl=7,
+            ack=[],
         )
         assert a2a_bridge.translate_task_state(msg) == "completed"
 
     def test_task_state_failed(self, a2a_bridge):
         """Failed: alert without RE."""
         msg = Message(
-            ts=date(2026, 3, 15), src="finance", dst="gateway",
-            type="alert", msg="TTL expired for task", ttl=5, ack=[],
+            ts=date(2026, 3, 15),
+            src="finance",
+            dst="gateway",
+            type="alert",
+            msg="TTL expired for task",
+            ttl=5,
+            ack=[],
         )
         assert a2a_bridge.translate_task_state(msg) == "failed"
 
     def test_task_state_canceled(self, a2a_bridge):
         """Canceled: RE with CANCELLED."""
         msg = Message(
-            ts=date(2026, 3, 15), src="gateway", dst="finance",
-            type="alert", msg="[RE:t-001] CANCELLED", ttl=5, ack=[],
+            ts=date(2026, 3, 15),
+            src="gateway",
+            dst="finance",
+            type="alert",
+            msg="[RE:t-001] CANCELLED",
+            ttl=5,
+            ack=[],
         )
         assert a2a_bridge.translate_task_state(msg) == "canceled"
 
     def test_task_state_input_required(self, a2a_bridge):
         """Input-required: request type."""
         msg = Message(
-            ts=date(2026, 3, 15), src="finance", dst="gateway",
-            type="request", msg="Need more details about scenario", ttl=5, ack=[],
+            ts=date(2026, 3, 15),
+            src="finance",
+            dst="gateway",
+            type="request",
+            msg="Need more details about scenario",
+            ttl=5,
+            ack=[],
         )
         assert a2a_bridge.translate_task_state(msg) == "input-required"
 

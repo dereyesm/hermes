@@ -4,21 +4,20 @@ Covers: SkillProfile, Quest, Dojo (roster, dispatch, XP, plane validation).
 """
 
 import json
+
 import pytest
-from pathlib import Path
 
 from hermes.dojo import (
     Dojo,
     Plane,
-    Quest,
     QuestStatus,
     QuestType,
     SkillAvailability,
     SkillProfile,
 )
 
-
 # --- Fixtures ---
+
 
 @pytest.fixture
 def clan_id():
@@ -93,6 +92,7 @@ def populated_dojo(dojo, protocol_architect, cybersec_advisor, pm_skill):
 
 # --- Plane Enum ---
 
+
 class TestPlane:
     def test_three_planes_exist(self):
         assert Plane.CONTROL == "control"
@@ -104,6 +104,7 @@ class TestPlane:
 
 
 # --- SkillProfile ---
+
 
 class TestSkillProfile:
     def test_create_profile(self, protocol_architect):
@@ -142,6 +143,7 @@ class TestSkillProfile:
 
 
 # --- Dojo Roster ---
+
 
 class TestDojoRoster:
     def test_register_skill(self, dojo, protocol_architect):
@@ -190,6 +192,7 @@ class TestDojoRoster:
 
 # --- Skill Matching ---
 
+
 class TestSkillMatching:
     def test_match_exact_capability(self, populated_dojo):
         matches = populated_dojo.match_skills(["eng.cybersecurity"])
@@ -203,9 +206,7 @@ class TestSkillMatching:
         assert matches[0].skill_id == "protocol-architect"
 
     def test_match_multiple_capabilities(self, populated_dojo):
-        matches = populated_dojo.match_skills(
-            ["eng.protocol-design", "ops.governance"]
-        )
+        matches = populated_dojo.match_skills(["eng.protocol-design", "ops.governance"])
         assert len(matches) == 2
 
     def test_match_no_results(self, populated_dojo):
@@ -229,6 +230,7 @@ class TestSkillMatching:
 
 # --- Quest Lifecycle ---
 
+
 class TestQuestLifecycle:
     def test_create_quest(self, populated_dojo):
         quest = populated_dojo.create_quest(
@@ -251,7 +253,7 @@ class TestQuestLifecycle:
             )
 
     def test_dispatch_quest(self, populated_dojo):
-        quest = populated_dojo.create_quest(
+        populated_dojo.create_quest(
             quest_id="Q-001",
             quest_type=QuestType.SOLO,
             title="Test",
@@ -338,6 +340,7 @@ class TestQuestLifecycle:
 
 # --- Backlog ---
 
+
 class TestBacklog:
     def test_list_backlog(self, populated_dojo):
         populated_dojo.create_quest(
@@ -387,6 +390,7 @@ class TestBacklog:
 
 
 # --- XP Tracking ---
+
 
 class TestXPTracking:
     def test_initial_xp_zero(self, populated_dojo):
@@ -450,6 +454,7 @@ class TestXPTracking:
 
 # --- Plane Separation Validation ---
 
+
 class TestPlaneSeparation:
     """ARC-2314 Section 9.3: No direct CP-UP interface."""
 
@@ -495,6 +500,7 @@ class TestPlaneSeparation:
 
 # --- Quest Types ---
 
+
 class TestQuestTypes:
     """ARC-2314 Section 8.5: Arena quest types."""
 
@@ -537,6 +543,7 @@ class TestQuestTypes:
 
 
 # --- Serialization ---
+
 
 class TestSerialization:
     def test_quest_to_dict(self, populated_dojo):

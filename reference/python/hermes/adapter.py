@@ -10,14 +10,11 @@ Usage:
 
 from __future__ import annotations
 
-import json
-import os
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
 
-from .config import GatewayConfig, load_config, resolve_config_path
+from .config import GatewayConfig, load_config
 
 
 @dataclass
@@ -159,9 +156,7 @@ class ClaudeCodeAdapter(AdapterBase):
             linked = self._link_bus()
             if linked:
                 result.steps.append("Bus symlinked")
-                result.symlinks_created.append(
-                    str(self.target_dir / "sync" / "bus.jsonl")
-                )
+                result.symlinks_created.append(str(self.target_dir / "sync" / "bus.jsonl"))
             else:
                 result.steps.append("Bus symlink unchanged")
         except Exception as e:
@@ -171,9 +166,7 @@ class ClaudeCodeAdapter(AdapterBase):
         try:
             skill_links = self._link_dimension_skills()
             if skill_links:
-                result.steps.append(
-                    f"Skills linked ({len(skill_links)} skills)"
-                )
+                result.steps.append(f"Skills linked ({len(skill_links)} skills)")
                 result.symlinks_created.extend(skill_links)
             else:
                 result.steps.append("No dimension skills found")
@@ -184,9 +177,7 @@ class ClaudeCodeAdapter(AdapterBase):
         try:
             rule_links = self._link_dimension_rules()
             if rule_links:
-                result.steps.append(
-                    f"Rules linked ({len(rule_links)} files)"
-                )
+                result.steps.append(f"Rules linked ({len(rule_links)} files)")
                 result.symlinks_created.extend(rule_links)
             else:
                 result.steps.append("No dimension rules found")
@@ -230,30 +221,19 @@ class ClaudeCodeAdapter(AdapterBase):
             for p in self.config.peers:
                 rows += f"| `{p.clan_id}` | {p.status} | {p.added} |\n"
             sections.append(
-                f"## Peers\n\n"
-                f"| Clan | Status | Added |\n"
-                f"|------|--------|-------|\n"
-                f"{rows}"
+                f"## Peers\n\n| Clan | Status | Added |\n|------|--------|-------|\n{rows}"
             )
 
         # Dimensions
         dims_dir = self.hermes_dir / "dimensions"
         if dims_dir.is_dir():
-            dim_names = sorted(
-                d.name for d in dims_dir.iterdir() if d.is_dir()
-            )
+            dim_names = sorted(d.name for d in dims_dir.iterdir() if d.is_dir())
             if dim_names:
                 dim_list = ", ".join(f"`{d}`" for d in dim_names)
-                sections.append(
-                    f"## Dimensions\n\n"
-                    f"Active dimensions: {dim_list}\n"
-                )
+                sections.append(f"## Dimensions\n\nActive dimensions: {dim_list}\n")
 
         # Bus location
-        sections.append(
-            f"## Bus\n\n"
-            f"Messages: `sync/bus.jsonl` (symlink to HERMES bus)\n"
-        )
+        sections.append("## Bus\n\nMessages: `sync/bus.jsonl` (symlink to HERMES bus)\n")
 
         # Footer
         sections.append(
@@ -413,9 +393,7 @@ class CursorAdapter(AdapterBase):
             written = self._generate_cursorrules()
             if written:
                 result.steps.append(".cursorrules generated")
-                result.files_written.append(
-                    str(self.target_dir / ".cursorrules")
-                )
+                result.files_written.append(str(self.target_dir / ".cursorrules"))
             else:
                 result.steps.append(".cursorrules unchanged")
         except Exception as e:
@@ -426,9 +404,7 @@ class CursorAdapter(AdapterBase):
             linked = self._link_bus()
             if linked:
                 result.steps.append("Bus symlinked")
-                result.symlinks_created.append(
-                    str(self.target_dir / ".cursor" / "bus.jsonl")
-                )
+                result.symlinks_created.append(str(self.target_dir / ".cursor" / "bus.jsonl"))
             else:
                 result.steps.append("Bus symlink unchanged")
         except Exception as e:
@@ -472,10 +448,7 @@ class CursorAdapter(AdapterBase):
             for p in self.config.peers:
                 peer_lines += f"| `{p.clan_id}` | {p.status} | {p.added} |\n"
             sections.append(
-                f"## Peers\n\n"
-                f"| Clan | Status | Added |\n"
-                f"|------|--------|-------|\n"
-                f"{peer_lines}"
+                f"## Peers\n\n| Clan | Status | Added |\n|------|--------|-------|\n{peer_lines}"
             )
 
         # Compiled skills
@@ -508,9 +481,7 @@ class CursorAdapter(AdapterBase):
             if self.HEADER_MARKER in existing and self.FOOTER_MARKER in existing:
                 # Replace only the HERMES section
                 before = existing[: existing.index(self.HEADER_MARKER)]
-                after = existing[
-                    existing.index(self.FOOTER_MARKER) + len(self.FOOTER_MARKER) :
-                ]
+                after = existing[existing.index(self.FOOTER_MARKER) + len(self.FOOTER_MARKER) :]
                 # Strip trailing newline from after to avoid double newlines
                 new_content = before + content + after.lstrip("\n")
                 return _write_file_if_changed(target, new_content)
@@ -543,15 +514,10 @@ class CursorAdapter(AdapterBase):
                 skill_md = skill_dir / "SKILL.md"
                 if skill_md.exists():
                     content = skill_md.read_text(encoding="utf-8").strip()
-                    dim_skills.append(
-                        f"### {skill_dir.name}\n\n{content}"
-                    )
+                    dim_skills.append(f"### {skill_dir.name}\n\n{content}")
 
             if dim_skills:
-                parts.append(
-                    f"**Dimension: {dim_dir.name}**\n\n"
-                    + "\n\n".join(dim_skills)
-                )
+                parts.append(f"**Dimension: {dim_dir.name}**\n\n" + "\n\n".join(dim_skills))
 
         return "\n\n".join(parts)
 
@@ -579,15 +545,10 @@ class CursorAdapter(AdapterBase):
                     continue
 
                 content = rule_file.read_text(encoding="utf-8").strip()
-                dim_rules.append(
-                    f"### {rule_file.stem}\n\n{content}"
-                )
+                dim_rules.append(f"### {rule_file.stem}\n\n{content}")
 
             if dim_rules:
-                parts.append(
-                    f"**Dimension: {dim_dir.name}**\n\n"
-                    + "\n\n".join(dim_rules)
-                )
+                parts.append(f"**Dimension: {dim_dir.name}**\n\n" + "\n\n".join(dim_rules))
 
         return "\n\n".join(parts)
 
@@ -637,9 +598,7 @@ def run_adapter(
     """
     cls = ADAPTERS.get(name)
     if cls is None:
-        raise KeyError(
-            f"Unknown adapter '{name}'. Available: {', '.join(list_adapters())}"
-        )
+        raise KeyError(f"Unknown adapter '{name}'. Available: {', '.join(list_adapters())}")
 
-    adapter = cls(hermes_dir=hermes_dir, target_dir=target_dir)
+    adapter = cls(hermes_dir=hermes_dir, target_dir=target_dir)  # type: ignore[arg-type]
     return adapter.adapt()

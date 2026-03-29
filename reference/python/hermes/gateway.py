@@ -10,10 +10,9 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from datetime import date
-from typing import Any
+from typing import Any, ClassVar
 
 from .message import Message
-
 
 # ─── Identity Translation (Section 5) ─────────────────────────────
 
@@ -102,7 +101,7 @@ class OutboundFilter:
     # 5. Memory files
     # 6. Session logs
     # 7. Evolution/Dojo data (XP, Bounty, level, medallas)
-    PROHIBITED_PATTERNS: list[re.Pattern[str]] = [
+    PROHIBITED_PATTERNS: ClassVar[list[re.Pattern[str]]] = [
         re.compile(r"bus\.jsonl", re.IGNORECASE),
         re.compile(r"routes\.md", re.IGNORECASE),
         re.compile(r"SKILL\.md", re.IGNORECASE),
@@ -145,7 +144,7 @@ class InboundValidator:
     SUPPORTED_INBOUND_TYPES = frozenset({"discovery", "attestation", "quest_proposal"})
 
     # Simple heuristic for executable content detection
-    _EXECUTABLE_PATTERNS: list[re.Pattern[str]] = [
+    _EXECUTABLE_PATTERNS: ClassVar[list[re.Pattern[str]]] = [
         re.compile(r"<script", re.IGNORECASE),
         re.compile(r"__import__\s*\("),
         re.compile(r"\beval\s*\("),
@@ -358,12 +357,14 @@ class Gateway:
             attestations = self.attestation_store.get_for_agent(mapping.external_alias)
             resonance = self.resonance_calculator.compute(attestations)
             total_resonance += resonance
-            agents_list.append({
-                "alias": mapping.external_alias,
-                "capabilities": list(mapping.capabilities),
-                "resonance": resonance,
-                "attestations_received": len(attestations),
-            })
+            agents_list.append(
+                {
+                    "alias": mapping.external_alias,
+                    "capabilities": list(mapping.capabilities),
+                    "resonance": resonance,
+                    "attestations_received": len(attestations),
+                }
+            )
 
         return {
             "clan_id": self.clan_id,
@@ -450,7 +451,8 @@ class Gateway:
 
         # Translate source identity
         external_alias = self.translation_table.translate_outbound(
-            internal_message.src, internal_message.src,
+            internal_message.src,
+            internal_message.src,
         )
 
         return {

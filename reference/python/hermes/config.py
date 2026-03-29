@@ -56,12 +56,14 @@ def _parse_peers(raw_peers: list[dict]) -> list[PeerConfig]:
     """Parse a list of peer dicts into PeerConfig objects."""
     peers = []
     for p in raw_peers:
-        peers.append(PeerConfig(
-            clan_id=p["clan_id"],
-            public_key_file=p.get("public_key_file", ""),
-            status=p.get("status", "pending_ack"),
-            added=p.get("added", ""),
-        ))
+        peers.append(
+            PeerConfig(
+                clan_id=p["clan_id"],
+                public_key_file=p.get("public_key_file", ""),
+                status=p.get("status", "pending_ack"),
+                added=p.get("added", ""),
+            )
+        )
     return peers
 
 
@@ -82,7 +84,7 @@ def _atomic_write(path: Path, content: str) -> None:
 
 def _load_config_json(path: Path) -> GatewayConfig:
     """Load gateway config from a JSON file."""
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         data = json.load(f)
 
     for key in ("clan_id", "display_name"):
@@ -106,9 +108,7 @@ def _load_config_json(path: Path) -> GatewayConfig:
         inbound_quarantine_first_contact=data.get("inbound", {}).get(
             "quarantine_first_contact", True
         ),
-        inbound_auto_accept_hello=data.get("inbound", {}).get(
-            "auto_accept_hello", True
-        ),
+        inbound_auto_accept_hello=data.get("inbound", {}).get("auto_accept_hello", True),
     )
 
 
@@ -275,9 +275,7 @@ def load_config_toml(path: Path) -> GatewayConfig:
         agora_local_cache=agora.get("local_cache", ".agora/"),
         inbound_max_payload=inbound.get("max_payload_bytes", 4096),
         inbound_rate_limit=inbound.get("rate_limit_per_clan", 10),
-        inbound_quarantine_first_contact=inbound.get(
-            "quarantine_first_contact", True
-        ),
+        inbound_quarantine_first_contact=inbound.get("quarantine_first_contact", True),
         inbound_auto_accept_hello=inbound.get("auto_accept_hello", True),
     )
 
@@ -323,9 +321,7 @@ def resolve_config_path(clan_dir: Path) -> Path:
     json_path = clan_dir / "gateway.json"
     if json_path.exists():
         return json_path
-    raise FileNotFoundError(
-        f"No config.toml or gateway.json in {clan_dir}"
-    )
+    raise FileNotFoundError(f"No config.toml or gateway.json in {clan_dir}")
 
 
 def load_config(path: str | Path) -> GatewayConfig:
@@ -387,6 +383,7 @@ def init_clan(
     if not key_file.exists():
         try:
             from .crypto import ClanKeyPair
+
             kp = ClanKeyPair.generate()
             kp.save(str(keys_dir), clan_id)
         except ImportError:

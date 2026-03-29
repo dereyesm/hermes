@@ -14,8 +14,9 @@ import hashlib
 import json
 import os
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
+from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PrivateKey,
     Ed25519PublicKey,
@@ -24,7 +25,6 @@ from cryptography.hazmat.primitives.asymmetric.x25519 import (
     X25519PrivateKey,
     X25519PublicKey,
 )
-from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives.serialization import (
@@ -45,7 +45,7 @@ class ClanKeyPair:
     dh_public: X25519PublicKey
 
     @staticmethod
-    def generate() -> "ClanKeyPair":
+    def generate() -> ClanKeyPair:
         """Generate a new keypair for a clan."""
         sign_private = Ed25519PrivateKey.generate()
         dh_private = X25519PrivateKey.generate()
@@ -62,9 +62,7 @@ class ClanKeyPair:
         Format: 8 groups of 4 hex chars separated by colons.
         Example: a1b2:c3d4:e5f6:7890:1234:5678:9abc:def0
         """
-        sign_bytes = self.sign_public.public_bytes(
-            Encoding.Raw, PublicFormat.Raw
-        )
+        sign_bytes = self.sign_public.public_bytes(Encoding.Raw, PublicFormat.Raw)
         dh_bytes = self.dh_public.public_bytes(Encoding.Raw, PublicFormat.Raw)
         combined = hashlib.sha256(sign_bytes + dh_bytes).digest()
         hex_str = combined.hex()[:32]
@@ -73,12 +71,8 @@ class ClanKeyPair:
     def export_public(self) -> dict:
         """Export public keys as hex strings (for sharing)."""
         return {
-            "sign_public": self.sign_public.public_bytes(
-                Encoding.Raw, PublicFormat.Raw
-            ).hex(),
-            "dh_public": self.dh_public.public_bytes(
-                Encoding.Raw, PublicFormat.Raw
-            ).hex(),
+            "sign_public": self.sign_public.public_bytes(Encoding.Raw, PublicFormat.Raw).hex(),
+            "dh_public": self.dh_public.public_bytes(Encoding.Raw, PublicFormat.Raw).hex(),
         }
 
     def export_private(self) -> dict:
@@ -94,14 +88,10 @@ class ClanKeyPair:
         }
 
     @staticmethod
-    def from_private_hex(sign_hex: str, dh_hex: str) -> "ClanKeyPair":
+    def from_private_hex(sign_hex: str, dh_hex: str) -> ClanKeyPair:
         """Reconstruct keypair from hex-encoded private keys."""
-        sign_private = Ed25519PrivateKey.from_private_bytes(
-            bytes.fromhex(sign_hex)
-        )
-        dh_private = X25519PrivateKey.from_private_bytes(
-            bytes.fromhex(dh_hex)
-        )
+        sign_private = Ed25519PrivateKey.from_private_bytes(bytes.fromhex(sign_hex))
+        dh_private = X25519PrivateKey.from_private_bytes(bytes.fromhex(dh_hex))
         return ClanKeyPair(
             sign_private=sign_private,
             sign_public=sign_private.public_key(),
@@ -127,7 +117,7 @@ class ClanKeyPair:
             json.dump(public_data, f, indent=2)
 
     @staticmethod
-    def load(directory: str, clan_id: str) -> "ClanKeyPair":
+    def load(directory: str, clan_id: str) -> ClanKeyPair:
         """Load keypair from files."""
         private_path = os.path.join(directory, f"{clan_id}.key")
         with open(private_path) as f:
@@ -143,15 +133,15 @@ def load_peer_public(directory: str, clan_id: str) -> tuple[Ed25519PublicKey, X2
     sign_hex = data.get("sign_public") or data.get("ed25519_pub")
     dh_hex = data.get("dh_public") or data.get("x25519_pub")
     if not sign_hex or not dh_hex:
-        raise KeyError("Public key file must contain sign_public/ed25519_pub and dh_public/x25519_pub")
+        raise KeyError(
+            "Public key file must contain sign_public/ed25519_pub and dh_public/x25519_pub"
+        )
     sign_pub = Ed25519PublicKey.from_public_bytes(bytes.fromhex(sign_hex))
     dh_pub = X25519PublicKey.from_public_bytes(bytes.fromhex(dh_hex))
     return sign_pub, dh_pub
 
 
-def derive_shared_secret(
-    my_dh_private: X25519PrivateKey, peer_dh_public: X25519PublicKey
-) -> bytes:
+def derive_shared_secret(my_dh_private: X25519PrivateKey, peer_dh_public: X25519PublicKey) -> bytes:
     """Derive a shared secret using X25519 Diffie-Hellman + HKDF-SHA256.
 
     The raw DH output is processed through HKDF-SHA256 with domain-specific
@@ -289,9 +279,7 @@ def seal_bus_message(
         "ciphertext": encrypted["ciphertext"],
         "nonce": encrypted["nonce"],
         "signature": signature,
-        "sender_sign_pub": my_keys.sign_public.public_bytes(
-            Encoding.Raw, PublicFormat.Raw
-        ).hex(),
+        "sender_sign_pub": my_keys.sign_public.public_bytes(Encoding.Raw, PublicFormat.Raw).hex(),
     }
     if aad is not None:
         result["aad"] = aad.hex()
@@ -326,9 +314,7 @@ def seal_bus_message_ecdhe(
 
     # Zeroize ephemeral private key (best-effort in Python)
     try:
-        eph_priv_bytes = eph_private.private_bytes(
-            Encoding.Raw, PrivateFormat.Raw, NoEncryption()
-        )
+        eph_priv_bytes = eph_private.private_bytes(Encoding.Raw, PrivateFormat.Raw, NoEncryption())
         # Overwrite the bytes object (immutable, but we clear the reference)
         del eph_priv_bytes
     except Exception:
@@ -355,9 +341,7 @@ def seal_bus_message_ecdhe(
         "ciphertext": encrypted["ciphertext"],
         "nonce": encrypted["nonce"],
         "signature": signature,
-        "sender_sign_pub": my_keys.sign_public.public_bytes(
-            Encoding.Raw, PublicFormat.Raw
-        ).hex(),
+        "sender_sign_pub": my_keys.sign_public.public_bytes(Encoding.Raw, PublicFormat.Raw).hex(),
     }
     if envelope_meta is not None:
         result["aad"] = aad.hex()
@@ -372,7 +356,7 @@ def open_bus_message(
     peer_dh_public: X25519PublicKey,
     sealed: dict,
     envelope_meta: dict | None = None,
-    nonce_tracker: "NonceTracker | None" = None,
+    nonce_tracker: NonceTracker | None = None,
 ) -> str | None:
     """Verify signature + decrypt a sealed bus message.
 
@@ -464,7 +448,10 @@ def open_bus_message(
             try:
                 raw_shared = my_keys.dh_private.exchange(eph_public)
                 hkdf = HKDF(
-                    algorithm=hashes.SHA256(), length=32, salt=None, info=hkdf_info,
+                    algorithm=hashes.SHA256(),
+                    length=32,
+                    salt=None,
+                    info=hkdf_info,
                 )
                 shared_secret = hkdf.derive(raw_shared)
                 return decrypt_message(
@@ -475,7 +462,7 @@ def open_bus_message(
         return None
     else:
         # Static path (original behavior, unchanged)
-        aad = _build_aad(envelope_meta)
+        aad = _build_aad(envelope_meta)  # type: ignore[assignment]
 
         # AAD consistency check: if sealed has aad field, verify it matches
         if "aad" in sealed and aad is not None:
@@ -491,9 +478,7 @@ def open_bus_message(
 
         shared_secret = derive_shared_secret(my_keys.dh_private, peer_dh_public)
         try:
-            return decrypt_message(
-                shared_secret, sealed["nonce"], sealed["ciphertext"], aad=aad
-            )
+            return decrypt_message(shared_secret, sealed["nonce"], sealed["ciphertext"], aad=aad)
         except Exception:
             return None
 
@@ -556,7 +541,7 @@ def open_bus_message_compact(
     peer_dh_public: X25519PublicKey,
     sealed_compact: list,
     envelope_meta: dict | None = None,
-    nonce_tracker: "NonceTracker | None" = None,
+    nonce_tracker: NonceTracker | None = None,
 ) -> str | None:
     """Verify + decrypt a compact sealed envelope.
 
@@ -588,8 +573,12 @@ def open_bus_message_compact(
         return None
 
     return open_bus_message(
-        my_keys, peer_sign_public, peer_dh_public,
-        sealed, envelope_meta, nonce_tracker,
+        my_keys,
+        peer_sign_public,
+        peer_dh_public,
+        sealed,
+        envelope_meta,
+        nonce_tracker,
     )
 
 
@@ -622,7 +611,7 @@ class NonceTracker:
             return False
 
         # Use provided timestamp, or current time if empty
-        ts = timestamp if timestamp else datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        ts = timestamp if timestamp else datetime.now(UTC).strftime("%Y-%m-%d")
         self._seen[sender][nonce_hex] = ts
 
         if self._persistence_path:
@@ -635,7 +624,7 @@ class NonceTracker:
         if sender not in self._seen:
             return
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         cutoff = now - timedelta(days=ttl_days)
         to_remove = []
 
@@ -645,9 +634,7 @@ class NonceTracker:
                 if "T" in ts_str:
                     ts = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
                 else:
-                    ts = datetime.strptime(ts_str, "%Y-%m-%d").replace(
-                        tzinfo=timezone.utc
-                    )
+                    ts = datetime.strptime(ts_str, "%Y-%m-%d").replace(tzinfo=UTC)
                 if ts < cutoff:
                     to_remove.append(nonce_hex)
             except (ValueError, TypeError):

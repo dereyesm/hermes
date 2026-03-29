@@ -18,7 +18,6 @@ from hermes.config import (
     save_config_toml,
 )
 
-
 # ─── Fixtures ──────────────────────────────────────────────────────
 
 
@@ -193,7 +192,9 @@ class TestInitClan:
 
     def test_returns_config(self, tmp_path):
         clan_dir = tmp_path / "my-clan"
-        config = init_clan(clan_dir, "clan-test", "Test Clan", agora_url="https://example.com/agora")
+        config = init_clan(
+            clan_dir, "clan-test", "Test Clan", agora_url="https://example.com/agora"
+        )
 
         assert config.clan_id == "clan-test"
         assert config.display_name == "Test Clan"
@@ -362,9 +363,7 @@ class TestLoadConfigToml:
 
     def test_future_schema_version_raises(self, tmp_path):
         path = tmp_path / "config.toml"
-        path.write_text(
-            'schema_version = 999\n[clan]\nid = "x"\ndisplay_name = "X"\n'
-        )
+        path.write_text('schema_version = 999\n[clan]\nid = "x"\ndisplay_name = "X"\n')
         with pytest.raises(ValueError, match="newer than supported"):
             load_config_toml(path)
 
@@ -437,9 +436,7 @@ class TestConfigAutoDiscovery:
 
     def test_prefers_toml_over_json(self, tmp_path, minimal_config):
         save_config(minimal_config, tmp_path / "gateway.json")
-        toml_config = GatewayConfig(
-            clan_id="from-toml", display_name="TOML Source"
-        )
+        toml_config = GatewayConfig(clan_id="from-toml", display_name="TOML Source")
         save_config_toml(toml_config, tmp_path / "config.toml")
         loaded = load_config(tmp_path)
         assert loaded.clan_id == "from-toml"

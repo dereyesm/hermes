@@ -5,7 +5,6 @@ Session lifecycle management: SYN (session start) and FIN (session end).
 
 from __future__ import annotations
 
-import sys
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
@@ -21,7 +20,7 @@ class SynResult:
     pending: list[Message]
     stale: list[Message]
     total_bus_messages: int
-    unresolved: list[Message] = None
+    unresolved: list[Message] | None = None
 
     def __post_init__(self):
         if self.unresolved is None:

@@ -32,7 +32,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=7.0"]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=6.0",
+    "ruff==0.9.10",
+    "mypy==1.15.0",
+]
 
 [project.urls]
 Homepage = "https://github.com/dereyesm/hermes"
@@ -48,3 +53,45 @@ include = ["hermes*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "--cov=hermes --cov-report=term-missing"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E",     # pycodestyle errors
+    "W",     # pycodestyle warnings
+    "F",     # pyflakes
+    "I",     # isort
+    "UP",    # pyupgrade
+    "B",     # bugbear
+    "SIM",   # simplify
+    "RUF",   # ruff-specific
+]
+ignore = [
+    "E501",   # line length handled by formatter
+    "SIM105", # contextlib.suppress — try/except/pass is clearer in daemon shutdown code
+    "SIM108", # ternary operator — often hurts readability for multi-line conditions
+    "RUF015", # prefer next() over [0] — style preference, not a bug
+]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = false
+warn_unused_configs = true
+disallow_untyped_defs = false
+check_untyped_defs = true
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "hermes.crypto"
+disallow_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = "hermes.agent"
+ignore_errors = true

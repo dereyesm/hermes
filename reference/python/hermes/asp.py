@@ -20,9 +20,12 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .message import Message
+
+if TYPE_CHECKING:
+    from .integrity import OwnershipRegistry
 
 logger = logging.getLogger("hermes.asp")
 
@@ -55,9 +58,7 @@ class MessageClassifier:
         gateway_namespace: str = "gateway",
     ):
         self.local_namespaces = {ns.lower() for ns in local_namespaces}
-        self.internal_only = {
-            ns.lower() for ns in (internal_only_namespaces or set())
-        }
+        self.internal_only = {ns.lower() for ns in (internal_only_namespaces or set())}
         self.gateway_namespace = gateway_namespace.lower()
 
     def classify(self, message: Message, today: date | None = None) -> MessageCategory:
@@ -101,7 +102,7 @@ class MessageClassifier:
         self,
         message: Message,
         registered_agent_ids: set[str] | None = None,
-        ownership: "OwnershipRegistry | None" = None,
+        ownership: OwnershipRegistry | None = None,
         writer_id: str | None = None,
     ) -> bool:
         """Verify source integrity per ARC-0369 §6.3 + ARC-9001 F2.
@@ -205,8 +206,16 @@ class AgentProfile:
             AgentProfileError: If validation fails.
         """
         # Required fields
-        for key in ("agent_id", "display_name", "version", "role",
-                     "description", "capabilities", "dispatch_rules", "enabled"):
+        for key in (
+            "agent_id",
+            "display_name",
+            "version",
+            "role",
+            "description",
+            "capabilities",
+            "dispatch_rules",
+            "enabled",
+        ):
             if key not in data:
                 raise AgentProfileError(f"Missing required field: '{key}'")
 
@@ -214,22 +223,16 @@ class AgentProfile:
 
         # Validate agent_id format
         if not _AGENT_ID_PATTERN.match(agent_id):
-            raise AgentProfileError(
-                f"Invalid agent_id '{agent_id}': must match [a-z0-9][a-z0-9-]*"
-            )
+            raise AgentProfileError(f"Invalid agent_id '{agent_id}': must match [a-z0-9][a-z0-9-]*")
 
         # Validate filename match (§7.4 rule 1)
         if filename is not None and agent_id != filename:
-            raise AgentProfileError(
-                f"agent_id '{agent_id}' does not match filename '{filename}'"
-            )
+            raise AgentProfileError(f"agent_id '{agent_id}' does not match filename '{filename}'")
 
         # Validate role (§7.4 rule 2)
         role = str(data["role"])
         if role not in _VALID_ROLES:
-            raise AgentProfileError(
-                f"Invalid role '{role}': must be one of {_VALID_ROLES}"
-            )
+            raise AgentProfileError(f"Invalid role '{role}': must be one of {_VALID_ROLES}")
 
         # Validate dispatch_rules is a list (§7.4 rule 3)
         raw_rules = data["dispatch_rules"]
@@ -278,19 +281,39 @@ class AgentProfile:
                         "type": r.trigger.type,
                         **({"match_type": r.trigger.match_type} if r.trigger.match_type else {}),
                         **({"match_src": r.trigger.match_src} if r.trigger.match_src else {}),
-                        **({"match_msg_prefix": r.trigger.match_msg_prefix} if r.trigger.match_msg_prefix else {}),
+                        **(
+                            {"match_msg_prefix": r.trigger.match_msg_prefix}
+                            if r.trigger.match_msg_prefix
+                            else {}
+                        ),
                         **({"cron": r.trigger.cron} if r.trigger.cron else {}),
                     },
                     "approval_required": r.approval_required,
-                    **({"approval_timeout_hours": r.approval_timeout_hours} if r.approval_required else {}),
+                    **(
+                        {"approval_timeout_hours": r.approval_timeout_hours}
+                        if r.approval_required
+                        else {}
+                    ),
                     **({"command_template": r.command_template} if r.command_template else {}),
                 }
                 for r in self.dispatch_rules
             ],
             "resource_limits": {
-                **({"max_turns": self.resource_limits.max_turns} if self.resource_limits.max_turns else {}),
-                **({"timeout_seconds": self.resource_limits.timeout_seconds} if self.resource_limits.timeout_seconds else {}),
-                **({"allowed_tools": list(self.resource_limits.allowed_tools)} if self.resource_limits.allowed_tools else {}),
+                **(
+                    {"max_turns": self.resource_limits.max_turns}
+                    if self.resource_limits.max_turns
+                    else {}
+                ),
+                **(
+                    {"timeout_seconds": self.resource_limits.timeout_seconds}
+                    if self.resource_limits.timeout_seconds
+                    else {}
+                ),
+                **(
+                    {"allowed_tools": list(self.resource_limits.allowed_tools)}
+                    if self.resource_limits.allowed_tools
+                    else {}
+                ),
                 "max_concurrent": self.resource_limits.max_concurrent,
             },
             "enabled": self.enabled,
@@ -306,9 +329,7 @@ def _parse_dispatch_rule(data: dict, index: int) -> DispatchRule:
     trigger_type = trigger_data.get("type")
 
     if trigger_type not in _VALID_TRIGGER_TYPES:
-        raise AgentProfileError(
-            f"dispatch_rules[{index}]: invalid trigger type '{trigger_type}'"
-        )
+        raise AgentProfileError(f"dispatch_rules[{index}]: invalid trigger type '{trigger_type}'")
 
     # Validate event-driven rules (§7.4 rule 4)
     if trigger_type == "event-driven" and not trigger_data.get("match_type"):
@@ -318,19 +339,13 @@ def _parse_dispatch_rule(data: dict, index: int) -> DispatchRule:
 
     # Validate scheduled rules (§7.4 rule 5)
     if trigger_type == "scheduled" and not trigger_data.get("cron"):
-        raise AgentProfileError(
-            f"dispatch_rules[{index}]: scheduled trigger requires 'cron'"
-        )
+        raise AgentProfileError(f"dispatch_rules[{index}]: scheduled trigger requires 'cron'")
 
     # Validate approval_required (§7.4 rule 6)
     if "approval_required" not in data:
-        raise AgentProfileError(
-            f"dispatch_rules[{index}]: missing 'approval_required'"
-        )
+        raise AgentProfileError(f"dispatch_rules[{index}]: missing 'approval_required'")
     if not isinstance(data["approval_required"], bool):
-        raise AgentProfileError(
-            f"dispatch_rules[{index}]: 'approval_required' must be boolean"
-        )
+        raise AgentProfileError(f"dispatch_rules[{index}]: 'approval_required' must be boolean")
 
     trigger = DispatchTrigger(
         type=trigger_type,
@@ -381,7 +396,7 @@ class AgentRegistry:
         for profile_path in sorted(self.agents_dir.glob("*.json")):
             filename = profile_path.stem
             try:
-                with open(profile_path, "r", encoding="utf-8") as f:
+                with open(profile_path, encoding="utf-8") as f:
                     data = json.load(f)
                 profile = AgentProfile.from_dict(data, filename=filename)
                 self._registry[profile.agent_id] = profile
@@ -412,9 +427,7 @@ class AgentRegistry:
         """Return the set of all registered agent IDs."""
         return set(self._registry.keys())
 
-    def find_matching_rules(
-        self, message: Message
-    ) -> list[tuple[AgentProfile, DispatchRule]]:
+    def find_matching_rules(self, message: Message) -> list[tuple[AgentProfile, DispatchRule]]:
         """Find all (agent, rule) pairs whose trigger matches this message.
 
         Only considers enabled agents with event-driven rules.
@@ -452,8 +465,8 @@ def _trigger_matches(trigger: DispatchTrigger, message: Message) -> bool:
         return False
 
     # match_msg_prefix is optional
-    if trigger.match_msg_prefix and not message.msg.startswith(trigger.match_msg_prefix):
-        return False
+    if trigger.match_msg_prefix:
+        return message.msg.startswith(trigger.match_msg_prefix)
 
     return True
 
@@ -628,8 +641,7 @@ class ApprovalGateManager:
     def remove(self, agent_id: str, rule_id: str) -> None:
         """Remove a pending approval by agent_id + rule_id."""
         self._pending = [
-            pa for pa in self._pending
-            if not (pa.agent_id == agent_id and pa.rule_id == rule_id)
+            pa for pa in self._pending if not (pa.agent_id == agent_id and pa.rule_id == rule_id)
         ]
 
     def match_approval_signal(self, message: Message) -> PendingApproval | None:
@@ -651,9 +663,7 @@ class ApprovalGateManager:
         _, agent_id, rule_id, ts = parts
 
         for pa in self._pending:
-            if (pa.agent_id == agent_id
-                    and pa.rule_id == rule_id
-                    and pa.trigger_ts == ts):
+            if pa.agent_id == agent_id and pa.rule_id == rule_id and pa.trigger_ts == ts:
                 return pa
 
         return None
@@ -674,9 +684,7 @@ class ApprovalGateManager:
         ]
 
     @classmethod
-    def from_list(
-        cls, data: list[dict], default_timeout_hours: int = 24
-    ) -> ApprovalGateManager:
+    def from_list(cls, data: list[dict], default_timeout_hours: int = 24) -> ApprovalGateManager:
         """Restore from serialized list."""
         pending = [
             PendingApproval(
@@ -781,9 +789,7 @@ class DispatchEngine:
             return []
 
         # Sort by priority tier (§8.8)
-        matches.sort(key=lambda pair: _TYPE_PRIORITY.get(
-            pair[1].trigger.match_type or "", 3
-        ))
+        matches.sort(key=lambda pair: _TYPE_PRIORITY.get(pair[1].trigger.match_type or "", 3))
 
         decisions = []
         for profile, rule in matches:
@@ -836,9 +842,7 @@ class DispatchEngine:
             payload=pa.payload,
         )
 
-    def expire_approvals(
-        self, now: datetime | None = None
-    ) -> list[DispatchDecision]:
+    def expire_approvals(self, now: datetime | None = None) -> list[DispatchDecision]:
         """Scan pending approvals for timeouts.
 
         Returns APPROVAL_TIMEOUT decisions for each expired one.
@@ -847,12 +851,14 @@ class DispatchEngine:
         decisions = []
         for pa in expired:
             self.approval_manager.remove(pa.agent_id, pa.rule_id)
-            decisions.append(DispatchDecision(
-                agent_id=pa.agent_id,
-                rule_id=pa.rule_id,
-                outcome=DispatchOutcome.APPROVAL_TIMEOUT,
-                payload=pa.payload,
-            ))
+            decisions.append(
+                DispatchDecision(
+                    agent_id=pa.agent_id,
+                    rule_id=pa.rule_id,
+                    outcome=DispatchOutcome.APPROVAL_TIMEOUT,
+                    payload=pa.payload,
+                )
+            )
         return decisions
 
     def _evaluate_single(
@@ -864,9 +870,7 @@ class DispatchEngine:
     ) -> DispatchDecision:
         """Build a DispatchDecision for one (profile, rule, message) triple."""
         # Check capacity
-        if self.concurrency.at_capacity(
-            profile.agent_id, profile.resource_limits.max_concurrent
-        ):
+        if self.concurrency.at_capacity(profile.agent_id, profile.resource_limits.max_concurrent):
             return DispatchDecision(
                 agent_id=profile.agent_id,
                 rule_id=rule.rule_id,
@@ -931,17 +935,13 @@ class DispatchScheduler:
                     continue
                 err = self.validate_cron(rule.trigger.cron or "")
                 if err:
-                    errors.append(
-                        f"{profile.agent_id}/{rule.rule_id}: {err}"
-                    )
+                    errors.append(f"{profile.agent_id}/{rule.rule_id}: {err}")
                 else:
                     key = f"{profile.agent_id}:{rule.rule_id}"
                     self._schedule.setdefault(key, 0.0)
         return errors
 
-    def due_rules(
-        self, now: float | None = None
-    ) -> list[tuple[AgentProfile, DispatchRule]]:
+    def due_rules(self, now: float | None = None) -> list[tuple[AgentProfile, DispatchRule]]:
         """Return (profile, rule) pairs whose cron is due.
 
         Uses a simplified interval model: fires if enough time elapsed
@@ -1017,7 +1017,7 @@ class DispatchScheduler:
             ("day-of-week", 0, 7),
         ]
 
-        for field_val, (name, low, high) in zip(fields, ranges):
+        for field_val, (name, low, high) in zip(fields, ranges, strict=False):
             err = _validate_cron_field(field_val, name, low, high)
             if err:
                 return err
@@ -1025,9 +1025,7 @@ class DispatchScheduler:
         return None
 
 
-def _validate_cron_field(
-    field_val: str, name: str, low: int, high: int
-) -> str | None:
+def _validate_cron_field(field_val: str, name: str, low: int, high: int) -> str | None:
     """Validate a single cron field. Returns error string or None."""
     # Handle wildcard
     if field_val == "*":
@@ -1095,9 +1093,7 @@ class AgentStateTracker:
         self._dispatch_count: dict[str, int] = {}
         self._failure_count: dict[str, int] = {}
 
-    def transition(
-        self, agent_id: str, new_state: AgentState
-    ) -> AgentState | None:
+    def transition(self, agent_id: str, new_state: AgentState) -> AgentState | None:
         """Transition an agent to a new state.
 
         Returns the old state if the transition is legal, None if illegal.
@@ -1106,9 +1102,7 @@ class AgentStateTracker:
         old_state = self._states.get(agent_id, AgentState.INACTIVE)
         legal = _LEGAL_TRANSITIONS.get(old_state, set())
         if new_state not in legal:
-            logger.warning(
-                "Illegal transition for %s: %s → %s", agent_id, old_state, new_state
-            )
+            logger.warning("Illegal transition for %s: %s → %s", agent_id, old_state, new_state)
             return None
         self._states[agent_id] = new_state
         return old_state
@@ -1154,13 +1148,15 @@ class AgentStateTracker:
         """Return §9.2 heartbeat payload — agent state summary."""
         agents = []
         for agent_id, state in sorted(self._states.items()):
-            agents.append({
-                "agent_id": agent_id,
-                "state": state.value,
-                "dispatch_count": self._dispatch_count.get(agent_id, 0),
-                "failure_count": self._failure_count.get(agent_id, 0),
-                "last_dispatch": self._last_dispatch.get(agent_id),
-            })
+            agents.append(
+                {
+                    "agent_id": agent_id,
+                    "state": state.value,
+                    "dispatch_count": self._dispatch_count.get(agent_id, 0),
+                    "failure_count": self._failure_count.get(agent_id, 0),
+                    "last_dispatch": self._last_dispatch.get(agent_id),
+                }
+            )
         return agents
 
     def to_dict(self) -> dict[str, Any]:
@@ -1182,12 +1178,8 @@ class AgentStateTracker:
             except ValueError:
                 logger.warning("Unknown state '%s' for agent '%s'", state_str, agent_id)
         tracker._last_dispatch = dict(data.get("last_dispatch", {}))
-        tracker._dispatch_count = {
-            k: int(v) for k, v in data.get("dispatch_count", {}).items()
-        }
-        tracker._failure_count = {
-            k: int(v) for k, v in data.get("failure_count", {}).items()
-        }
+        tracker._dispatch_count = {k: int(v) for k, v in data.get("dispatch_count", {}).items()}
+        tracker._failure_count = {k: int(v) for k, v in data.get("failure_count", {}).items()}
         return tracker
 
 
@@ -1225,11 +1217,7 @@ class NotificationThrottler:
         """
         if msg_text.startswith("[RE:"):
             return True
-        if msg_type == "data_cross":
-            return True
-        if msg_type == "state":
-            return True
-        return False
+        return msg_type in ("data_cross", "state")
 
     def should_notify(self, src: str, now: float | None = None) -> bool:
         """Check if a notification from this source is within rate limit.

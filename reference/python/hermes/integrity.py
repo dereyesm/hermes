@@ -30,16 +30,19 @@ F6 (BusGC): Sequence-aware garbage collection preserving pending refs.
 
 from __future__ import annotations
 
+import hashlib
 import json
+import os
+import tempfile
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from enum import Enum
 from pathlib import Path
 
-
 # ---------------------------------------------------------------------------
 # F1: Message Sequencing
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class SequenceState:
@@ -141,19 +144,23 @@ class SequenceTracker:
             src = msg.src
             gap = self.detect_gap(src, seq)
             if gap is not None:
-                anomalies.append({
-                    "type": "gap",
-                    "src": src,
-                    "seq": seq,
-                    "expected": gap[0],
-                })
+                anomalies.append(
+                    {
+                        "type": "gap",
+                        "src": src,
+                        "seq": seq,
+                        "expected": gap[0],
+                    }
+                )
             elif self.detect_duplicate(src, seq):
-                anomalies.append({
-                    "type": "duplicate",
-                    "src": src,
-                    "seq": seq,
-                    "expected": self.next_seq(src),
-                })
+                anomalies.append(
+                    {
+                        "type": "duplicate",
+                        "src": src,
+                        "seq": seq,
+                        "expected": self.next_seq(src),
+                    }
+                )
             self.record(src, seq)
         return anomalies
 
@@ -173,6 +180,7 @@ class SequenceTracker:
 # ---------------------------------------------------------------------------
 # F2: Write Ownership
 # ---------------------------------------------------------------------------
+
 
 class OwnershipViolation(Exception):
     """Raised when a writer attempts to use a namespace it doesn't own."""
@@ -311,6 +319,7 @@ class OwnershipRegistry:
 # F3: Multi-Version Concurrency Control (Write Vectors)
 # ---------------------------------------------------------------------------
 
+
 @dataclass(frozen=True)
 class WriteVector:
     """Causal state snapshot at write time (ARC-9001 F3).
@@ -391,7 +400,7 @@ class WriteVectorTracker:
         """
         self._recent.append((src, seq, w, ts))
         if len(self._recent) > self._window_size:
-            self._recent = self._recent[-self._window_size:]
+            self._recent = self._recent[-self._window_size :]
 
     def detect_conflicts(
         self,
@@ -412,13 +421,15 @@ class WriteVectorTracker:
             if r_src == src:
                 continue  # Same source: ordered by seq, no conflict possible
             if w.concurrent_with(r_w):
-                conflicts.append({
-                    "type": "concurrent",
-                    "src1": src,
-                    "seq1": seq,
-                    "src2": r_src,
-                    "seq2": r_seq,
-                })
+                conflicts.append(
+                    {
+                        "type": "concurrent",
+                        "src1": src,
+                        "seq1": seq,
+                        "src2": r_src,
+                        "seq2": r_seq,
+                    }
+                )
         return conflicts
 
     @property
@@ -430,6 +441,7 @@ class WriteVectorTracker:
 # ---------------------------------------------------------------------------
 # F4: Conflict Log
 # ---------------------------------------------------------------------------
+
 
 class ConflictResolution(str, Enum):
     """Resolution strategy for detected conflicts (ARC-9001 F3)."""
@@ -563,18 +575,13 @@ class ConflictLog:
         if not self._path.exists():
             return 0
         return sum(
-            1 for line in self._path.read_text(encoding="utf-8").splitlines()
-            if line.strip()
+            1 for line in self._path.read_text(encoding="utf-8").splitlines() if line.strip()
         )
 
 
 # ---------------------------------------------------------------------------
 # F5: Recovery (Snapshots + Replay Requests)
 # ---------------------------------------------------------------------------
-
-import hashlib
-import os
-import tempfile
 
 
 @dataclass(frozen=True)
@@ -643,8 +650,7 @@ class SnapshotManager:
             content = bus_path.read_bytes()
             bus_hash = hashlib.sha256(content).hexdigest()
             message_count = sum(
-                1 for line in content.decode("utf-8", errors="replace").splitlines()
-                if line.strip()
+                1 for line in content.decode("utf-8", errors="replace").splitlines() if line.strip()
             )
 
         snapshot = BusSnapshot(
@@ -717,6 +723,7 @@ class ReplayRequest:
 # F6: Garbage Collection
 # ---------------------------------------------------------------------------
 
+
 class BusGC:
     """Sequence-aware garbage collection for the bus (ARC-9001 F6).
 
@@ -763,6 +770,7 @@ class BusGC:
 
         # Read all messages (using permissive parsing to handle edge cases)
         from .bus import read_bus
+
         messages = read_bus(bus_path)
 
         active = []
@@ -780,6 +788,7 @@ class BusGC:
             return 0
 
         from .message import Message
+
         _serialize = Message.to_compact_jsonl if compact else Message.to_jsonl
 
         # Append archived to archive file
@@ -809,6 +818,7 @@ class BusGC:
 # ---------------------------------------------------------------------------
 # Integration Helper
 # ---------------------------------------------------------------------------
+
 
 class BusIntegrityChecker:
     """Combines SequenceTracker + OwnershipRegistry + F3/F4 for bus validation.
@@ -865,26 +875,27 @@ class BusIntegrityChecker:
             if self.seq.detect_duplicate(message.src, seq):
                 violations.append(
                     f"sequence: duplicate seq={seq} for src='{message.src}' "
-                    f"(last={self.seq.get_state(message.src).last_seq})"
+                    f"(last={self.seq.get_state(message.src).last_seq})"  # type: ignore[union-attr]
                 )
             gap = self.seq.detect_gap(message.src, seq)
             if gap is not None:
                 violations.append(
-                    f"sequence: gap for src='{message.src}' "
-                    f"(expected={gap[0]}, got={gap[1]})"
+                    f"sequence: gap for src='{message.src}' (expected={gap[0]}, got={gap[1]})"
                 )
         # F3: Write vector conflict check
         if w is not None and self.wv is not None and seq is not None:
             conflicts = self.wv.detect_conflicts(message.src, seq, w)
             for c in conflicts:
                 violations.append(
-                    f"concurrent: {c['src1']}@{c['seq1']} conflicts with "
-                    f"{c['src2']}@{c['seq2']}"
+                    f"concurrent: {c['src1']}@{c['seq1']} conflicts with {c['src2']}@{c['seq2']}"
                 )
                 # F4: Log conflict if log is available
                 if self.conflict_log is not None:
                     self.conflict_log.record_concurrent(
-                        c["src1"], c["seq1"], c["src2"], c["seq2"],
+                        c["src1"],
+                        c["seq1"],
+                        c["src2"],
+                        c["seq2"],
                     )
         return violations
 
@@ -902,7 +913,9 @@ class BusIntegrityChecker:
                 anomalies.append(desc)
                 if self.conflict_log is not None:
                     self.conflict_log.record_anomaly(
-                        "duplicate", message.src, seq=seq,
+                        "duplicate",
+                        message.src,
+                        seq=seq,
                         expected=self.seq.next_seq(message.src),
                     )
             gap = self.seq.detect_gap(message.src, seq)
@@ -911,7 +924,10 @@ class BusIntegrityChecker:
                 anomalies.append(desc)
                 if self.conflict_log is not None:
                     self.conflict_log.record_anomaly(
-                        "gap", message.src, seq=seq, expected=gap[0],
+                        "gap",
+                        message.src,
+                        seq=seq,
+                        expected=gap[0],
                     )
         # F3: Record write vector if present
         w_data = getattr(message, "w", None)
@@ -919,14 +935,14 @@ class BusIntegrityChecker:
             w = WriteVector.from_dict(w_data) if isinstance(w_data, dict) else w_data
             conflicts = self.wv.detect_conflicts(message.src, seq, w)
             for c in conflicts:
-                desc = (
-                    f"concurrent: {c['src1']}@{c['seq1']} conflicts with "
-                    f"{c['src2']}@{c['seq2']}"
-                )
+                desc = f"concurrent: {c['src1']}@{c['seq1']} conflicts with {c['src2']}@{c['seq2']}"
                 anomalies.append(desc)
                 if self.conflict_log is not None:
                     self.conflict_log.record_concurrent(
-                        c["src1"], c["seq1"], c["src2"], c["seq2"],
+                        c["src1"],
+                        c["seq1"],
+                        c["src2"],
+                        c["seq2"],
                     )
             ts_str = message.ts.isoformat() if hasattr(message, "ts") else ""
             self.wv.record(message.src, seq, w, ts_str)

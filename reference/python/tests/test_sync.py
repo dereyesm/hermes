@@ -4,14 +4,12 @@ Covers: syn, syn_report, fin, FinAction, SynResult.
 """
 
 from datetime import date, timedelta
-from pathlib import Path
 
 import pytest
 
 from hermes.bus import read_bus, write_message
 from hermes.message import Message, create_message
 from hermes.sync import FinAction, SynResult, fin, syn, syn_report
-
 
 # ─── Fixtures ──────────────────────────────────────────────────────
 
@@ -24,11 +22,14 @@ def bus_file(tmp_path):
     return f
 
 
-def _make_msg(src="eng", dst="*", type="state", msg="test", ttl=7,
-              ts=None, ack=None):
+def _make_msg(src="eng", dst="*", type="state", msg="test", ttl=7, ts=None, ack=None):
     return Message(
         ts=ts or date.today(),
-        src=src, dst=dst, type=type, msg=msg, ttl=ttl,
+        src=src,
+        dst=dst,
+        type=type,
+        msg=msg,
+        ttl=ttl,
         ack=ack or [],
     )
 
@@ -49,24 +50,20 @@ class TestSyn:
         assert result.total_bus_messages == 0
 
     def test_pending_broadcast(self, bus_file):
-        write_message(bus_file, create_message(
-            src="ops", dst="*", type="alert", msg="deadline"
-        ))
+        write_message(bus_file, create_message(src="ops", dst="*", type="alert", msg="deadline"))
         result = syn(bus_file, "eng")
         assert len(result.pending) == 1
         assert result.pending[0].msg == "deadline"
 
     def test_pending_unicast(self, bus_file):
-        write_message(bus_file, create_message(
-            src="ops", dst="eng", type="request", msg="need-info"
-        ))
+        write_message(
+            bus_file, create_message(src="ops", dst="eng", type="request", msg="need-info")
+        )
         result = syn(bus_file, "eng")
         assert len(result.pending) == 1
 
     def test_other_namespace_excluded(self, bus_file):
-        write_message(bus_file, create_message(
-            src="ops", dst="fin", type="request", msg="costs"
-        ))
+        write_message(bus_file, create_message(src="ops", dst="fin", type="request", msg="costs"))
         result = syn(bus_file, "eng")
         assert len(result.pending) == 0
 
@@ -77,11 +74,7 @@ class TestSyn:
         assert len(result.pending) == 0
 
     def test_stale_detection(self, bus_file):
-        old = _make_msg(
-            src="ops", dst="*",
-            ts=date.today() - timedelta(days=5),
-            msg="forgotten"
-        )
+        old = _make_msg(src="ops", dst="*", ts=date.today() - timedelta(days=5), msg="forgotten")
         write_message(bus_file, old)
         result = syn(bus_file, "eng")
         assert len(result.stale) == 1
@@ -89,25 +82,19 @@ class TestSyn:
 
     def test_total_bus_messages_count(self, bus_file):
         for i in range(4):
-            write_message(bus_file, create_message(
-                src="ops", dst="fin" if i % 2 else "*",
-                type="state", msg=f"m-{i}"
-            ))
+            write_message(
+                bus_file,
+                create_message(src="ops", dst="fin" if i % 2 else "*", type="state", msg=f"m-{i}"),
+            )
         result = syn(bus_file, "eng")
         assert result.total_bus_messages == 4
         # Only broadcasts (i=0, i=2) are pending for eng
         assert len(result.pending) == 2
 
     def test_mixed_pending_and_acked(self, bus_file):
-        write_message(bus_file, _make_msg(
-            src="ops", dst="*", msg="pending-one"
-        ))
-        write_message(bus_file, _make_msg(
-            src="ops", dst="*", msg="acked-one", ack=["eng"]
-        ))
-        write_message(bus_file, _make_msg(
-            src="ops", dst="eng", msg="pending-two"
-        ))
+        write_message(bus_file, _make_msg(src="ops", dst="*", msg="pending-one"))
+        write_message(bus_file, _make_msg(src="ops", dst="*", msg="acked-one", ack=["eng"]))
+        write_message(bus_file, _make_msg(src="ops", dst="eng", msg="pending-two"))
         result = syn(bus_file, "eng")
         assert len(result.pending) == 2
         assert {m.msg for m in result.pending} == {"pending-one", "pending-two"}
@@ -136,9 +123,7 @@ class TestSynReport:
 
     def test_stale_warning(self):
         old_msg = _make_msg(
-            src="fin", dst="*",
-            ts=date.today() - timedelta(days=5),
-            msg="old-alert"
+            src="fin", dst="*", ts=date.today() - timedelta(days=5), msg="old-alert"
         )
         result = SynResult(
             pending=[old_msg],
@@ -218,9 +203,9 @@ class TestFin:
             FinAction(dst="*", type="event", msg="e"),
         ]
         written = fin(bus_file, "eng", actions)
-        assert written[0].ttl == 7   # state default
-        assert written[1].ttl == 5   # alert default
-        assert written[2].ttl == 3   # event default
+        assert written[0].ttl == 7  # state default
+        assert written[1].ttl == 5  # alert default
+        assert written[2].ttl == 3  # event default
 
     def test_fin_appends_to_existing_bus(self, bus_file):
         # Pre-existing message
@@ -285,9 +270,9 @@ class TestSynFinIntegration:
     def test_full_lifecycle(self, bus_file):
         """Simulate a full session: SYN reads, work happens, FIN writes."""
         # Setup: another namespace left messages
-        write_message(bus_file, create_message(
-            src="ops", dst="*", type="alert", msg="review-needed"
-        ))
+        write_message(
+            bus_file, create_message(src="ops", dst="*", type="alert", msg="review-needed")
+        )
 
         # SYN: eng session starts
         result = syn(bus_file, "eng")
@@ -297,7 +282,7 @@ class TestSynFinIntegration:
         actions = [
             FinAction(dst="*", type="state", msg="review-done"),
         ]
-        written = fin(bus_file, "eng", actions)
+        fin(bus_file, "eng", actions)
 
         # Bus now has 2 messages
         msgs = read_bus(bus_file)
@@ -308,9 +293,13 @@ class TestSynFinIntegration:
     def test_syn_after_fin_shows_new_messages(self, bus_file):
         """After FIN writes, another namespace's SYN should see them."""
         # eng does FIN
-        fin(bus_file, "eng", [
-            FinAction(dst="*", type="state", msg="eng-update"),
-        ])
+        fin(
+            bus_file,
+            "eng",
+            [
+                FinAction(dst="*", type="state", msg="eng-update"),
+            ],
+        )
 
         # ops does SYN
         result = syn(bus_file, "ops")

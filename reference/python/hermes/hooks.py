@@ -37,18 +37,19 @@ def _read_bus_pending(clan_dir: Path) -> list[dict]:
     try:
         if toml_path.exists():
             import tomllib
+
             with open(toml_path, "rb") as f:
                 data = tomllib.load(f)
             namespace = data.get("clan", {}).get("id", "")
         elif json_path.exists():
-            with open(json_path, "r", encoding="utf-8") as f:
+            with open(json_path, encoding="utf-8") as f:
                 data = json.load(f)
             namespace = data.get("clan_id", "")
         else:
             return []
 
         messages = []
-        with open(bus_path, "r", encoding="utf-8") as f:
+        with open(bus_path, encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
                 if not line:
@@ -72,11 +73,11 @@ def cmd_hook_pull_on_start() -> None:
 
     Reads hook input from stdin, writes hook output to stdout.
     """
-    # Read stdin (hook input)
+    # Read stdin (hook input — consumed but not used for this hook)
     try:
-        hook_input = json.load(sys.stdin)
+        json.load(sys.stdin)
     except (json.JSONDecodeError, ValueError):
-        hook_input = {}
+        pass
 
     clan_dir = _default_clan_dir()
     pending = _read_bus_pending(clan_dir)
@@ -128,9 +129,7 @@ def cmd_hook_pull_on_prompt() -> None:
     pending = _read_bus_pending(clan_dir)
 
     if pending:
-        output = {
-            "systemMessage": f"HERMES bus: {len(pending)} pending message(s)."
-        }
+        output = {"systemMessage": f"HERMES bus: {len(pending)} pending message(s)."}
         json.dump(output, sys.stdout)
         sys.stdout.write("\n")
         sys.stdout.flush()
@@ -142,9 +141,9 @@ def cmd_hook_exit_reminder() -> None:
     Best-effort — never blocks session exit.
     """
     try:
-        hook_input = json.load(sys.stdin)
+        json.load(sys.stdin)
     except (json.JSONDecodeError, ValueError):
-        hook_input = {}
+        pass
 
     clan_dir = _default_clan_dir()
     pending = _read_bus_pending(clan_dir)
@@ -164,8 +163,10 @@ def cmd_hook_exit_reminder() -> None:
 def main() -> None:
     """Entry point for python -m hermes.hooks <command>."""
     if len(sys.argv) < 2:
-        print("Usage: python -m hermes.hooks <pull_on_start|pull_on_prompt|exit_reminder>",
-              file=sys.stderr)
+        print(
+            "Usage: python -m hermes.hooks <pull_on_start|pull_on_prompt|exit_reminder>",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     commands = {

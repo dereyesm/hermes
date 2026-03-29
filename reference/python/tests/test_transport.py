@@ -27,7 +27,6 @@ from hermes.message import (
 )
 from hermes.sync import SynResult, syn, syn_report
 
-
 # ─── Fixtures ──────────────────────────────────────────────────────
 
 
@@ -38,11 +37,14 @@ def bus_file(tmp_path):
     return f
 
 
-def _make_msg(src="eng", dst="*", type="state", msg="test", ttl=7,
-              ts=None, ack=None):
+def _make_msg(src="eng", dst="*", type="state", msg="test", ttl=7, ts=None, ack=None):
     return Message(
         ts=ts or date.today(),
-        src=src, dst=dst, type=type, msg=msg, ttl=ttl,
+        src=src,
+        dst=dst,
+        type=type,
+        msg=msg,
+        ttl=ttl,
         ack=ack or [],
     )
 
@@ -73,7 +75,7 @@ class TestTransportMode:
         assert transport_mode("data_cross") == "REL"
 
     def test_reliable_types_constant(self):
-        assert RELIABLE_TYPES == {"request", "dispatch", "data_cross"}
+        assert {"request", "dispatch", "data_cross"} == RELIABLE_TYPES
 
 
 # ─── CID / RE Extraction ──────────────────────────────────────────
@@ -152,8 +154,11 @@ class TestFindUnresolved:
     def test_expired_excluded(self):
         """Expired messages are not unresolved (they are expired_unresolved)."""
         msg = _make_msg(
-            type="dispatch", msg="old task [CID:dev-old1]",
-            ts=date.today() - timedelta(days=10), ttl=3, ack=["ops"]
+            type="dispatch",
+            msg="old task [CID:dev-old1]",
+            ts=date.today() - timedelta(days=10),
+            ttl=3,
+            ack=["ops"],
         )
         assert find_unresolved([msg]) == []
 
@@ -174,16 +179,18 @@ class TestFindExpiredUnresolved:
 
     def test_expired_rel_no_re(self):
         msg = _make_msg(
-            type="dispatch", msg="task [CID:dev-exp1]",
-            ts=date.today() - timedelta(days=10), ttl=3, ack=["ops"]
+            type="dispatch",
+            msg="task [CID:dev-exp1]",
+            ts=date.today() - timedelta(days=10),
+            ttl=3,
+            ack=["ops"],
         )
         result = find_expired_unresolved([msg])
         assert len(result) == 1
 
     def test_expired_rel_with_re_excluded(self):
         req = _make_msg(
-            type="dispatch", msg="task [CID:dev-exp2]",
-            ts=date.today() - timedelta(days=10), ttl=3
+            type="dispatch", msg="task [CID:dev-exp2]", ts=date.today() - timedelta(days=10), ttl=3
         )
         res = _make_msg(type="state", msg="done [RE:dev-exp2]")
         assert find_expired_unresolved([req, res]) == []
@@ -194,8 +201,7 @@ class TestFindExpiredUnresolved:
 
     def test_dgm_expired_excluded(self):
         msg = _make_msg(
-            type="state", msg="old info [CID:dev-inf1]",
-            ts=date.today() - timedelta(days=10), ttl=3
+            type="state", msg="old info [CID:dev-inf1]", ts=date.today() - timedelta(days=10), ttl=3
         )
         assert find_expired_unresolved([msg]) == []
 
@@ -230,8 +236,7 @@ class TestCorrelate:
 class TestGenerateEscalation:
     def test_basic_escalation(self):
         original = _make_msg(
-            type="dispatch", src="ops", dst="eng",
-            msg="review code [CID:ops-rev3]"
+            type="dispatch", src="ops", dst="eng", msg="review code [CID:ops-rev3]"
         )
         esc = generate_escalation(original)
         assert esc.src == "ops"
@@ -253,8 +258,7 @@ class TestGenerateEscalation:
 
     def test_escalation_has_today_ts(self):
         original = _make_msg(
-            type="request", msg="old [CID:dev-esc2]",
-            ts=date.today() - timedelta(days=10)
+            type="request", msg="old [CID:dev-esc2]", ts=date.today() - timedelta(days=10)
         )
         esc = generate_escalation(original)
         assert esc.ts == date.today()
@@ -269,13 +273,11 @@ class TestSynUnresolved:
         assert result.unresolved == []
 
     def test_syn_detects_unresolved(self, bus_file):
-        msg = create_message(
-            src="ops", dst="eng", type="dispatch",
-            msg="review pr [CID:ops-pr01]"
-        )
+        msg = create_message(src="ops", dst="eng", type="dispatch", msg="review pr [CID:ops-pr01]")
         write_message(bus_file, msg)
         # Manually ACK it
         from hermes.bus import ack_message
+
         ack_message(bus_file, "eng", lambda m: True)
 
         result = syn(bus_file, "eng")
@@ -283,12 +285,10 @@ class TestSynUnresolved:
         assert "ops-pr01" in result.unresolved[0].msg
 
     def test_syn_report_shows_unresolved(self):
-        msg = _make_msg(
-            type="dispatch", src="ops",
-            msg="review pr [CID:ops-pr01]", ack=["eng"]
-        )
+        msg = _make_msg(type="dispatch", src="ops", msg="review pr [CID:ops-pr01]", ack=["eng"])
         result = SynResult(
-            pending=[], stale=[],
+            pending=[],
+            stale=[],
             total_bus_messages=1,
             unresolved=[msg],
         )
@@ -310,8 +310,7 @@ class TestLifecycleIntegration:
         """Full flow: request → ack → resolve."""
         # 1. Request sent
         req = create_message(
-            src="ops", dst="eng", type="request",
-            msg="need cost data [CID:ops-cost]"
+            src="ops", dst="eng", type="request", msg="need cost data [CID:ops-cost]"
         )
         write_message(bus_file, req)
 
@@ -321,6 +320,7 @@ class TestLifecycleIntegration:
 
         # 3. ACK: eng acknowledges
         from hermes.bus import ack_message
+
         ack_message(bus_file, "eng", lambda m: True)
 
         # 4. Unresolved: acked but no response yet
@@ -329,10 +329,7 @@ class TestLifecycleIntegration:
         assert len(unresolved) == 1
 
         # 5. Resolve: eng sends response
-        res = create_message(
-            src="eng", dst="ops", type="state",
-            msg="cost:2400usd [RE:ops-cost]"
-        )
+        res = create_message(src="eng", dst="ops", type="state", msg="cost:2400usd [RE:ops-cost]")
         write_message(bus_file, res)
 
         # 6. Now resolved
@@ -348,10 +345,13 @@ class TestLifecycleIntegration:
     def test_dispatch_expire_escalate(self, bus_file):
         """Dispatch expires without resolution → escalation."""
         dispatch = _make_msg(
-            type="dispatch", src="ops", dst="eng",
+            type="dispatch",
+            src="ops",
+            dst="eng",
             msg="deploy v2 [CID:ops-dep2]",
-            ts=date.today() - timedelta(days=10), ttl=3,
-            ack=["eng"]
+            ts=date.today() - timedelta(days=10),
+            ttl=3,
+            ack=["eng"],
         )
         write_message(bus_file, dispatch)
 
@@ -367,8 +367,7 @@ class TestLifecycleIntegration:
     def test_backward_compat_no_cid(self, bus_file):
         """Old messages without CID work exactly as before."""
         old_dispatch = create_message(
-            src="ops", dst="eng", type="dispatch",
-            msg="old style task no cid"
+            src="ops", dst="eng", type="dispatch", msg="old style task no cid"
         )
         write_message(bus_file, old_dispatch)
 
