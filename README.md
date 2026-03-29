@@ -3,8 +3,8 @@
 [![Tests](https://github.com/dereyesm/hermes/actions/workflows/ci.yml/badge.svg)](https://github.com/dereyesm/hermes/actions/workflows/ci.yml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Specs: 19](https://img.shields.io/badge/specs-19%20(17%20IMPL%20%2B%201%20INFO%20%2B%201%20DRAFT)-orange.svg)](spec/INDEX.md)
-[![Tests: 1087](https://img.shields.io/badge/tests-1087%20passing-brightgreen.svg)](reference/python/tests/)
+[![Specs: 20](https://img.shields.io/badge/specs-20%20(18%20IMPL%20%2B%201%20INFO%20%2B%201%20DRAFT)-orange.svg)](spec/INDEX.md)
+[![Tests: 1146](https://img.shields.io/badge/tests-1146%20passing-brightgreen.svg)](reference/python/tests/)
 [![Clans: 3](https://img.shields.io/badge/clans-3%20connected-teal.svg)](CLANS.md)
 
 <p align="center">
@@ -232,7 +232,7 @@ HERMES uses a formal, RFC-like standards process with three tracks, each tracing
 | **ATR** | ITU-T Rec. | Architecture, reference models, telecom-inspired patterns | ATR-X.200: Reference Model |
 | **AES** | IEEE Std | Implementation standards: interoperability, isolation, QoS | AES-802.1Q: Namespace Isolation |
 
-### Standards (17 IMPL + 1 INFO + 1 DRAFT = 19 spec files)
+### Standards (18 IMPL + 1 INFO + 1 DRAFT = 20 spec files)
 
 | Standard | Title | Tier | IETF/ITU-T Lineage |
 |----------|-------|------|---------------------|
@@ -250,6 +250,7 @@ HERMES uses a formal, RFC-like standards process with three tracks, each tracing
 | [ARC-8446](spec/ARC-8446.md) | Encrypted Bus Protocol | Security | RFC 8446 (TLS 1.3) |
 | [ARC-9001](spec/ARC-9001.md) | Bus Integrity Protocol | Core | MVCC/OCC, ITU-T Q.703 (SS7) |
 | [ARC-0369](spec/ARC-0369.md) | Agent Service Platform | Core | BBF TR-369 (USP) |
+| [ARC-1122](spec/ARC-1122.md) | Agent Conformance Requirements | Core | RFC 1122 (Host Requirements), ECMA-430 |
 | [ARC-2119](spec/ARC-2119.md) | Requirement Level Keywords | Meta | RFC 2119 (MUST/SHOULD/MAY) |
 | [ATR-X.200](spec/ATR-X200.md) | Reference Model | Core | ITU-T X.200 (OSI Reference Model) |
 | [ATR-Q.700](spec/ATR-Q700.md) | Out-of-Band Signaling | Philosophy | ITU-T Q.700 (SS7) |
@@ -262,7 +263,7 @@ Full index with 30 planned standards: **[spec/INDEX.md](spec/INDEX.md)**
 
 ## Reference Implementation
 
-A Python reference implementation is included for validation and experimentation (**1087 tests passing**):
+A Python reference implementation is included for validation and experimentation (**1146 tests passing**):
 
 ```bash
 cd reference/python
@@ -365,7 +366,7 @@ hermes/
 │   ├── POSITIONING.md
 │   ├── USE-CASES.md
 │   └── diagrams/      #   Visual documentation (11 Mermaid + 16 D2)
-├── reference/python/  # Reference implementation (1087 tests)
+├── reference/python/  # Reference implementation (1146 tests)
 ├── examples/          # Sample bus, routes, configs
 ├── CHANGELOG.md
 ├── CONTRIBUTING.md

@@ -9,6 +9,45 @@ This project follows a versioning scheme where:
 
 ---
 
+## [Unreleased] — ARC-1122 Conformance + Diagrams + Test Coverage (2026-03-28)
+
+### New Specification
+
+- **ARC-1122: Agent Conformance Requirements** (IMPLEMENTED)
+  - Three conformance levels: Bus-Compatible, Clan-Ready, Network-Ready
+  - 96 normative statements (66 MUST, 16 SHOULD, 14 MAY)
+  - Aggregates requirements from 17 IMPL specs into single reference
+  - Crypto requirements: SHOULD sovereign, MUST inter-clan
+  - Reference: RFC 1122 (Host Requirements), ECMA-430 (NLIP) conformance levels
+
+### Added
+
+- **5 D2 diagrams** (21 total, was 16):
+  - `hub-architecture.d2` — ARC-4601 §15 Hub Mode (HubServer, AuthHandler, ConnectionTable, MessageRouter, StoreForwardQueue)
+  - `bus-integrity.d2` — ARC-9001 F1-F6 pipeline (SequenceTracker through BusGC)
+  - `asp-architecture.d2` — ARC-0369 F1-F5 (MessageClassifier, AgentRegistry, DispatchEngine, 7-state FSM, NotificationThrottler)
+  - `adapter-bridge.d2` — Agent-agnostic adapter pattern (~/.hermes/ → Claude Code/Cursor/future)
+  - `hub-peer-auth.d2` — Ed25519 challenge-response authentication sequence
+
+- **test_hooks.py** — 25 tests for hooks.py (186 LOC, was 0 coverage)
+  - `_read_bus_pending`, `cmd_hook_pull_on_start`, `cmd_hook_pull_on_prompt`, `cmd_hook_exit_reminder`, `main()`
+- **test_terminal.py** — 34 tests for terminal.py (345 LOC, was 0 coverage)
+  - Brand palette, print_clan_status, print_daemon_status, print_inbox, print_bus_messages (plain-text + rich paths)
+
+- **hermes-integration.md** — Claude Sensei KB integration doc (hooks, adapter, bus protocol, conformance levels)
+
+### Changed
+
+- README: spec badge corrected (18 IMPL + 1 INFO + 1 DRAFT = 20), test badge updated (1146), terminal.py added to module list, ARC-1122 in spec table
+- EVOLUTION-PLAN.md: stats updated (11→18 specs, 214→1146 tests), 8 Phase 1-2 items marked complete
+- spec/INDEX.md: ARC-1122 status PLANNED → IMPLEMENTED
+
+### Test Summary
+
+- 1146 total (+59 from test_hooks + test_terminal), 0 regressions
+
+---
+
 ## [Unreleased] — Hub Mode + Noise IK Spec + Documentation Sweep (2026-03-25)
 
 ### Hub Mode & P2P Tunnel Specification

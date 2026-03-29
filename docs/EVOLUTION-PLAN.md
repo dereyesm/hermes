@@ -5,7 +5,7 @@
 
 ## Executive Summary
 
-HERMES is a lightweight, file-based inter-agent communication protocol with 17 implemented specs (+ 1 INFO + 1 DRAFT) and 1087 tests. The agent communication landscape has matured rapidly (A2A, MCP, Ecma NLIP, IETF drafts, 3GPP SBA patterns). This plan evolves HERMES to integrate with — not compete against — these standards, while preserving its unique strengths: zero infrastructure, privacy-first, telecom rigor.
+HERMES is a lightweight, file-based inter-agent communication protocol with 18 implemented specs (+ 1 INFO + 1 DRAFT) and 1146 tests. The agent communication landscape has matured rapidly (A2A, MCP, Ecma NLIP, IETF drafts, 3GPP SBA patterns). This plan evolves HERMES to integrate with — not compete against — these standards, while preserving its unique strengths: zero infrastructure, privacy-first, telecom rigor.
 
 **Strategic position**: HERMES is a **dual-mode protocol** — **Sovereign** (file-based, self-hosted, zero infrastructure) and **Hosted** (managed Hub with SLAs). Both modes use the same wire format (ARC-5322), same privacy model (ARC-1918), same gateway-as-NAT (ARC-3022). It contributes telecom-inspired concepts (CUPS separation, Shannon constraints, dual trust metrics) to the broader agent protocol ecosystem.
 
