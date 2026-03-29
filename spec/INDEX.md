@@ -26,7 +26,7 @@ Core protocol standards governing message formats, transport, addressing, and se
 | [ARC-0791](ARC-0791.md) | Addressing & Routing | RFC 791 (IP) | ANP DID-based discovery; 3GPP TS 29.510 (NRF) NF discovery | IMPLEMENTED | Core |
 | [ARC-0793](ARC-0793.md) | Reliable Transport | RFC 793 (TCP) | MCP Streamable HTTP; A2A task lifecycle; ECMA-431 session management | IMPLEMENTED | Core |
 | ARC-1035 | Namespace Resolution | RFC 1035 (DNS) | 3GPP TS 29.510 (NRF) service discovery; ANP DID resolution | PLANNED | Extension |
-| ARC-1122 | Agent Conformance Requirements | RFC 1122 (Host Req.) | ECMA-430 (NLIP) conformance levels | PLANNED | Core |
+| [ARC-1122](ARC-1122.md) | Agent Conformance Requirements | RFC 1122 (Host Req.) | ECMA-430 (NLIP) conformance levels | IMPLEMENTED | Core |
 | [ARC-1918](ARC-1918.md) | Private Spaces & Firewall | RFC 1918 (Private Addr.) | 3GPP TS 23.501 network slicing (Section 5.15); IEEE 802.1Q VLANs | IMPLEMENTED | Core |
 | [ARC-2119](ARC-2119.md) | Requirement Level Keywords | RFC 2119 (MUST/SHOULD) | Universal across IETF, 3GPP, Ecma specifications | IMPLEMENTED | Meta |
 | ARC-2818 | Secure Bus Transport | RFC 2818 (HTTPS) | ECMA-434 (NLIP) security profiles; IETF draft-mpsb-agntcy-slim (MLS) | PLANNED | Security |
