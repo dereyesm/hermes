@@ -36,20 +36,20 @@ This project follows a versioning scheme where:
 
 - **hermes-integration.md** — Claude Sensei KB integration doc (hooks, adapter, bus protocol, conformance levels)
 
-- **test_conformance.py** — Placeholder test classes for ARC-1122 conformance levels (L1/L2/L3 TODOs)
+- **test_conformance.py** — 51 L1 conformance test vectors (all 26 normative statements verified). L2/L3 placeholders.
 
 ### Changed
 
 - ARC-1122 abstract: clarified "98 curated from 389 raw" normative count (was ambiguous)
 - Rich-path terminal tests: upgraded from no-crash to content assertions via capsys
 - experience.md QUEST lineage: QUEST-003 CLOSED, QUEST-004 CLOSED, QUEST-005 updated
-- README: spec badge corrected (18 IMPL + 1 INFO + 1 DRAFT = 20), test badge updated (1146), terminal.py added to module list, ARC-1122 in spec table
-- EVOLUTION-PLAN.md: stats updated (11→18 specs, 214→1146 tests), 8 Phase 1-2 items marked complete
+- README: spec badge corrected (18 IMPL + 1 INFO + 1 DRAFT = 20), test badge updated (1197), terminal.py added to module list, ARC-1122 in spec table
+- EVOLUTION-PLAN.md: stats updated (11→18 specs, 214→1197 tests), 8 Phase 1-2 items marked complete
 - spec/INDEX.md: ARC-1122 status PLANNED → IMPLEMENTED
 
 ### Test Summary
 
-- 1146 total (+59 from test_hooks + test_terminal), 3 skipped (conformance placeholders), 0 regressions
+- 1197 total (+110 this session: 25 hooks + 34 terminal + 51 conformance L1), 2 skipped (L2/L3 placeholders), 0 regressions
 
 ---
 

@@ -4,7 +4,7 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Specs: 20](https://img.shields.io/badge/specs-20%20(18%20IMPL%20%2B%201%20INFO%20%2B%201%20DRAFT)-orange.svg)](spec/INDEX.md)
-[![Tests: 1146](https://img.shields.io/badge/tests-1146%20passing-brightgreen.svg)](reference/python/tests/)
+[![Tests: 1197](https://img.shields.io/badge/tests-1197%20passing-brightgreen.svg)](reference/python/tests/)
 [![Clans: 3](https://img.shields.io/badge/clans-3%20connected-teal.svg)](CLANS.md)
 
 <p align="center">
@@ -263,7 +263,7 @@ Full index with 30 planned standards: **[spec/INDEX.md](spec/INDEX.md)**
 
 ## Reference Implementation
 
-A Python reference implementation is included for validation and experimentation (**1146 tests passing**):
+A Python reference implementation is included for validation and experimentation (**1197 tests passing**):
 
 ```bash
 cd reference/python
@@ -366,7 +366,7 @@ hermes/
 │   ├── POSITIONING.md
 │   ├── USE-CASES.md
 │   └── diagrams/      #   Visual documentation (11 Mermaid + 16 D2)
-├── reference/python/  # Reference implementation (1146 tests)
+├── reference/python/  # Reference implementation (1197 tests)
 ├── examples/          # Sample bus, routes, configs
 ├── CHANGELOG.md
 ├── CONTRIBUTING.md
