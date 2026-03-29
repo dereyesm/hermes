@@ -14,7 +14,7 @@
 
 - **Protocol version**: 0.4.2-alpha
 - **Specs**: 20 implemented, 1 draft, 7 planned
-- **Reference implementation**: Python (1,087 tests, 17 modules)
+- **Reference implementation**: Python (1,267 tests, 19 modules)
 - **Crypto**: Ed25519 (sign) + X25519 (DH) + AES-256-GCM (encrypt) + ECDHE forward secrecy
 - **Adapters**: Claude Code, Cursor
 

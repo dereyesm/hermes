@@ -9,6 +9,52 @@ This project follows a versioning scheme where:
 
 ---
 
+## [Unreleased] — Multi-LLM + L2 Conformance + CI Pipeline (2026-03-29)
+
+### Added
+
+- **Multi-LLM adapter layer** (`hermes/llm/`):
+  - `LLMAdapter` ABC with `GeminiAdapter` and `ClaudeAdapter` implementations
+  - `AdapterManager` for priority-ordered fallback between backends
+  - `SkillLoader` converts SKILL.md frontmatter → universal system prompt (no PyYAML dep)
+  - `create_adapter()` factory function
+  - API keys via env vars (never stored in config), lazy SDK imports
+  - Config integration: `LLMBackendConfig` dataclass, `llm_backends`/`llm_default_backend` fields in GatewayConfig
+  - CLI: `hermes llm list|status|test`
+  - Optional deps: `pip install hermes-protocol[llm]` (anthropic>=0.42.0, google-genai>=1.0.0)
+  - 36 tests (adapters, skill loader, config roundtrip JSON+TOML, CLI)
+
+- **ARC-1122 L2 conformance test vectors** — 34 tests covering all 33 Clan-Ready normative statements:
+  - Sessions L2-01..08 (ARC-0793): SYN/FIN lifecycle, atomicity, no-concurrent-sessions
+  - Namespace isolation L2-09..14 (ARC-1918): private space, permission table, credential blocking
+  - Addressing L2-15..17: unique namespace IDs, format validation, unicast/broadcast routing
+  - Gateway L2-18..27 (ARC-3022): single gateway, identity mapping, alias hiding, default-deny, internal non-forwarding
+  - Agent profiles L2-28..29: capabilities declaration, Agora publication
+  - ASP L2-30..33 (ARC-0369): message classification (4 categories), source verification, agent registration, dispatch rules
+
+- **CI pipeline** (`.github/workflows/ci.yml`):
+  - 3 parallel jobs: lint (ruff), typecheck (mypy), test (pytest matrix 3.11/3.12/3.13)
+  - Actions pinned to SHA (supply-chain SOP)
+  - Coverage gate: 75% minimum
+
+- **SECURITY.md** — vulnerability disclosure policy (scope, timeline, coordinated disclosure)
+
+### Changed
+
+- `pyproject.toml`: dev deps (ruff==0.9.10, mypy==1.15.0, pytest-cov), tool configs, `[llm]` optional deps
+- `config.py`: `LLMBackendConfig` + `llm_backends`/`llm_default_backend` in GatewayConfig (backward compatible)
+- `cli.py`: `hermes llm list|status|test` subcommands
+- `bus.py`: `Callable` type annotation fix (was `callable`)
+- `asp.py`, `message.py`, `agent.py`, `gateway.py`, `integrity.py`, `hooks.py`, `crypto.py`: ruff + mypy violations fixed
+- README: Python badge 3.11+, test badge 1267, llm/ module listed
+- `test_installer.py`: test flake fix (subdirectory instead of tmp_path root)
+
+### Test Summary
+
+- 1267 total (+70 this session: 36 LLM + 34 L2 conformance), 1 skipped (L3 placeholder), 0 regressions, coverage 80%
+
+---
+
 ## [Unreleased] — ARC-1122 Conformance + Diagrams + Test Coverage (2026-03-28)
 
 ### New Specification

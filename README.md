@@ -1,10 +1,10 @@
 # HERMES
 
 [![Tests](https://github.com/dereyesm/hermes/actions/workflows/ci.yml/badge.svg)](https://github.com/dereyesm/hermes/actions/workflows/ci.yml)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Specs: 20](https://img.shields.io/badge/specs-20%20(18%20IMPL%20%2B%201%20INFO%20%2B%201%20DRAFT)-orange.svg)](spec/INDEX.md)
-[![Tests: 1197](https://img.shields.io/badge/tests-1197%20passing-brightgreen.svg)](reference/python/tests/)
+[![Tests: 1267](https://img.shields.io/badge/tests-1267%20passing-brightgreen.svg)](reference/python/tests/)
 [![Clans: 3](https://img.shields.io/badge/clans-3%20connected-teal.svg)](CLANS.md)
 
 <p align="center">
@@ -290,6 +290,7 @@ Modules:
 - `installer.py` -- cross-platform one-command setup
 - `hooks.py` -- Claude Code hook handlers
 - `terminal.py` -- brand-aware CLI output (rich/plain-text dual mode) per AES-2040
+- `llm/` -- multi-LLM adapter layer: Gemini + Claude backends, SkillLoader, AdapterManager
 
 See [reference/python/](reference/python/) for details.
 
