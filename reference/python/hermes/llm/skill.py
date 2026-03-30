@@ -4,6 +4,12 @@ Skills are markdown with YAML-like frontmatter.  The content (prompts,
 frameworks, deliberation) is 100% portable across LLM backends.
 Only the invocation mechanism (e.g. /skill in Claude Code) is provider-specific.
 
+Compatible with the Agent Skills Open Standard (agentskills.io).
+Core fields (name, description) are shared across Claude Code, Gemini CLI,
+Cursor, OpenCode, and 30+ AI coding tools. Provider-specific fields
+(context, effort, hooks, temperature) are stored in metadata and
+gracefully ignored by tools that don't support them.
+
 No PyYAML dependency — uses a lightweight parser for the frontmatter subset
 that HERMES skills actually use.
 """
@@ -17,7 +23,16 @@ from pathlib import Path
 
 @dataclass
 class SkillContext:
-    """Parsed skill ready for any LLM backend."""
+    """Parsed skill ready for any LLM backend.
+
+    Core fields follow the Agent Skills Open Standard (agentskills.io):
+      - name: skill identifier (max 64 chars, lowercase+hyphens)
+      - description: what the skill does (max 1024 chars)
+      - license: optional license identifier (e.g. "MIT", "Apache-2.0")
+      - compatibility: optional environment requirements (e.g. "Python 3.11+")
+
+    Additional fields are HERMES extensions stored in metadata.
+    """
 
     name: str
     description: str
@@ -25,6 +40,8 @@ class SkillContext:
     argument_hint: str
     system_prompt: str  # The full markdown body as system prompt
     source_path: str
+    license: str  # Agent Skills Standard: optional license identifier
+    compatibility: str  # Agent Skills Standard: environment requirements
     metadata: dict = field(default_factory=dict)
 
 
@@ -60,6 +77,8 @@ class SkillLoader:
             argument_hint=frontmatter.get("argument-hint", ""),
             system_prompt=body.strip(),
             source_path=str(path),
+            license=frontmatter.get("license", ""),
+            compatibility=frontmatter.get("compatibility", ""),
             metadata=frontmatter,
         )
 

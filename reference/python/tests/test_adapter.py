@@ -1,4 +1,4 @@
-"""Tests for HERMES Adapter — Agent-agnostic bridge (installable-model.md Phase 2)."""
+"""Tests for HERMES Adapter — Agent-agnostic bridge (installable-model.md Phase 2+3)."""
 
 from pathlib import Path
 
@@ -8,6 +8,7 @@ from hermes.adapter import (
     AdaptResult,
     ClaudeCodeAdapter,
     CursorAdapter,
+    OpenCodeAdapter,
     _safe_symlink,
     _write_file_if_changed,
     get_adapter,
@@ -763,3 +764,384 @@ class TestAdapterRegistryCursor:
         result = run_adapter("cursor", hermes_dir=hermes_dir, target_dir=cursor_target_dir)
         assert result.success is True
         assert result.adapter_name == "cursor"
+
+
+# ═══════════════════════════════════════════════════════════════════
+# OpenCode Adapter Tests
+# ═══════════════════════════════════════════════════════════════════
+
+
+@pytest.fixture
+def opencode_target_dir(tmp_path):
+    """Create target directory for OpenCode output."""
+    tdir = tmp_path / ".config" / "opencode"
+    tdir.mkdir(parents=True)
+    return tdir
+
+
+# ─── OpenCodeAdapter basic ────────────────────────────────────────
+
+
+class TestOpenCodeAdapterBasic:
+    """Basic OpenCodeAdapter tests with minimal config."""
+
+    def test_adapt_success(self, hermes_dir, opencode_target_dir):
+        adapter = OpenCodeAdapter(hermes_dir=hermes_dir, target_dir=opencode_target_dir)
+        result = adapter.adapt()
+        assert result.success is True
+        assert result.adapter_name == "opencode"
+        assert len(result.steps) >= 3  # config + AGENTS.md + opencode.json
+
+    def test_generates_agents_md(self, hermes_dir, opencode_target_dir):
+        adapter = OpenCodeAdapter(hermes_dir=hermes_dir, target_dir=opencode_target_dir)
+        adapter.adapt()
+        agents_md = opencode_target_dir / "AGENTS.md"
+        assert agents_md.exists()
+        content = agents_md.read_text()
+        assert "clan-test" in content
+        assert "Test Clan" in content
+
+    def test_agents_md_contains_identity(self, hermes_dir, opencode_target_dir):
+        adapter = OpenCodeAdapter(hermes_dir=hermes_dir, target_dir=opencode_target_dir)
+        adapter.adapt()
+        content = (opencode_target_dir / "AGENTS.md").read_text()
+        assert "Clan ID" in content
+        assert "Protocol Version" in content
+
+    def test_agents_md_auto_generated_notice(self, hermes_dir, opencode_target_dir):
+        adapter = OpenCodeAdapter(hermes_dir=hermes_dir, target_dir=opencode_target_dir)
+        adapter.adapt()
+        content = (opencode_target_dir / "AGENTS.md").read_text()
+        assert "Auto-generated" in content
+        assert "hermes adapt opencode" in content
+
+    def test_agents_md_has_markers(self, hermes_dir, opencode_target_dir):
+        adapter = OpenCodeAdapter(hermes_dir=hermes_dir, target_dir=opencode_target_dir)
+        adapter.adapt()
+        content = (opencode_target_dir / "AGENTS.md").read_text()
+        assert OpenCodeAdapter.HEADER_MARKER in content
+        assert OpenCodeAdapter.FOOTER_MARKER in content
+
+
+# ─── OpenCodeAdapter skills ──────────────────────────────────────
+
+
+class TestOpenCodeAdapterSkills:
+    """Skill compilation and linking tests."""
+
+    def test_compiles_skills_into_agents_md(self, hermes_dir_with_dims, opencode_target_dir):
+        adapter = OpenCodeAdapter(hermes_dir=hermes_dir_with_dims, target_dir=opencode_target_dir)
+        adapter.adapt()
+        content = (opencode_target_dir / "AGENTS.md").read_text()
+        assert "## Skills" in content
+        assert "Consejo Skill" in content
+        assert "Palas Skill" in content
+        assert "Niky CEO" in content
+
+    def test_symlinks_skills_with_dimension_subdirs(self, hermes_dir_with_dims, opencode_target_dir):
+        adapter = OpenCodeAdapter(hermes_dir=hermes_dir_with_dims, target_dir=opencode_target_dir)
+        adapter.adapt()
+        skills_dir = opencode_target_dir / "skills"
+        # Skills in dimension subdirs — directory name matches skill name (Agent Skills Standard)
+        assert (skills_dir / "global" / "consejo").is_symlink()
+        assert (skills_dir / "global" / "palas").is_symlink()
+        assert (skills_dir / "nymyka" / "niky-ceo").is_symlink()
+        # Content accessible through symlinks
+        assert (skills_dir / "global" / "consejo" / "SKILL.md").read_text() == "# Consejo Skill\n"
+
+    def test_no_skills_ok(self, hermes_dir, opencode_target_dir):
+        adapter = OpenCodeAdapter(hermes_dir=hermes_dir, target_dir=opencode_target_dir)
+        result = adapter.adapt()
+        assert result.success is True
+        assert "No dimension skills found" in result.steps
+
+    def test_reports_linked_count(self, hermes_dir_with_dims, opencode_target_dir):
+        adapter = OpenCodeAdapter(hermes_dir=hermes_dir_with_dims, target_dir=opencode_target_dir)
+        result = adapter.adapt()
+        skill_step = [s for s in result.steps if "Skills linked" in s]
+        assert len(skill_step) == 1
+        assert "3 skills" in skill_step[0]
+
+
+# ─── OpenCodeAdapter rules ───────────────────────────────────────
+
+
+class TestOpenCodeAdapterRules:
+    """Rule compilation tests."""
+
+    def test_compiles_rules_into_agents_md(self, hermes_dir_with_dims, opencode_target_dir):
+        adapter = OpenCodeAdapter(hermes_dir=hermes_dir_with_dims, target_dir=opencode_target_dir)
+        adapter.adapt()
+        content = (opencode_target_dir / "AGENTS.md").read_text()
+        assert "## Rules" in content
+        assert "Firewall rules" in content
+        assert "SOPs" in content
+
+    def test_rules_grouped_by_dimension(self, hermes_dir_with_dims, opencode_target_dir):
+        adapter = OpenCodeAdapter(hermes_dir=hermes_dir_with_dims, target_dir=opencode_target_dir)
+        adapter.adapt()
+        content = (opencode_target_dir / "AGENTS.md").read_text()
+        assert "Dimension: nymyka" in content
+
+    def test_no_rules_section_when_empty(self, hermes_dir, opencode_target_dir):
+        adapter = OpenCodeAdapter(hermes_dir=hermes_dir, target_dir=opencode_target_dir)
+        adapter.adapt()
+        content = (opencode_target_dir / "AGENTS.md").read_text()
+        assert "## Rules" not in content
+
+
+# ─── OpenCodeAdapter bus ─────────────────────────────────────────
+
+
+class TestOpenCodeAdapterBus:
+    """Bus symlink tests for OpenCode."""
+
+    def test_links_bus(self, hermes_dir_with_bus, opencode_target_dir):
+        adapter = OpenCodeAdapter(hermes_dir=hermes_dir_with_bus, target_dir=opencode_target_dir)
+        adapter.adapt()
+        bus_link = opencode_target_dir / "bus.jsonl"
+        assert bus_link.is_symlink()
+        assert "test message" in bus_link.read_text()
+
+    def test_bus_resolves_to_hermes(self, hermes_dir_with_bus, opencode_target_dir):
+        adapter = OpenCodeAdapter(hermes_dir=hermes_dir_with_bus, target_dir=opencode_target_dir)
+        adapter.adapt()
+        bus_link = opencode_target_dir / "bus.jsonl"
+        resolved = bus_link.resolve()
+        assert ".hermes" in str(resolved)
+
+    def test_no_bus_no_error(self, hermes_dir, opencode_target_dir):
+        adapter = OpenCodeAdapter(hermes_dir=hermes_dir, target_dir=opencode_target_dir)
+        result = adapter.adapt()
+        assert result.success is True
+        assert "Bus symlink unchanged" in result.steps
+
+
+# ─── OpenCodeAdapter opencode.json ───────────────────────────────
+
+
+class TestOpenCodeAdapterJson:
+    """opencode.json generation and merge tests."""
+
+    def test_generates_json_with_schema(self, hermes_dir, opencode_target_dir):
+        adapter = OpenCodeAdapter(hermes_dir=hermes_dir, target_dir=opencode_target_dir)
+        adapter.adapt()
+        import json
+
+        config = json.loads((opencode_target_dir / "opencode.json").read_text())
+        assert config["$schema"] == "https://opencode.ai/config.json"
+
+    def test_json_has_instructions_field(self, hermes_dir, opencode_target_dir):
+        adapter = OpenCodeAdapter(hermes_dir=hermes_dir, target_dir=opencode_target_dir)
+        adapter.adapt()
+        import json
+
+        config = json.loads((opencode_target_dir / "opencode.json").read_text())
+        assert "AGENTS.md" in config["instructions"]
+
+    def test_json_has_hermes_metadata(self, hermes_dir, opencode_target_dir):
+        adapter = OpenCodeAdapter(hermes_dir=hermes_dir, target_dir=opencode_target_dir)
+        adapter.adapt()
+        import json
+
+        config = json.loads((opencode_target_dir / "opencode.json").read_text())
+        assert config["_hermes"]["managed_by"] == "hermes adapt opencode"
+        assert config["_hermes"]["clan_id"] == "clan-test"
+
+    def test_merge_preserves_user_keys(self, hermes_dir, opencode_target_dir):
+        """User-configured keys in opencode.json are preserved during merge."""
+        import json
+
+        # Pre-existing user config
+        user_config = {
+            "$schema": "https://opencode.ai/config.json",
+            "model": "google/gemini-2.5-flash",
+            "mcp": {"sentry": {"enabled": True}},
+            "instructions": ["my-rules.md"],
+        }
+        (opencode_target_dir / "opencode.json").write_text(json.dumps(user_config))
+
+        adapter = OpenCodeAdapter(hermes_dir=hermes_dir, target_dir=opencode_target_dir)
+        adapter.adapt()
+
+        config = json.loads((opencode_target_dir / "opencode.json").read_text())
+        # User keys preserved
+        assert config["model"] == "google/gemini-2.5-flash"
+        assert config["mcp"]["sentry"]["enabled"] is True
+        # AGENTS.md added to existing instructions
+        assert "my-rules.md" in config["instructions"]
+        assert "AGENTS.md" in config["instructions"]
+        # HERMES metadata added
+        assert "_hermes" in config
+
+    def test_handles_instructions_as_string(self, hermes_dir, opencode_target_dir):
+        """OpenCode accepts instructions as string — adapter converts to list."""
+        import json
+
+        user_config = {"instructions": "my-rules.md"}
+        (opencode_target_dir / "opencode.json").write_text(json.dumps(user_config))
+
+        adapter = OpenCodeAdapter(hermes_dir=hermes_dir, target_dir=opencode_target_dir)
+        adapter.adapt()
+
+        config = json.loads((opencode_target_dir / "opencode.json").read_text())
+        assert isinstance(config["instructions"], list)
+        assert "my-rules.md" in config["instructions"]
+        assert "AGENTS.md" in config["instructions"]
+
+    def test_handles_corrupt_json(self, hermes_dir, opencode_target_dir):
+        """Corrupt opencode.json is replaced with fresh config (not crash)."""
+        (opencode_target_dir / "opencode.json").write_text("{invalid json!!!}")
+
+        adapter = OpenCodeAdapter(hermes_dir=hermes_dir, target_dir=opencode_target_dir)
+        result = adapter.adapt()
+
+        assert result.success is True
+        import json
+
+        config = json.loads((opencode_target_dir / "opencode.json").read_text())
+        assert config["$schema"] == "https://opencode.ai/config.json"
+        assert "AGENTS.md" in config["instructions"]
+
+
+# ─── OpenCodeAdapter peers ────────────────────────────────────────
+
+
+class TestOpenCodeAdapterPeers:
+    """Peer display in AGENTS.md."""
+
+    def test_agents_md_includes_peers(self, hermes_dir_with_peers, opencode_target_dir):
+        adapter = OpenCodeAdapter(hermes_dir=hermes_dir_with_peers, target_dir=opencode_target_dir)
+        adapter.adapt()
+        content = (opencode_target_dir / "AGENTS.md").read_text()
+        assert "clan-jei" in content
+        assert "established" in content
+
+    def test_no_peers_section_when_empty(self, hermes_dir, opencode_target_dir):
+        adapter = OpenCodeAdapter(hermes_dir=hermes_dir, target_dir=opencode_target_dir)
+        adapter.adapt()
+        content = (opencode_target_dir / "AGENTS.md").read_text()
+        assert "## Peers" not in content
+
+
+# ─── OpenCodeAdapter idempotency ──────────────────────────────────
+
+
+class TestOpenCodeAdapterIdempotency:
+    """OpenCode adapter is safe to run multiple times."""
+
+    def test_run_twice_no_errors(self, hermes_dir_with_dims, opencode_target_dir):
+        adapter = OpenCodeAdapter(hermes_dir=hermes_dir_with_dims, target_dir=opencode_target_dir)
+        r1 = adapter.adapt()
+        r2 = adapter.adapt()
+        assert r1.success is True
+        assert r2.success is True
+
+    def test_run_twice_unchanged(self, hermes_dir_with_dims, opencode_target_dir):
+        adapter = OpenCodeAdapter(hermes_dir=hermes_dir_with_dims, target_dir=opencode_target_dir)
+        adapter.adapt()
+        r2 = adapter.adapt()
+        assert "AGENTS.md unchanged" in r2.steps
+        assert "opencode.json unchanged" in r2.steps
+
+    def test_preserves_user_content(self, hermes_dir, opencode_target_dir):
+        """User content outside HERMES markers is preserved in AGENTS.md."""
+        agents_md = opencode_target_dir / "AGENTS.md"
+        agents_md.write_text(
+            "# My Custom Instructions\n\nCustom rule 1.\n\n"
+            "<!-- HERMES:BEGIN -->\nold hermes content\n<!-- HERMES:END -->\n\n"
+            "# More User Rules\n\nCustom rule 2.\n"
+        )
+        adapter = OpenCodeAdapter(hermes_dir=hermes_dir, target_dir=opencode_target_dir)
+        adapter.adapt()
+        content = agents_md.read_text()
+        # User content preserved
+        assert "My Custom Instructions" in content
+        assert "Custom rule 1" in content
+        assert "More User Rules" in content
+        assert "Custom rule 2" in content
+        # HERMES content updated
+        assert "clan-test" in content
+        assert "old hermes content" not in content
+
+    def test_symlinks_survive_rerun(self, hermes_dir_with_dims, opencode_target_dir):
+        adapter = OpenCodeAdapter(hermes_dir=hermes_dir_with_dims, target_dir=opencode_target_dir)
+        adapter.adapt()
+        adapter.adapt()
+        assert (opencode_target_dir / "skills" / "global" / "consejo").is_symlink()
+        assert (opencode_target_dir / "skills" / "nymyka" / "niky-ceo").is_symlink()
+
+
+# ─── OpenCodeAdapter error handling ───────────────────────────────
+
+
+class TestOpenCodeAdapterErrors:
+    """Error handling tests for OpenCode adapter."""
+
+    def test_no_config_fails_gracefully(self, tmp_path):
+        hdir = tmp_path / ".hermes"
+        hdir.mkdir()
+        tdir = tmp_path / ".config" / "opencode"
+        tdir.mkdir(parents=True)
+        adapter = OpenCodeAdapter(hermes_dir=hdir, target_dir=tdir)
+        result = adapter.adapt()
+        assert result.success is False
+        assert any("Config error" in e for e in result.errors)
+
+    def test_missing_hermes_dir(self, tmp_path):
+        hdir = tmp_path / "nonexistent"
+        tdir = tmp_path / ".config" / "opencode"
+        tdir.mkdir(parents=True)
+        adapter = OpenCodeAdapter(hermes_dir=hdir, target_dir=tdir)
+        result = adapter.adapt()
+        assert result.success is False
+
+    def test_target_dir_created_if_missing(self, hermes_dir, tmp_path):
+        tdir = tmp_path / "new_opencode_dir"
+        adapter = OpenCodeAdapter(hermes_dir=hermes_dir, target_dir=tdir)
+        result = adapter.adapt()
+        assert result.success is True
+        assert (tdir / "AGENTS.md").exists()
+        assert (tdir / "opencode.json").exists()
+
+
+# ─── OpenCodeAdapter defaults ─────────────────────────────────────
+
+
+class TestOpenCodeAdapterDefaults:
+    """Default path tests for OpenCode adapter."""
+
+    def test_default_hermes_dir(self):
+        adapter = OpenCodeAdapter()
+        assert adapter.hermes_dir == Path.home() / ".hermes"
+
+    def test_default_target_dir(self):
+        adapter = OpenCodeAdapter()
+        assert adapter.target_dir == Path.home() / ".config" / "opencode"
+
+    def test_custom_dirs(self, tmp_path):
+        hdir = tmp_path / "h"
+        tdir = tmp_path / "t"
+        adapter = OpenCodeAdapter(hermes_dir=hdir, target_dir=tdir)
+        assert adapter.hermes_dir == hdir
+        assert adapter.target_dir == tdir
+
+
+# ─── Adapter registry (OpenCode) ─────────────────────────────────
+
+
+class TestAdapterRegistryOpenCode:
+    """Registry tests including OpenCode adapter."""
+
+    def test_opencode_in_list(self):
+        adapters = list_adapters()
+        assert "opencode" in adapters
+
+    def test_get_opencode_adapter(self):
+        cls = get_adapter("opencode")
+        assert cls is OpenCodeAdapter
+
+    def test_run_opencode_adapter(self, hermes_dir, opencode_target_dir):
+        result = run_adapter("opencode", hermes_dir=hermes_dir, target_dir=opencode_target_dir)
+        assert result.success is True
+        assert result.adapter_name == "opencode"

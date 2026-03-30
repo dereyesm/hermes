@@ -246,6 +246,30 @@ file. The adapter **compiles** dimension skills and rules into one markdown file
 with `<!-- HERMES:BEGIN -->` / `<!-- HERMES:END -->` markers, preserving any
 user-written content outside the markers.
 
+### OpenCode adapter
+
+Reads `~/.hermes/` → generates:
+
+```
+~/.config/opencode/
+├── AGENTS.md              ← compiled markdown (HERMES:BEGIN/END markers)
+├── opencode.json          ← config with instructions ref (merge strategy)
+├── skills/
+│   ├── global-consejo/    ← symlink to .hermes/dimensions/global/skills/consejo
+│   ├── global-palas/      ← symlink
+│   └── nymyka-niky-ceo/   ← symlink (dimension-prefixed to avoid collisions)
+└── bus.jsonl              ← symlink to .hermes/bus/active.jsonl (optional)
+```
+
+Hybrid approach: compiled AGENTS.md (like Cursor) plus JSON config and skill
+symlinks (like Claude Code). Skills are symlinked with dimension prefix because
+OpenCode natively supports `skills/<name>/SKILL.md` with the same YAML
+frontmatter format as the Agent Skills Open Standard (agentskills.io).
+
+The `opencode.json` merge strategy only touches HERMES-managed keys (`$schema`,
+`instructions`, `_hermes`). User-configured keys (model, mcp, agents, etc.)
+are preserved across adapter re-runs.
+
 ### Adapter contract
 
 An adapter MUST:
@@ -279,6 +303,17 @@ Phase 3: Second adapter ✓ DONE (2026-03-23)
   - Marker-based regeneration preserves user content
   - Idempotent, 26 tests. Proves agent-agnostic design.
 
+Phase 3.5: Third adapter + Skill Portability ✓ DONE (2026-03-30)
+  - adapter.py: OpenCodeAdapter generates AGENTS.md + opencode.json from ~/.hermes/
+  - CLI: hermes adapt opencode [--hermes-dir] [--target-dir]
+  - Hybrid output: compiled AGENTS.md (markers) + JSON merge + skill symlinks
+  - Default target: ~/.config/opencode/ (OpenCode global config)
+  - opencode.json merge preserves user keys (model, mcp, agents, etc.)
+  - Skill symlinks with dimension prefix (OpenCode native SKILL.md support)
+  - Agent Skills Open Standard alignment (agentskills.io): license + compatibility
+  - Refactored _compile_skills/_compile_rules to AdapterBase (shared by 2 adapters)
+  - 34 tests. 3 adapters validates the agent-agnostic pattern at scale.
+
 Phase 4: Daemon extraction
   - Heraldo runs as systemd service (not Claude Code agent)
   - Reads .hermes/daemons/messenger/config.toml
@@ -307,4 +342,4 @@ Phase 5: Package & distribute
 - [x] ~~Config.toml schema — what's the minimum viable config?~~ → `[clan] id + display_name` (Phase 1 done)
 - [ ] How does `hermes init` detect existing .claude/ state and offer migration?
 - [ ] Multi-agent: can two agents use the same .hermes/ concurrently? (ARC-9001 applies here)
-- [ ] Skill format: keep .md or introduce a structured format (TOML frontmatter + md body)?
+- [x] ~~Skill format: keep .md or introduce a structured format?~~ → Keep YAML frontmatter + MD body (Agent Skills Open Standard convergence — Claude Code, Gemini CLI, Cursor, OpenCode all use this)

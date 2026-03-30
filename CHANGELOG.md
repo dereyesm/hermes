@@ -9,6 +9,31 @@ This project follows a versioning scheme where:
 
 ---
 
+## [Unreleased] — OpenCode Adapter + Skill Portability (2026-03-30)
+
+### Added
+
+- **OpenCode adapter** (`hermes adapt opencode`):
+  - 3rd agent adapter, validates HERMES is truly agent-agnostic
+  - Generates `AGENTS.md` (compiled markdown with HERMES:BEGIN/END markers)
+  - Generates/merges `opencode.json` (preserves user-configured keys)
+  - Symlinks dimension skills into `skills/` (OpenCode-native SKILL.md format)
+  - Symlinks bus.jsonl for HERMES bus access
+  - Default target: `~/.config/opencode/` (OpenCode global config)
+  - Compatible with Agent Skills Open Standard (agentskills.io)
+  - 34 tests covering basic, skills, rules, bus, JSON, peers, idempotency, errors, defaults, registry
+
+- **Agent Skills Standard alignment** (`hermes/llm/skill.py`):
+  - Added `license` and `compatibility` fields to `SkillContext` dataclass
+  - Compatible with agentskills.io spec used by Claude Code, Gemini CLI, Cursor, OpenCode, and 30+ tools
+  - 2 new tests for standard fields parsing and defaults
+
+### Changed
+
+- **Adapter refactor**: moved `_compile_skills()` and `_compile_rules()` from `CursorAdapter` to `AdapterBase` — shared by Cursor and OpenCode adapters (0 regressions)
+
+---
+
 ## [Unreleased] — Multi-LLM + L2 Conformance + CI Pipeline (2026-03-29)
 
 ### Added

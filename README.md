@@ -4,7 +4,8 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Specs: 20](https://img.shields.io/badge/specs-20%20(18%20IMPL%20%2B%201%20INFO%20%2B%201%20DRAFT)-orange.svg)](spec/INDEX.md)
-[![Tests: 1267](https://img.shields.io/badge/tests-1267%20passing-brightgreen.svg)](reference/python/tests/)
+[![Tests: 1303](https://img.shields.io/badge/tests-1303%20passing-brightgreen.svg)](reference/python/tests/)
+[![Adapters: 3](https://img.shields.io/badge/adapters-3%20(Claude%20Code%20%2B%20Cursor%20%2B%20OpenCode)-blue.svg)](docs/architecture/installable-model.md)
 [![Clans: 3](https://img.shields.io/badge/clans-3%20connected-teal.svg)](CLANS.md)
 
 <p align="center">
@@ -163,6 +164,20 @@ The **verbose** format (object) is human-first. The **compact** format ([§14](s
 **New to HERMES?** Start here: **[Getting Started Guide](docs/GETTING-STARTED.md)** -- step-by-step setup, call flows explained visually, and how to connect your clan to the network.
 
 Deploy your own HERMES instance: **[Quickstart Guide](docs/QUICKSTART.md)**
+
+---
+
+## Supported Agents
+
+HERMES is agent-agnostic. The `hermes adapt` command generates the configuration each AI coding assistant expects from a single canonical source (`~/.hermes/`).
+
+| Agent | Command | Output | Skills Format |
+|-------|---------|--------|---------------|
+| [Claude Code](https://claude.ai/code) | `hermes adapt claude-code` | `~/.claude/` (CLAUDE.md + symlinks) | SKILL.md (native) |
+| [Cursor](https://cursor.com) | `hermes adapt cursor` | `.cursorrules` (compiled markdown) | Compiled into rules |
+| [OpenCode](https://opencode.ai) | `hermes adapt opencode` | `~/.config/opencode/` (AGENTS.md + JSON) | SKILL.md (symlinks) |
+
+Skills follow the [Agent Skills Open Standard](https://agentskills.io), making them portable across Claude Code, Gemini CLI, Cursor, OpenCode, and 30+ tools without modification. See [installable-model.md](docs/architecture/installable-model.md) for architecture details.
 
 ---
 

@@ -251,6 +251,8 @@ class TestSkillLoader:
             argument_hint="",
             system_prompt="Do the thing.",
             source_path="/tmp/test",
+            license="",
+            compatibility="",
         )
         loader = SkillLoader()
         prompt = loader.to_system_prompt(skill)
@@ -267,6 +269,8 @@ class TestSkillLoader:
             argument_hint="",
             system_prompt="Instructions.",
             source_path="/tmp/test",
+            license="",
+            compatibility="",
         )
         loader = SkillLoader()
         prompt = loader.to_system_prompt(skill, context={"clan_id": "momoshod", "version": "0.4.2"})
@@ -312,6 +316,34 @@ class TestSkillLoader:
         skill = loader.load(tmp_path)
         assert skill.name == "quoted-name"
         assert skill.description == "single quoted"
+
+    def test_agent_skills_standard_fields(self, tmp_path):
+        """Agent Skills Open Standard fields (license, compatibility) are parsed."""
+        (tmp_path / "SKILL.md").write_text(
+            textwrap.dedent("""\
+            ---
+            name: portable-skill
+            description: A cross-platform skill
+            license: MIT
+            compatibility: Python 3.11+, HERMES v0.4+
+            ---
+
+            Portable instructions.
+        """)
+        )
+        loader = SkillLoader()
+        skill = loader.load(tmp_path)
+        assert skill.name == "portable-skill"
+        assert skill.license == "MIT"
+        assert skill.compatibility == "Python 3.11+, HERMES v0.4+"
+
+    def test_agent_skills_standard_fields_default_empty(self, tmp_path):
+        """license and compatibility default to empty string when not specified."""
+        (tmp_path / "SKILL.md").write_text("---\nname: basic\n---\nBody.")
+        loader = SkillLoader()
+        skill = loader.load(tmp_path)
+        assert skill.license == ""
+        assert skill.compatibility == ""
 
 
 # ─── Config LLM fields ─────────────────────────────────────────
