@@ -1,7 +1,8 @@
 # QUEST-005 Comparative Analysis — Clan DANI vs Clan JEI
 
 > Iteration 1 | Domain: Prompt Engineering & Agent Orchestration
-> Date: 2026-03-27 | Phase 4 Bilateral Merge (preliminary)
+> Date: 2026-03-27 (draft) | Updated: 2026-03-30 (JEI artifact decrypted)
+> Status: Phase 4 Bilateral Merge ready (Apr 5)
 
 ## Inventory Comparison
 
@@ -103,5 +104,23 @@ DANI scores are estimated from QUEST-004 (76% across 14 categories, 1087 HERMES 
 
 ---
 
+## JEI Artifact Receipt Log
+
+| Date | Message | Status |
+|------|---------|--------|
+| 2026-03-25 | JEI-HERMES-019: QUEST-005 artifact (ECDHE encrypted) | Decrypted 2026-03-30, 6/6 relay msgs OK |
+| 2026-03-25 | JEI-HERMES-020: Confirmation + hub bilateral availability | Decrypted 2026-03-30 |
+| 2026-03-30 | DANI-HERMES-022: ACK sent (artifact received, hub Mar 31 confirmed) | Pushed to relay 900827e |
+
+## HERMES Updates Since Last Analysis (2026-03-27 → 2026-03-30)
+
+- **OpenCodeAdapter**: 3rd adapter (Claude Code + Cursor + OpenCode), Agent Skills Standard alignment
+- **MANIFESTO.md + ETHICS.md + QUEST-000.md**: Social purpose formalized (5 Realms, AI withdrawal, 7 anti-patterns)
+- **Local LLM guide**: MLX + Qwen 2.5 Coder, 3 platforms (Mac/Linux/Windows)
+- **Tests**: 1267 → 1305 (+38), coverage 80%
+- **Arena BR-022**: Post-facto review found 7 fixes (DRY refactor, standard compliance, README visibility)
+
+---
+
 *Analysis produced by Protocol Architect dimension, HERMES v0.4.2-alpha.*
-*Data sources: QUEST-004 assessment (DANI), QUEST-005 artifact (JEI), registry.json (DANI skill inventory).*
+*Data sources: QUEST-004 assessment (DANI), QUEST-005 artifact (JEI, decrypted 2026-03-30), registry.json (DANI skill inventory).*
