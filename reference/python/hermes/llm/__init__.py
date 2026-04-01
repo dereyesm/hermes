@@ -17,14 +17,28 @@ from .adapters import (
     create_adapter,
 )
 from .skill import SkillContext, SkillLoader
+from .telemetry import (
+    COST_PER_MTOK,
+    BackendUsage,
+    TokenEvent,
+    TokenSummary,
+    TokenTracker,
+    estimate_cost,
+)
 
 __all__ = [
+    "COST_PER_MTOK",
     "AdapterManager",
+    "BackendUsage",
     "ClaudeAdapter",
     "GeminiAdapter",
     "LLMAdapter",
     "LLMResponse",
     "SkillContext",
     "SkillLoader",
+    "TokenEvent",
+    "TokenSummary",
+    "TokenTracker",
     "create_adapter",
+    "estimate_cost",
 ]

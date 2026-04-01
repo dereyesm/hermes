@@ -709,7 +709,7 @@ def cmd_llm(args: argparse.Namespace) -> int:
 
     llm_cmd = getattr(args, "llm_command", None)
     if llm_cmd is None:
-        print("Usage: hermes llm <list|status|test>", file=sys.stderr)
+        print("Usage: hermes llm <list|status|test|usage>", file=sys.stderr)
         return 1
 
     if llm_cmd == "list":
@@ -790,6 +790,78 @@ def cmd_llm(args: argparse.Namespace) -> int:
         print(f"Response: {resp.text}")
         if resp.usage:
             print(f"Usage: {resp.usage}")
+        return 0
+
+    if llm_cmd == "usage":
+        from .llm.telemetry import TokenTracker
+
+        log_path = clan_dir / config.telemetry.log_path
+        tracker = TokenTracker(file_path=log_path)
+        loaded = tracker.load_from_file()
+
+        backend_filter = getattr(args, "backend", None)
+        since_filter = getattr(args, "since", None)
+        export_fmt = getattr(args, "export", None)
+        do_reset = getattr(args, "reset", False)
+
+        if do_reset:
+            tracker.reset_file()
+            print("  Telemetry log cleared.")
+            return 0
+
+        summary = tracker.summary(backend=backend_filter, since=since_filter)
+
+        if export_fmt == "csv":
+            print("backend,model,input_tokens,output_tokens,total_tokens,cost_usd")
+            for e in tracker.events:
+                print(
+                    f"{e.backend},{e.model},{e.input_tokens},{e.output_tokens},{e.total_tokens},{e.cost_usd:.6f}"
+                )
+            return 0
+
+        if summary.event_count == 0:
+            print("  No telemetry data recorded yet.")
+            print(f"  Log path: {log_path}")
+            return 0
+
+        # Header
+        print("\n  Token Usage Summary")
+        print("  " + "─" * 72)
+        print(
+            f"  {'Backend':<12} {'Model':<24} {'Input':>10} {'Output':>10} {'Total':>10} {'Cost':>10}"
+        )
+        print("  " + "─" * 72)
+
+        for model_name, mu in sorted(summary.by_model.items()):
+            # Find the backend for this model
+            backend_name = ""
+            for e in tracker.events:
+                if e.model == model_name:
+                    backend_name = e.backend
+                    break
+            print(
+                f"  {backend_name:<12} {model_name:<24} "
+                f"{mu.input_tokens:>10,} {mu.output_tokens:>10,} "
+                f"{mu.total_tokens:>10,} ${mu.cost_usd:>9.4f}"
+            )
+
+        print("  " + "─" * 72)
+        print(
+            f"  {'TOTAL':<12} {'':<24} "
+            f"{summary.total_input:>10,} {summary.total_output:>10,} "
+            f"{summary.total_tokens:>10,} ${summary.total_cost_usd:>9.4f}"
+        )
+
+        # Budget info
+        budget = config.telemetry.token_budget_weekly
+        if budget > 0:
+            pct = (summary.total_tokens / budget) * 100
+            print(f"\n  Budget: {pct:.0f}% of {budget:,} weekly tokens used")
+
+        print(f"\n  Events: {summary.event_count} ({loaded} from file)")
+        if summary.first_event:
+            print(f"  Period: {summary.first_event} → {summary.last_event}")
+        print()
         return 0
 
     return 1
@@ -1012,6 +1084,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_llm_test = llm_sub.add_parser("test", help="Send a test prompt to a backend")
     p_llm_test.add_argument("--backend", default=None, help="Backend name (default: first healthy)")
     _add_dir_arg(p_llm_test)
+
+    p_llm_usage = llm_sub.add_parser("usage", help="Show token usage telemetry")
+    p_llm_usage.add_argument("--since", default=None, help="Filter events from date (ISO format)")
+    p_llm_usage.add_argument("--backend", default=None, help="Filter by backend (claude, gemini)")
+    p_llm_usage.add_argument("--export", default=None, choices=["csv"], help="Export format")
+    p_llm_usage.add_argument("--reset", action="store_true", help="Clear telemetry log")
+    _add_dir_arg(p_llm_usage)
 
     return parser
 
