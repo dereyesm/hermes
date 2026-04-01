@@ -210,7 +210,28 @@ hermes adapt claude-code                    # default paths
 hermes adapt claude-code --hermes-dir /opt/hermes --target-dir ~/.claude
 ```
 
-Adapters are idempotent (safe to re-run) and follow the contract in [installable-model.md](architecture/installable-model.md). Current adapters: Claude Code (symlinks), Cursor (compiled `.cursorrules`). Future: VS Code, generic template.
+Adapters are idempotent (safe to re-run) and follow the contract in [installable-model.md](architecture/installable-model.md).
+
+**4 adapters available:**
+
+| Adapter | Target | Output Strategy | Command |
+|---------|--------|----------------|---------|
+| Claude Code | `~/.claude/` | Symlinks + CLAUDE.md | `hermes adapt claude-code` |
+| Cursor | Project root | Compiled `.cursorrules` (HERMES markers) | `hermes adapt cursor` |
+| OpenCode | `~/.config/opencode/` | AGENTS.md + opencode.json merge + symlinks | `hermes adapt opencode` |
+| Gemini CLI | `~/.gemini/` | GEMINI.md + settings.json merge + symlinks | `hermes adapt gemini` |
+
+Auto-detect and adapt all: `hermes adapt --all`. List available: `hermes adapt --list`.
+
+## Token Telemetry
+
+The **Telemetry** module ([`llm/telemetry.py`](../reference/python/hermes/llm/telemetry.py)) monitors token usage across LLM providers in real time.
+
+- **TokenTracker**: Records `input_tokens`, `output_tokens`, and estimates cost per call
+- **COST_PER_MTOK**: Built-in pricing table for 10 models (Claude, Gemini, OpenAI)
+- **Persistence**: Append-only JSONL (`~/.hermes/telemetry.jsonl`)
+- **CLI**: `hermes llm usage` — dashboard with per-model breakdown, budget tracking, CSV export
+- **Auto-instrument**: `AdapterManager.complete()` records telemetry automatically
 
 ## Agent Service Platform (ARC-0369)
 

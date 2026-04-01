@@ -314,16 +314,32 @@ Phase 3.5: Third adapter + Skill Portability ✓ DONE (2026-03-30)
   - Refactored _compile_skills/_compile_rules to AdapterBase (shared by 2 adapters)
   - 34 tests. 3 adapters validates the agent-agnostic pattern at scale.
 
-Phase 4: Daemon extraction
+Phase 4: Fourth adapter + CLI enhancements ✓ DONE (2026-04-01)
+  - adapter.py: GeminiCLIAdapter generates GEMINI.md + settings.json from ~/.hermes/
+  - CLI: hermes adapt gemini [--hermes-dir] [--target-dir]
+  - settings.json merge: preserves user keys, adds context.fileName for GEMINI.md
+  - Skill symlinks with dimension prefix (same pattern as OpenCode)
+  - 36 tests. 4 adapters confirms universal pattern.
+  - CLI: hermes adapt --list (auto-detect) + hermes adapt --all (adapt all)
+  - Install flow: scaffold dimensions/ + post-install adapter guidance
+
+Phase 4.5: Token Telemetry ✓ DONE (2026-04-01)
+  - hermes/llm/telemetry.py: TokenTracker, COST_PER_MTOK (10 models)
+  - Auto-instruments AdapterManager.complete()
+  - TelemetryConfig in config.py (budget, cost alerts)
+  - CLI: hermes llm usage (--since, --backend, --export csv, --reset)
+  - 34 tests.
+
+Phase 5: Daemon extraction
   - Heraldo runs as systemd service (not Claude Code agent)
   - Reads .hermes/daemons/messenger/config.toml
   - Writes to .hermes/bus/active.jsonl directly
 
-Phase 5: Package & distribute
-  - `hermes init` CLI command
-  - npm/pip/brew install
-  - User runs `hermes init` → gets ~/.hermes/ scaffold
-  - User runs `hermes adapt claude-code` → gets .claude/ generated
+Phase 6: Package & distribute
+  - PyPI: pip install hermes-protocol
+  - npm/brew install
+  - User runs `hermes install` → gets ~/.hermes/ scaffold
+  - User runs `hermes adapt --all` → gets all agents configured
 ```
 
 ## Key Decisions

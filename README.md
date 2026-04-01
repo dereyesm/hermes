@@ -3,7 +3,7 @@
 [![Tests](https://github.com/dereyesm/hermes/actions/workflows/ci.yml/badge.svg)](https://github.com/dereyesm/hermes/actions/workflows/ci.yml)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Specs: 20](https://img.shields.io/badge/specs-20%20(18%20IMPL%20%2B%201%20INFO%20%2B%201%20DRAFT)-orange.svg)](spec/INDEX.md)
+[![Specs: 21](https://img.shields.io/badge/specs-21%20IMPL%20%2B%201%20DRAFT-orange.svg)](spec/INDEX.md)
 [![Tests: 1417](https://img.shields.io/badge/tests-1417%20passing-brightgreen.svg)](reference/python/tests/)
 [![Adapters: 4](https://img.shields.io/badge/adapters-4%20(Claude%20Code%20%2B%20Cursor%20%2B%20OpenCode%20%2B%20Gemini%20CLI)-blue.svg)](docs/architecture/installable-model.md)
 [![Clans: 3](https://img.shields.io/badge/clans-3%20connected-teal.svg)](CLANS.md)

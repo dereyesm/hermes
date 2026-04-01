@@ -186,6 +186,33 @@ hermes uninstall --purge      # also remove ~/.hermes and all keys
 hermes uninstall --keep-hooks # remove service but preserve Claude Code hooks
 ```
 
+### Step 2 — Connect to your AI agent
+
+After installing, surface HERMES config to your AI coding agent:
+
+```bash
+hermes adapt --list              # see available adapters (auto-detects installed agents)
+hermes adapt claude-code         # for Claude Code → generates ~/.claude/
+hermes adapt gemini              # for Gemini CLI → generates ~/.gemini/GEMINI.md
+hermes adapt cursor              # for Cursor → generates .cursorrules
+hermes adapt opencode            # for OpenCode → generates ~/.config/opencode/
+hermes adapt --all               # adapt all detected agents at once
+```
+
+Each adapter reads `~/.hermes/` and generates the agent's native config format. Idempotent — safe to re-run whenever your HERMES config changes.
+
+### Step 3 — Monitor token usage (optional)
+
+Track your LLM token consumption across all providers:
+
+```bash
+hermes llm usage                  # show usage dashboard
+hermes llm usage --backend claude # filter by provider
+hermes llm usage --export csv     # export for analysis
+```
+
+Telemetry is recorded automatically when using `AdapterManager.complete()`.
+
 ### Option B — Shell script bootstrap (directory structure only)
 
 ```bash
@@ -206,7 +233,9 @@ This creates the directory structure, bus files, routing table template, and nam
 - Read the [Architecture Guide](ARCHITECTURE.md) for the full picture
 - Check the [Glossary](GLOSSARY.md) for canonical terminology
 - Explore the [specs](../spec/INDEX.md) for protocol details
-- Set up a controller agent with `/router` capabilities for cross-namespace coordination
+- See [installable-model.md](architecture/installable-model.md) for the adapter architecture
+- Try `hermes llm test` to verify your LLM backends are configured
+- Run `hermes status` for a full dashboard of your clan
 
 ## Common Patterns
 
