@@ -39,6 +39,16 @@ class LLMBackendConfig:
 
 
 @dataclass
+class TelemetryConfig:
+    """Token usage telemetry configuration."""
+
+    enabled: bool = True
+    log_path: str = "telemetry.jsonl"  # relative to clan dir
+    token_budget_weekly: int = 0  # 0 = unlimited
+    cost_alert_usd: float = 0.0  # 0 = no alerts
+
+
+@dataclass
 class GatewayConfig:
     """Complete gateway configuration per ARC-3022 Section 16."""
 
@@ -59,6 +69,7 @@ class GatewayConfig:
     inbound_auto_accept_hello: bool = True
     llm_backends: list[LLMBackendConfig] = field(default_factory=list)
     llm_default_backend: str = ""  # name prefix, e.g. "gemini"
+    telemetry: TelemetryConfig = field(default_factory=TelemetryConfig)
 
 
 # ─── Internal helpers ─────────────────────────────────────────────
@@ -77,6 +88,18 @@ def _parse_llm_backends(raw: list[dict]) -> list[LLMBackendConfig]:
             )
         )
     return backends
+
+
+def _parse_telemetry(raw: dict) -> TelemetryConfig:
+    """Parse telemetry config dict into TelemetryConfig."""
+    if not raw:
+        return TelemetryConfig()
+    return TelemetryConfig(
+        enabled=raw.get("enabled", True),
+        log_path=raw.get("log_path", "telemetry.jsonl"),
+        token_budget_weekly=raw.get("token_budget_weekly", 0),
+        cost_alert_usd=raw.get("cost_alert_usd", 0.0),
+    )
 
 
 def _parse_peers(raw_peers: list[dict]) -> list[PeerConfig]:
@@ -138,6 +161,7 @@ def _load_config_json(path: Path) -> GatewayConfig:
         inbound_auto_accept_hello=data.get("inbound", {}).get("auto_accept_hello", True),
         llm_backends=_parse_llm_backends(data.get("llm", {}).get("backends", [])),
         llm_default_backend=data.get("llm", {}).get("default_backend", ""),
+        telemetry=_parse_telemetry(data.get("telemetry", {})),
     )
 
 
@@ -202,6 +226,15 @@ def _save_config_json(config: GatewayConfig, path: Path) -> None:
                 }
                 for b in config.llm_backends
             ],
+        }
+
+    t = config.telemetry
+    if t.enabled or t.token_budget_weekly or t.cost_alert_usd:
+        data["telemetry"] = {
+            "enabled": t.enabled,
+            "log_path": t.log_path,
+            "token_budget_weekly": t.token_budget_weekly,
+            "cost_alert_usd": t.cost_alert_usd,
         }
 
     with open(path, "w", encoding="utf-8") as f:
@@ -270,6 +303,15 @@ def _config_to_toml_dict(config: GatewayConfig) -> dict:
                 }
                 for b in config.llm_backends
             ],
+        }
+
+    t = config.telemetry
+    if t.enabled or t.token_budget_weekly or t.cost_alert_usd:
+        data["telemetry"] = {
+            "enabled": t.enabled,
+            "log_path": t.log_path,
+            "token_budget_weekly": t.token_budget_weekly,
+            "cost_alert_usd": t.cost_alert_usd,
         }
 
     if config.peers:

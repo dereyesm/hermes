@@ -13,7 +13,10 @@ from __future__ import annotations
 import os
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from .telemetry import TokenTracker
 
 
 @dataclass
@@ -172,10 +175,52 @@ class ClaudeAdapter(LLMAdapter):
 
 
 class AdapterManager:
-    """Manages LLM backends with priority-ordered fallback."""
+    """Manages LLM backends with priority-ordered fallback.
+
+    Optionally integrates with :class:`~hermes.llm.telemetry.TokenTracker`
+    to automatically record token usage from every LLM call.
+    """
 
     def __init__(self, adapters: list[LLMAdapter] | None = None):
         self._adapters: list[LLMAdapter] = adapters or []
+        self.tracker: TokenTracker | None = None
+
+    def enable_telemetry(self, tracker: TokenTracker) -> None:
+        """Attach a token tracker to auto-record usage on ``complete()``."""
+        self.tracker = tracker
+
+    def complete(
+        self,
+        system_prompt: str,
+        user_message: str,
+        max_tokens: int = 4096,
+        backend: str | None = None,
+    ) -> LLMResponse:
+        """Run a completion on the first healthy adapter and track usage.
+
+        Args:
+            system_prompt: System prompt text.
+            user_message: User message text.
+            max_tokens: Maximum tokens to generate.
+            backend: Optional backend name prefix to target (e.g. "gemini").
+
+        Raises:
+            RuntimeError: If no healthy adapter is available.
+        """
+        adapter: LLMAdapter | None = None
+        if backend:
+            adapter = self.get_by_name(backend)
+        if adapter is None:
+            adapter = self.get_healthy()
+        if adapter is None:
+            raise RuntimeError("No healthy LLM adapter available")
+
+        response = adapter.complete(system_prompt, user_message, max_tokens)
+
+        if self.tracker and response.usage:
+            self.tracker.record(response)
+
+        return response
 
     def add(self, adapter: LLMAdapter) -> None:
         self._adapters.append(adapter)
