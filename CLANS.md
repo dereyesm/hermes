@@ -13,10 +13,11 @@
 ## Network Stats
 
 - **Protocol version**: 0.4.2-alpha
-- **Specs**: 20 implemented, 1 draft, 7 planned
-- **Reference implementation**: Python (1,267 tests, 19 modules)
+- **Specs**: 21 implemented, 1 draft, 14 planned
+- **Reference implementation**: Python (1,451 tests, 19 modules, 13K LOC)
 - **Crypto**: Ed25519 (sign) + X25519 (DH) + AES-256-GCM (encrypt) + ECDHE forward secrecy
-- **Adapters**: Claude Code, Cursor
+- **Adapters**: Claude Code, Cursor, OpenCode, Gemini CLI
+- **Telemetry**: Token usage monitoring across Claude, Gemini, OpenAI (10 models)
 
 ## Join the Network
 

@@ -9,6 +9,62 @@ This project follows a versioning scheme where:
 
 ---
 
+## [Unreleased] — Gemini CLI Adapter + Token Telemetry (2026-04-01)
+
+### Added
+
+- **Gemini CLI adapter** (`hermes adapt gemini`):
+  - 4th agent adapter for Google's Gemini CLI terminal agent
+  - Generates `~/.gemini/GEMINI.md` (compiled markdown with HERMES markers)
+  - Generates/merges `~/.gemini/settings.json` (preserves user keys, adds context.fileName)
+  - Symlinks dimension skills and bus.jsonl
+  - 36 tests covering all adapter patterns
+  - Compatible with Agent Skills Open Standard (agentskills.io)
+
+- **CLI adapt enhancements**:
+  - `hermes adapt --list` — lists all adapters with auto-detection of installed agents
+  - `hermes adapt --all` — adapts all detected agents at once
+  - `adapter_name` now optional (graceful fallback with usage hint)
+
+- **Token telemetry** (`hermes/llm/telemetry.py`):
+  - `TokenTracker` — records input/output tokens and estimates cost per LLM call
+  - `COST_PER_MTOK` — pricing table for 10 models (Claude Opus/Sonnet/Haiku, Gemini Pro/Flash, GPT-4o/o1/o3-mini)
+  - `TokenEvent` — per-call data with JSONL serialization
+  - `TokenSummary` — aggregated stats by backend and model
+  - Persistence to `~/.hermes/telemetry.jsonl` (append-only JSONL)
+  - `AdapterManager.complete()` auto-instruments telemetry
+  - `TelemetryConfig` in config.py (budget, cost alerts, log path)
+  - 34 tests covering recording, persistence, summaries, cost estimation
+
+- **CLI telemetry**:
+  - `hermes llm usage` — token usage dashboard with per-model breakdown
+  - `hermes llm usage --backend claude` — filter by provider
+  - `hermes llm usage --since 2026-04-01` — filter by date
+  - `hermes llm usage --export csv` — CSV export
+  - `hermes llm usage --reset` — clear telemetry log
+
+- **Install flow improvements**:
+  - `hermes install` now scaffolds `dimensions/` directory structure
+  - Post-install guidance shows all 4 adapter commands
+
+- **ARC-1122 L3 conformance**: 41 Network-Ready test vectors (crypto, bus integrity, agent node, hub mode, bridge)
+- **SkillLoader tests**: 22 tests for SKILL.md parsing
+- **CLI test coverage**: +13 tests (adapt --list, config migrate, agent commands)
+
+### Changed
+
+- CI coverage threshold raised 75% → 80% (passing at 81%)
+- README badges updated: 4 adapters, 1451 tests, 21 specs
+
+### Stats
+
+- **1,451 tests** passing (81% coverage)
+- **19 Python modules** (13K LOC)
+- **4 adapters**: Claude Code, Cursor, OpenCode, Gemini CLI
+- **21 specs** implemented, 1 draft, 14 planned
+
+---
+
 ## [Unreleased] — OpenCode Adapter + Skill Portability (2026-03-30)
 
 ### Added
