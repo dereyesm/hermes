@@ -322,6 +322,105 @@ class TestBusCommand:
         assert "alert msg" in lines[0]
 
 
+class TestConfigMigrate:
+    def test_migrate_json_to_toml(self, tmp_path):
+        main(["init", "mig-clan", "Migrate Clan", "--dir", str(tmp_path)])
+        assert (tmp_path / "gateway.json").exists()
+        rc = main(["config", "migrate", "--dir", str(tmp_path)])
+        assert rc == 0
+        assert (tmp_path / "config.toml").exists()
+
+    def test_migrate_already_exists(self, tmp_path, capsys):
+        main(["init", "mig2", "Mig2", "--dir", str(tmp_path)])
+        main(["config", "migrate", "--dir", str(tmp_path)])
+        capsys.readouterr()
+        rc = main(["config", "migrate", "--dir", str(tmp_path)])
+        assert rc == 0
+        assert "already exists" in capsys.readouterr().out
+
+    def test_migrate_no_json(self, tmp_path):
+        rc = main(["config", "migrate", "--dir", str(tmp_path)])
+        assert rc == 1
+
+
+class TestAgentCommand:
+    def test_agent_list_empty(self, tmp_path, capsys):
+        main(["init", "ag-clan", "Agent Clan", "--dir", str(tmp_path)])
+        capsys.readouterr()
+        rc = main(["agent", "list", "--dir", str(tmp_path)])
+        assert rc == 0
+        assert "No agents" in capsys.readouterr().out
+
+    def test_agent_list_with_profile(self, tmp_path, capsys):
+        import json
+
+        main(["init", "ag2", "Agent2", "--dir", str(tmp_path)])
+        capsys.readouterr()
+        agents_dir = tmp_path / "agents"
+        agents_dir.mkdir()
+        profile = {
+            "agent_id": "test-bot",
+            "display_name": "Test Bot",
+            "version": "1.0",
+            "role": "worker",
+            "description": "Test agent",
+            "capabilities": ["messaging"],
+            "enabled": True,
+            "dispatch_rules": [],
+            "resource_limits": {},
+        }
+        (agents_dir / "test-bot.json").write_text(json.dumps(profile))
+        rc = main(["agent", "list", "--dir", str(tmp_path)])
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "test-bot" in out
+
+    def test_agent_validate_empty(self, tmp_path, capsys):
+        main(["init", "ag3", "Agent3", "--dir", str(tmp_path)])
+        capsys.readouterr()
+        (tmp_path / "agents").mkdir()
+        rc = main(["agent", "validate", "--dir", str(tmp_path)])
+        assert rc == 0
+        assert "0 errors" in capsys.readouterr().out
+
+    def test_agent_show_not_found(self, tmp_path):
+        main(["init", "ag4", "Agent4", "--dir", str(tmp_path)])
+        (tmp_path / "agents").mkdir()
+        rc = main(["agent", "show", "nonexistent", "--dir", str(tmp_path)])
+        assert rc == 1
+
+
+class TestAdaptCommand:
+    def test_adapt_no_adapter(self):
+        import pytest
+
+        with pytest.raises(SystemExit):
+            main(["adapt"])
+
+    def test_adapt_unknown_adapter(self, tmp_path):
+        rc = main(["adapt", "nonexistent", "--hermes-dir", str(tmp_path)])
+        assert rc == 1
+
+
+class TestLlmCommand:
+    def test_llm_list_no_backends(self, tmp_path, capsys):
+        main(["init", "llm-clan", "LLM Clan", "--dir", str(tmp_path)])
+        capsys.readouterr()
+        rc = main(["llm", "list", "--dir", str(tmp_path)])
+        assert rc == 0
+        assert "No LLM" in capsys.readouterr().out
+
+    def test_llm_no_subcommand(self):
+        rc = main(["llm"])
+        assert rc == 1
+
+
+class TestHookCommand:
+    def test_hook_no_subcommand(self):
+        rc = main(["hook"])
+        assert rc == 1
+
+
 class TestEndToEnd:
     """Full flow: init two clans, publish, peer, send, inbox."""
 
