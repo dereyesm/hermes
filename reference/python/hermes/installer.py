@@ -757,7 +757,20 @@ def run_install(
         _print_step(True, "Agent Node started via OS service")
         result.steps.append("Daemon started via service")
 
-    # 8. Notification
+    # 8. Scaffold dimensions directory if missing
+    dims_dir = clan_dir / "dimensions"
+    if not dims_dir.exists():
+        dims_dir.mkdir(parents=True, exist_ok=True)
+        # Create a sample dimension with empty skills/rules dirs
+        sample_dim = dims_dir / "default" / "skills"
+        sample_dim.mkdir(parents=True, exist_ok=True)
+        (dims_dir / "default" / "rules").mkdir(exist_ok=True)
+        _print_step(True, f"Dimensions scaffolded at {dims_dir}")
+        result.steps.append("Dimensions directory created")
+    else:
+        result.steps.append("Dimensions directory exists")
+
+    # 9. Notification
     send_notification(
         "HERMES",
         f"Agent Node running. You're connected as {clan_id}!",
@@ -771,6 +784,14 @@ def run_install(
     else:
         print("  You're connected! Run 'hermes status' to check.")
         print("  Share your public key fingerprint with peers to start exchanging.")
+        print()
+        print("  Next: connect HERMES to your AI agent:")
+        print("    hermes adapt --list         # see available adapters")
+        print("    hermes adapt claude-code     # for Claude Code")
+        print("    hermes adapt gemini          # for Gemini CLI")
+        print("    hermes adapt cursor          # for Cursor")
+        print("    hermes adapt opencode        # for OpenCode")
+        print("    hermes adapt --all           # adapt all detected agents")
 
     print()
     return result

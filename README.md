@@ -4,8 +4,8 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Specs: 20](https://img.shields.io/badge/specs-20%20(18%20IMPL%20%2B%201%20INFO%20%2B%201%20DRAFT)-orange.svg)](spec/INDEX.md)
-[![Tests: 1303](https://img.shields.io/badge/tests-1303%20passing-brightgreen.svg)](reference/python/tests/)
-[![Adapters: 3](https://img.shields.io/badge/adapters-3%20(Claude%20Code%20%2B%20Cursor%20%2B%20OpenCode)-blue.svg)](docs/architecture/installable-model.md)
+[![Tests: 1417](https://img.shields.io/badge/tests-1417%20passing-brightgreen.svg)](reference/python/tests/)
+[![Adapters: 4](https://img.shields.io/badge/adapters-4%20(Claude%20Code%20%2B%20Cursor%20%2B%20OpenCode%20%2B%20Gemini%20CLI)-blue.svg)](docs/architecture/installable-model.md)
 [![Clans: 3](https://img.shields.io/badge/clans-3%20connected-teal.svg)](CLANS.md)
 
 <p align="center">
@@ -85,6 +85,19 @@ hermes install --clan-id my-clan --display-name "My Clan"
 ```
 
 This single command initializes `~/.hermes/` with clan config, generates Ed25519 + X25519 keypairs, installs an OS service (macOS LaunchAgent / Linux systemd / Windows schtasks), registers Claude Code hooks, and starts the agent-node daemon. To reverse: `hermes uninstall [--purge]`. See [docs/QUICKSTART.md](docs/QUICKSTART.md) for details.
+
+### Connect to your AI agent
+
+```bash
+hermes adapt --list              # see available adapters (auto-detects installed agents)
+hermes adapt claude-code         # generates ~/.claude/ config + bus symlinks
+hermes adapt gemini              # generates ~/.gemini/GEMINI.md + settings.json
+hermes adapt cursor              # generates .cursorrules with HERMES context
+hermes adapt opencode            # generates ~/.config/opencode/ config
+hermes adapt --all               # adapt all detected agents at once
+```
+
+HERMES works with **any AI coding agent** — Claude Code, Gemini CLI, Cursor, OpenCode, and any tool that reads markdown context files. The adapter layer translates your `~/.hermes/` config into each agent's native format.
 
 ### Write a message to the bus
 

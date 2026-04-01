@@ -8,6 +8,7 @@ from hermes.adapter import (
     AdaptResult,
     ClaudeCodeAdapter,
     CursorAdapter,
+    GeminiCLIAdapter,
     OpenCodeAdapter,
     _safe_symlink,
     _write_file_if_changed,
@@ -1145,3 +1146,385 @@ class TestAdapterRegistryOpenCode:
         result = run_adapter("opencode", hermes_dir=hermes_dir, target_dir=opencode_target_dir)
         assert result.success is True
         assert result.adapter_name == "opencode"
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Gemini CLI Adapter Tests
+# ═══════════════════════════════════════════════════════════════════
+
+
+@pytest.fixture
+def gemini_target_dir(tmp_path):
+    """Create target directory for Gemini CLI output."""
+    tdir = tmp_path / ".gemini"
+    tdir.mkdir()
+    return tdir
+
+
+# ─── GeminiCLIAdapter basic ──────────────────────────────────────
+
+
+class TestGeminiCLIAdapterBasic:
+    """Basic GeminiCLIAdapter tests with minimal config."""
+
+    def test_adapt_success(self, hermes_dir, gemini_target_dir):
+        adapter = GeminiCLIAdapter(hermes_dir=hermes_dir, target_dir=gemini_target_dir)
+        result = adapter.adapt()
+        assert result.success is True
+        assert result.adapter_name == "gemini"
+        assert len(result.steps) >= 3  # config + GEMINI.md + settings.json
+
+    def test_generates_gemini_md(self, hermes_dir, gemini_target_dir):
+        adapter = GeminiCLIAdapter(hermes_dir=hermes_dir, target_dir=gemini_target_dir)
+        adapter.adapt()
+        gemini_md = gemini_target_dir / "GEMINI.md"
+        assert gemini_md.exists()
+        content = gemini_md.read_text()
+        assert "clan-test" in content
+        assert "Test Clan" in content
+
+    def test_gemini_md_contains_identity(self, hermes_dir, gemini_target_dir):
+        adapter = GeminiCLIAdapter(hermes_dir=hermes_dir, target_dir=gemini_target_dir)
+        adapter.adapt()
+        content = (gemini_target_dir / "GEMINI.md").read_text()
+        assert "Clan ID" in content
+        assert "Protocol Version" in content
+
+    def test_gemini_md_auto_generated_notice(self, hermes_dir, gemini_target_dir):
+        adapter = GeminiCLIAdapter(hermes_dir=hermes_dir, target_dir=gemini_target_dir)
+        adapter.adapt()
+        content = (gemini_target_dir / "GEMINI.md").read_text()
+        assert "Auto-generated" in content
+        assert "hermes adapt gemini" in content
+
+    def test_gemini_md_has_markers(self, hermes_dir, gemini_target_dir):
+        adapter = GeminiCLIAdapter(hermes_dir=hermes_dir, target_dir=gemini_target_dir)
+        adapter.adapt()
+        content = (gemini_target_dir / "GEMINI.md").read_text()
+        assert GeminiCLIAdapter.HEADER_MARKER in content
+        assert GeminiCLIAdapter.FOOTER_MARKER in content
+
+
+# ─── GeminiCLIAdapter skills ────────────────────────────────────
+
+
+class TestGeminiCLIAdapterSkills:
+    """Skill compilation and linking tests."""
+
+    def test_compiles_skills_into_gemini_md(self, hermes_dir_with_dims, gemini_target_dir):
+        adapter = GeminiCLIAdapter(hermes_dir=hermes_dir_with_dims, target_dir=gemini_target_dir)
+        adapter.adapt()
+        content = (gemini_target_dir / "GEMINI.md").read_text()
+        assert "## Skills" in content
+        assert "Consejo Skill" in content
+        assert "Palas Skill" in content
+        assert "Niky CEO" in content
+
+    def test_symlinks_skills_with_dimension_subdirs(self, hermes_dir_with_dims, gemini_target_dir):
+        adapter = GeminiCLIAdapter(hermes_dir=hermes_dir_with_dims, target_dir=gemini_target_dir)
+        adapter.adapt()
+        skills_dir = gemini_target_dir / "skills"
+        assert (skills_dir / "global" / "consejo").is_symlink()
+        assert (skills_dir / "global" / "palas").is_symlink()
+        assert (skills_dir / "nymyka" / "niky-ceo").is_symlink()
+        assert (skills_dir / "global" / "consejo" / "SKILL.md").read_text() == "# Consejo Skill\n"
+
+    def test_no_skills_ok(self, hermes_dir, gemini_target_dir):
+        adapter = GeminiCLIAdapter(hermes_dir=hermes_dir, target_dir=gemini_target_dir)
+        result = adapter.adapt()
+        assert result.success is True
+        assert "No dimension skills found" in result.steps
+
+    def test_reports_linked_count(self, hermes_dir_with_dims, gemini_target_dir):
+        adapter = GeminiCLIAdapter(hermes_dir=hermes_dir_with_dims, target_dir=gemini_target_dir)
+        result = adapter.adapt()
+        skill_step = [s for s in result.steps if "Skills linked" in s]
+        assert len(skill_step) == 1
+        assert "3 skills" in skill_step[0]
+
+
+# ─── GeminiCLIAdapter rules ─────────────────────────────────────
+
+
+class TestGeminiCLIAdapterRules:
+    """Rule compilation tests."""
+
+    def test_compiles_rules_into_gemini_md(self, hermes_dir_with_dims, gemini_target_dir):
+        adapter = GeminiCLIAdapter(hermes_dir=hermes_dir_with_dims, target_dir=gemini_target_dir)
+        adapter.adapt()
+        content = (gemini_target_dir / "GEMINI.md").read_text()
+        assert "## Rules" in content
+        assert "Firewall rules" in content
+        assert "SOPs" in content
+
+    def test_rules_grouped_by_dimension(self, hermes_dir_with_dims, gemini_target_dir):
+        adapter = GeminiCLIAdapter(hermes_dir=hermes_dir_with_dims, target_dir=gemini_target_dir)
+        adapter.adapt()
+        content = (gemini_target_dir / "GEMINI.md").read_text()
+        assert "Dimension: nymyka" in content
+
+
+# ─── GeminiCLIAdapter bus ────────────────────────────────────────
+
+
+class TestGeminiCLIAdapterBus:
+    """Bus symlink tests for Gemini CLI."""
+
+    def test_links_bus(self, hermes_dir_with_bus, gemini_target_dir):
+        adapter = GeminiCLIAdapter(hermes_dir=hermes_dir_with_bus, target_dir=gemini_target_dir)
+        adapter.adapt()
+        bus_link = gemini_target_dir / "bus.jsonl"
+        assert bus_link.is_symlink()
+        assert "test message" in bus_link.read_text()
+
+    def test_bus_resolves_to_hermes(self, hermes_dir_with_bus, gemini_target_dir):
+        adapter = GeminiCLIAdapter(hermes_dir=hermes_dir_with_bus, target_dir=gemini_target_dir)
+        adapter.adapt()
+        bus_link = gemini_target_dir / "bus.jsonl"
+        resolved = bus_link.resolve()
+        assert ".hermes" in str(resolved)
+
+    def test_no_bus_no_error(self, hermes_dir, gemini_target_dir):
+        adapter = GeminiCLIAdapter(hermes_dir=hermes_dir, target_dir=gemini_target_dir)
+        result = adapter.adapt()
+        assert result.success is True
+        assert "Bus symlink unchanged" in result.steps
+
+
+# ─── GeminiCLIAdapter settings.json ──────────────────────────────
+
+
+class TestGeminiCLIAdapterSettingsJson:
+    """settings.json generation and merge tests."""
+
+    def test_generates_settings_json(self, hermes_dir, gemini_target_dir):
+        adapter = GeminiCLIAdapter(hermes_dir=hermes_dir, target_dir=gemini_target_dir)
+        adapter.adapt()
+        import json
+
+        config = json.loads((gemini_target_dir / "settings.json").read_text())
+        assert "context" in config
+        assert "GEMINI.md" in config["context"]["fileName"]
+
+    def test_json_has_hermes_metadata(self, hermes_dir, gemini_target_dir):
+        adapter = GeminiCLIAdapter(hermes_dir=hermes_dir, target_dir=gemini_target_dir)
+        adapter.adapt()
+        import json
+
+        config = json.loads((gemini_target_dir / "settings.json").read_text())
+        assert config["_hermes"]["managed_by"] == "hermes adapt gemini"
+        assert config["_hermes"]["clan_id"] == "clan-test"
+
+    def test_merge_preserves_user_keys(self, hermes_dir, gemini_target_dir):
+        """User-configured keys in settings.json are preserved during merge."""
+        import json
+
+        user_config = {
+            "model": "gemini-2.5-pro",
+            "sandbox": True,
+            "theme": "dark",
+            "context": {"fileName": ["MY_RULES.md"]},
+        }
+        (gemini_target_dir / "settings.json").write_text(json.dumps(user_config))
+
+        adapter = GeminiCLIAdapter(hermes_dir=hermes_dir, target_dir=gemini_target_dir)
+        adapter.adapt()
+
+        config = json.loads((gemini_target_dir / "settings.json").read_text())
+        # User keys preserved
+        assert config["model"] == "gemini-2.5-pro"
+        assert config["sandbox"] is True
+        assert config["theme"] == "dark"
+        # GEMINI.md added to existing fileName list
+        assert "MY_RULES.md" in config["context"]["fileName"]
+        assert "GEMINI.md" in config["context"]["fileName"]
+        # HERMES metadata added
+        assert "_hermes" in config
+
+    def test_handles_filename_as_string(self, hermes_dir, gemini_target_dir):
+        """Gemini CLI accepts fileName as string — adapter converts to list."""
+        import json
+
+        user_config = {"context": {"fileName": "MY_RULES.md"}}
+        (gemini_target_dir / "settings.json").write_text(json.dumps(user_config))
+
+        adapter = GeminiCLIAdapter(hermes_dir=hermes_dir, target_dir=gemini_target_dir)
+        adapter.adapt()
+
+        config = json.loads((gemini_target_dir / "settings.json").read_text())
+        assert isinstance(config["context"]["fileName"], list)
+        assert "MY_RULES.md" in config["context"]["fileName"]
+        assert "GEMINI.md" in config["context"]["fileName"]
+
+    def test_handles_corrupt_json(self, hermes_dir, gemini_target_dir):
+        """Corrupt settings.json is replaced with fresh config (not crash)."""
+        (gemini_target_dir / "settings.json").write_text("{invalid json!!!}")
+
+        adapter = GeminiCLIAdapter(hermes_dir=hermes_dir, target_dir=gemini_target_dir)
+        result = adapter.adapt()
+
+        assert result.success is True
+        import json
+
+        config = json.loads((gemini_target_dir / "settings.json").read_text())
+        assert "GEMINI.md" in config["context"]["fileName"]
+
+    def test_handles_non_dict_context(self, hermes_dir, gemini_target_dir):
+        """If context field is not a dict, it gets replaced."""
+        import json
+
+        user_config = {"context": "bad"}
+        (gemini_target_dir / "settings.json").write_text(json.dumps(user_config))
+
+        adapter = GeminiCLIAdapter(hermes_dir=hermes_dir, target_dir=gemini_target_dir)
+        adapter.adapt()
+
+        config = json.loads((gemini_target_dir / "settings.json").read_text())
+        assert isinstance(config["context"], dict)
+        assert "GEMINI.md" in config["context"]["fileName"]
+
+
+# ─── GeminiCLIAdapter peers ──────────────────────────────────────
+
+
+class TestGeminiCLIAdapterPeers:
+    """Peer display in GEMINI.md."""
+
+    def test_gemini_md_includes_peers(self, hermes_dir_with_peers, gemini_target_dir):
+        adapter = GeminiCLIAdapter(hermes_dir=hermes_dir_with_peers, target_dir=gemini_target_dir)
+        adapter.adapt()
+        content = (gemini_target_dir / "GEMINI.md").read_text()
+        assert "clan-jei" in content
+        assert "established" in content
+
+    def test_no_peers_section_when_empty(self, hermes_dir, gemini_target_dir):
+        adapter = GeminiCLIAdapter(hermes_dir=hermes_dir, target_dir=gemini_target_dir)
+        adapter.adapt()
+        content = (gemini_target_dir / "GEMINI.md").read_text()
+        assert "## Peers" not in content
+
+
+# ─── GeminiCLIAdapter idempotency ────────────────────────────────
+
+
+class TestGeminiCLIAdapterIdempotency:
+    """Gemini CLI adapter is safe to run multiple times."""
+
+    def test_run_twice_no_errors(self, hermes_dir_with_dims, gemini_target_dir):
+        adapter = GeminiCLIAdapter(hermes_dir=hermes_dir_with_dims, target_dir=gemini_target_dir)
+        r1 = adapter.adapt()
+        r2 = adapter.adapt()
+        assert r1.success is True
+        assert r2.success is True
+
+    def test_run_twice_unchanged(self, hermes_dir_with_dims, gemini_target_dir):
+        adapter = GeminiCLIAdapter(hermes_dir=hermes_dir_with_dims, target_dir=gemini_target_dir)
+        adapter.adapt()
+        r2 = adapter.adapt()
+        assert "GEMINI.md unchanged" in r2.steps
+        assert "settings.json unchanged" in r2.steps
+
+    def test_preserves_user_content(self, hermes_dir, gemini_target_dir):
+        """User content outside HERMES markers is preserved in GEMINI.md."""
+        gemini_md = gemini_target_dir / "GEMINI.md"
+        gemini_md.write_text(
+            "# My Project Context\n\nCustom instructions.\n\n"
+            "<!-- HERMES:BEGIN -->\nold hermes content\n<!-- HERMES:END -->\n\n"
+            "# More Context\n\nAdditional rules.\n"
+        )
+        adapter = GeminiCLIAdapter(hermes_dir=hermes_dir, target_dir=gemini_target_dir)
+        adapter.adapt()
+        content = gemini_md.read_text()
+        assert "My Project Context" in content
+        assert "Custom instructions" in content
+        assert "More Context" in content
+        assert "Additional rules" in content
+        assert "clan-test" in content
+        assert "old hermes content" not in content
+
+    def test_symlinks_survive_rerun(self, hermes_dir_with_dims, gemini_target_dir):
+        adapter = GeminiCLIAdapter(hermes_dir=hermes_dir_with_dims, target_dir=gemini_target_dir)
+        adapter.adapt()
+        adapter.adapt()
+        assert (gemini_target_dir / "skills" / "global" / "consejo").is_symlink()
+        assert (gemini_target_dir / "skills" / "nymyka" / "niky-ceo").is_symlink()
+
+
+# ─── GeminiCLIAdapter error handling ─────────────────────────────
+
+
+class TestGeminiCLIAdapterErrors:
+    """Error handling tests for Gemini CLI adapter."""
+
+    def test_no_config_fails_gracefully(self, tmp_path):
+        hdir = tmp_path / ".hermes"
+        hdir.mkdir()
+        tdir = tmp_path / ".gemini"
+        tdir.mkdir()
+        adapter = GeminiCLIAdapter(hermes_dir=hdir, target_dir=tdir)
+        result = adapter.adapt()
+        assert result.success is False
+        assert any("Config error" in e for e in result.errors)
+
+    def test_missing_hermes_dir(self, tmp_path):
+        hdir = tmp_path / "nonexistent"
+        tdir = tmp_path / ".gemini"
+        tdir.mkdir()
+        adapter = GeminiCLIAdapter(hermes_dir=hdir, target_dir=tdir)
+        result = adapter.adapt()
+        assert result.success is False
+
+    def test_target_dir_created_if_missing(self, hermes_dir, tmp_path):
+        tdir = tmp_path / "new_gemini_dir"
+        adapter = GeminiCLIAdapter(hermes_dir=hermes_dir, target_dir=tdir)
+        result = adapter.adapt()
+        assert result.success is True
+        assert (tdir / "GEMINI.md").exists()
+        assert (tdir / "settings.json").exists()
+
+
+# ─── GeminiCLIAdapter defaults ───────────────────────────────────
+
+
+class TestGeminiCLIAdapterDefaults:
+    """Default path tests for Gemini CLI adapter."""
+
+    def test_default_hermes_dir(self):
+        adapter = GeminiCLIAdapter()
+        assert adapter.hermes_dir == Path.home() / ".hermes"
+
+    def test_default_target_dir(self):
+        adapter = GeminiCLIAdapter()
+        assert adapter.target_dir == Path.home() / ".gemini"
+
+    def test_custom_dirs(self, tmp_path):
+        hdir = tmp_path / "h"
+        tdir = tmp_path / "t"
+        adapter = GeminiCLIAdapter(hermes_dir=hdir, target_dir=tdir)
+        assert adapter.hermes_dir == hdir
+        assert adapter.target_dir == tdir
+
+
+# ─── Adapter registry (Gemini) ──────────────────────────────────
+
+
+class TestAdapterRegistryGemini:
+    """Registry tests including Gemini CLI adapter."""
+
+    def test_gemini_in_list(self):
+        adapters = list_adapters()
+        assert "gemini" in adapters
+
+    def test_get_gemini_adapter(self):
+        cls = get_adapter("gemini")
+        assert cls is GeminiCLIAdapter
+
+    def test_run_gemini_adapter(self, hermes_dir, gemini_target_dir):
+        result = run_adapter("gemini", hermes_dir=hermes_dir, target_dir=gemini_target_dir)
+        assert result.success is True
+        assert result.adapter_name == "gemini"
+
+    def test_four_adapters_registered(self):
+        adapters = list_adapters()
+        assert len(adapters) == 4
+        assert set(adapters) == {"claude-code", "cursor", "gemini", "opencode"}

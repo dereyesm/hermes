@@ -8,6 +8,7 @@ Supported adapters:
     hermes adapt claude-code   — generates ~/.claude/ (symlinks + CLAUDE.md)
     hermes adapt cursor        — generates .cursorrules (compiled markdown)
     hermes adapt opencode      — generates ~/.config/opencode/ (AGENTS.md + opencode.json)
+    hermes adapt gemini        — generates ~/.gemini/ (GEMINI.md + settings.json)
 """
 
 from __future__ import annotations
@@ -821,6 +822,236 @@ class OpenCodeAdapter(AdapterBase):
 
 
 # ---------------------------------------------------------------------------
+# Gemini CLI Adapter
+# ---------------------------------------------------------------------------
+
+
+class GeminiCLIAdapter(AdapterBase):
+    """Generates GEMINI.md + settings.json from ~/.hermes/ for Gemini CLI.
+
+    Gemini CLI (https://github.com/google-gemini/gemini-cli) is Google's
+    open-source AI agent for the terminal. It reads context from GEMINI.md
+    files at both global (~/.gemini/) and project level, with settings.json
+    for configuration.
+
+    Output strategy mirrors OpenCode — compiled GEMINI.md with markers, JSON
+    config merge for settings.json, skill symlinks, and optional bus link:
+
+    Reads:
+        ~/.hermes/config.toml     -> clan identity, peers
+        ~/.hermes/dimensions/     -> skills, rules per dimension
+        ~/.hermes/bus/active.jsonl -> bus messages (optional link)
+
+    Writes:
+        ~/.gemini/GEMINI.md       -> compiled markdown (HERMES markers)
+        ~/.gemini/settings.json   -> config with context refs (merge)
+        ~/.gemini/skills/         -> symlinks to dimension skills
+        ~/.gemini/bus.jsonl       -> symlink to HERMES bus
+
+    The GEMINI.md format is compatible with the Agent Skills Open Standard
+    (agentskills.io), enabling skill portability across Claude Code, Gemini CLI,
+    Cursor, OpenCode, and 30+ other AI coding tools.
+
+    Contract (per installable-model.md):
+        - Idempotent (safe to re-run)
+        - Never modifies HERMES state
+        - Never bypasses firewall rules
+        - Never hardcodes dimension names
+    """
+
+    name = "gemini"
+
+    HEADER_MARKER = "<!-- HERMES:BEGIN -->"
+    FOOTER_MARKER = "<!-- HERMES:END -->"
+
+    def __init__(
+        self,
+        hermes_dir: Path | None = None,
+        target_dir: Path | None = None,
+    ) -> None:
+        if hermes_dir is None:
+            hermes_dir = Path.home() / ".hermes"
+        if target_dir is None:
+            target_dir = Path.home() / ".gemini"
+        super().__init__(hermes_dir, target_dir)
+
+    def adapt(self) -> AdaptResult:
+        """Run full Gemini CLI adaptation."""
+        result = AdaptResult(success=True, adapter_name=self.name)
+
+        # 1. Load config
+        try:
+            self.load_config()
+            result.steps.append(f"Config loaded from {self.hermes_dir}")
+        except (FileNotFoundError, ValueError) as e:
+            result.success = False
+            result.errors.append(f"Config error: {e}")
+            return result
+
+        # 2. Generate GEMINI.md
+        try:
+            written = self._generate_gemini_md()
+            if written:
+                result.steps.append("GEMINI.md generated")
+                result.files_written.append(str(self.target_dir / "GEMINI.md"))
+            else:
+                result.steps.append("GEMINI.md unchanged")
+        except Exception as e:
+            result.errors.append(f"GEMINI.md generation failed: {e}")
+
+        # 3. Generate/merge settings.json
+        try:
+            written = self._generate_settings_json()
+            if written:
+                result.steps.append("settings.json generated")
+                result.files_written.append(str(self.target_dir / "settings.json"))
+            else:
+                result.steps.append("settings.json unchanged")
+        except Exception as e:
+            result.errors.append(f"settings.json generation failed: {e}")
+
+        # 4. Link skills
+        try:
+            skill_links = self._link_skills()
+            if skill_links:
+                result.steps.append(f"Skills linked ({len(skill_links)} skills)")
+                result.symlinks_created.extend(skill_links)
+            else:
+                result.steps.append("No dimension skills found")
+        except Exception as e:
+            result.errors.append(f"Skills link failed: {e}")
+
+        # 5. Link bus (optional)
+        try:
+            linked = self._link_bus()
+            if linked:
+                result.steps.append("Bus symlinked")
+                result.symlinks_created.append(str(self.target_dir / "bus.jsonl"))
+            else:
+                result.steps.append("Bus symlink unchanged")
+        except Exception as e:
+            result.errors.append(f"Bus link failed: {e}")
+
+        if result.errors:
+            result.success = False
+
+        return result
+
+    def _generate_gemini_md(self) -> bool:
+        """Generate GEMINI.md from config + compiled skills + rules.
+
+        Uses HERMES:BEGIN/END markers to preserve user content outside
+        the auto-generated section (same pattern as Cursor/OpenCode).
+
+        Returns True if the file was written/updated.
+        """
+        body = self._generate_compiled_md("hermes adapt gemini")
+        content = self.HEADER_MARKER + "\n" + body + "\n" + self.FOOTER_MARKER + "\n"
+        target = self.target_dir / "GEMINI.md"
+
+        if target.exists():
+            existing = target.read_text(encoding="utf-8")
+            if self.HEADER_MARKER in existing and self.FOOTER_MARKER in existing:
+                before = existing[: existing.index(self.HEADER_MARKER)]
+                after = existing[existing.index(self.FOOTER_MARKER) + len(self.FOOTER_MARKER) :]
+                new_content = before + content + after.lstrip("\n")
+                return _write_file_if_changed(target, new_content)
+
+        return _write_file_if_changed(target, content)
+
+    def _generate_settings_json(self) -> bool:
+        """Generate or merge settings.json with HERMES-managed fields.
+
+        Only touches HERMES-controlled keys (context, _hermes).
+        Preserves all user-configured keys (model, sandbox, theme, etc.).
+
+        Gemini CLI settings.json supports a ``context.fileName`` array that
+        specifies which markdown files to load as context.  We ensure
+        ``GEMINI.md`` is in that list so our compiled context is picked up.
+
+        Returns True if the file was written/updated.
+        """
+        assert self.config is not None
+
+        target = self.target_dir / "settings.json"
+
+        existing: dict = {}
+        if target.exists():
+            try:
+                existing = json.loads(target.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, ValueError):
+                existing = {}
+
+        # Ensure context.fileName includes GEMINI.md
+        context = existing.get("context", {})
+        if not isinstance(context, dict):
+            context = {}
+        file_names = context.get("fileName", [])
+        if isinstance(file_names, str):
+            file_names = [file_names] if file_names else []
+        if "GEMINI.md" not in file_names:
+            file_names.append("GEMINI.md")
+        context["fileName"] = file_names
+        existing["context"] = context
+
+        # HERMES metadata for idempotency tracking
+        existing["_hermes"] = {
+            "managed_by": "hermes adapt gemini",
+            "clan_id": self.config.clan_id,
+            "protocol_version": self.config.protocol_version,
+        }
+
+        content = json.dumps(existing, indent=2, ensure_ascii=False) + "\n"
+        return _write_file_if_changed(target, content)
+
+    def _link_skills(self) -> list[str]:
+        """Symlink dimension skills into skills/<dim>/<name>/ directory.
+
+        Uses subdirectories per dimension (like Claude Code / OpenCode) so that
+        the skill directory name matches the skill's ``name`` field — required
+        by the Agent Skills Open Standard (agentskills.io).
+
+        Returns list of created symlink paths.
+        """
+        dims_dir = self.hermes_dir / "dimensions"
+        if not dims_dir.is_dir():
+            return []
+
+        created = []
+        skills_target = self.target_dir / "skills"
+
+        for dim_dir in sorted(dims_dir.iterdir()):
+            if not dim_dir.is_dir():
+                continue
+
+            skills_src = dim_dir / "skills"
+            if not skills_src.is_dir():
+                continue
+
+            for skill_dir in sorted(skills_src.iterdir()):
+                if not skill_dir.is_dir():
+                    continue
+
+                link = skills_target / dim_dir.name / skill_dir.name
+                if _safe_symlink(link, skill_dir):
+                    created.append(str(link))
+
+        return created
+
+    def _link_bus(self) -> bool:
+        """Symlink bus.jsonl into the Gemini config directory.
+
+        Returns True if the symlink was created/updated.
+        """
+        bus_source = self._find_bus_source()
+        if bus_source is None:
+            return False
+
+        link_path = self.target_dir / "bus.jsonl"
+        return _safe_symlink(link_path, bus_source)
+
+
+# ---------------------------------------------------------------------------
 # Registry of available adapters
 # ---------------------------------------------------------------------------
 
@@ -828,6 +1059,7 @@ ADAPTERS: dict[str, type[AdapterBase]] = {
     "claude-code": ClaudeCodeAdapter,
     "cursor": CursorAdapter,
     "opencode": OpenCodeAdapter,
+    "gemini": GeminiCLIAdapter,
 }
 
 

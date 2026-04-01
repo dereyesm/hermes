@@ -392,10 +392,17 @@ class TestAgentCommand:
 
 class TestAdaptCommand:
     def test_adapt_no_adapter(self):
-        import pytest
+        rc = main(["adapt"])
+        assert rc == 1
 
-        with pytest.raises(SystemExit):
-            main(["adapt"])
+    def test_adapt_list(self, capsys):
+        rc = main(["adapt", "--list"])
+        assert rc == 0
+        output = capsys.readouterr().out
+        assert "claude-code" in output
+        assert "gemini" in output
+        assert "opencode" in output
+        assert "cursor" in output
 
     def test_adapt_unknown_adapter(self, tmp_path):
         rc = main(["adapt", "nonexistent", "--hermes-dir", str(tmp_path)])

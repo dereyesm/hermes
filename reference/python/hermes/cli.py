@@ -466,13 +466,67 @@ def cmd_uninstall(args: argparse.Namespace) -> int:
     return 0 if result.success else 1
 
 
+def _detect_installed_agents() -> list[str]:
+    """Detect which AI agents are installed on this system.
+
+    Returns list of adapter names whose target directories exist.
+    """
+    checks = {
+        "claude-code": Path.home() / ".claude",
+        "cursor": Path.home() / ".cursor",
+        "opencode": Path.home() / ".config" / "opencode",
+        "gemini": Path.home() / ".gemini",
+    }
+    return [name for name, path in sorted(checks.items()) if path.exists()]
+
+
 def cmd_adapt(args: argparse.Namespace) -> int:
     """Run an adapter to generate agent-specific config from ~/.hermes/."""
     from .adapter import list_adapters, run_adapter
 
+    # --list: show available adapters with detection status
+    if getattr(args, "list_adapters", False):
+        detected = _detect_installed_agents()
+        print("  Available adapters:\n")
+        for name in list_adapters():
+            status = " (detected)" if name in detected else ""
+            print(f"    {name}{status}")
+        print("\n  Usage: hermes adapt <name>")
+        print("         hermes adapt --all  (adapt all detected agents)")
+        return 0
+
+    # --all: adapt all detected agents
+    if getattr(args, "adapt_all", False):
+        detected = _detect_installed_agents()
+        if not detected:
+            print("  No AI agents detected. Install one first, then run hermes adapt --all.")
+            return 1
+
+        hermes_dir = Path(args.hermes_dir) if getattr(args, "hermes_dir", None) else None
+        failed = False
+        for name in detected:
+            print(f"\n  ── {name} ──")
+            try:
+                result = run_adapter(name, hermes_dir=hermes_dir, target_dir=None)
+                for step in result.steps:
+                    marker = "[OK]" if result.success or "error" not in step.lower() else "[!!]"
+                    print(f"  {marker} {step}")
+                if result.errors:
+                    for err in result.errors:
+                        print(f"  [!!] {err}")
+                    failed = True
+            except KeyError as e:
+                print(f"  [!!] {e}")
+                failed = True
+
+        adapted_count = len(detected) - (1 if failed else 0)
+        print(f"\n  Adapted {adapted_count}/{len(detected)} agents: {', '.join(detected)}")
+        return 1 if failed else 0
+
     adapter_name = getattr(args, "adapter_name", None)
     if adapter_name is None:
         print(f"Available adapters: {', '.join(list_adapters())}", file=sys.stderr)
+        print("Usage: hermes adapt <name> | --list | --all", file=sys.stderr)
         return 1
 
     hermes_dir = None
@@ -816,7 +870,15 @@ def build_parser() -> argparse.ArgumentParser:
 
     # adapt
     p_adapt = sub.add_parser("adapt", help="Generate agent config from ~/.hermes/")
-    p_adapt.add_argument("adapter_name", help="Adapter name (e.g. claude-code)")
+    p_adapt.add_argument(
+        "adapter_name", nargs="?", default=None, help="Adapter name (e.g. claude-code, gemini)"
+    )
+    p_adapt.add_argument(
+        "--list", action="store_true", dest="list_adapters", help="List available adapters"
+    )
+    p_adapt.add_argument(
+        "--all", action="store_true", dest="adapt_all", help="Adapt all detected agents"
+    )
     p_adapt.add_argument(
         "--hermes-dir",
         default=None,
