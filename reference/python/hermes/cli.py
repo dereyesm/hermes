@@ -1095,6 +1095,15 @@ def build_parser() -> argparse.ArgumentParser:
     p_llm_usage.add_argument("--reset", action="store_true", help="Clear telemetry log")
     _add_dir_arg(p_llm_usage)
 
+    # mcp
+    p_mcp = sub.add_parser("mcp", help="MCP server for Claude Code integration")
+    mcp_sub = p_mcp.add_subparsers(dest="mcp_command")
+
+    p_mcp_serve = mcp_sub.add_parser("serve", help="Start the hermes-bus MCP server (stdio)")
+    p_mcp_serve.add_argument(
+        "--hermes-dir", default=None, help="Clan directory (default: ~/.hermes)"
+    )
+
     return parser
 
 
@@ -1161,6 +1170,17 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "llm":
         return cmd_llm(args)
+
+    if args.command == "mcp":
+        if getattr(args, "mcp_command", None) == "serve":
+            import os
+            if args.hermes_dir:
+                os.environ["HERMES_DIR"] = args.hermes_dir
+            from .mcp_server import main as mcp_main
+            mcp_main()
+            return 0
+        parser.parse_args(["mcp", "--help"])
+        return 0
 
     if args.command == "hub":
         from .hub import cmd_hub_init, cmd_hub_peers, cmd_hub_start, cmd_hub_status, cmd_hub_stop
