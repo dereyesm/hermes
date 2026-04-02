@@ -1,0 +1,62 @@
+{
+  "quest": "QUEST-005",
+  "iteration": 1,
+  "domain": "prompt-engineering-and-orchestration",
+  "clan": "momoshod",
+  "version": "1.0",
+  "ts": "2026-04-02T17:00:00Z",
+  "inventory_summary": {
+    "total_skills": 35,
+    "by_category": {
+      "global_governance": 9,
+      "global_limited": 1,
+      "hermes_protocol": 3,
+      "nymyka_enterprise": 13,
+      "momoshod_editorial": 1,
+      "momofinance": 2,
+      "zima26_housing": 6
+    },
+    "maturity_distribution": {
+      "prototype": 16,
+      "stable": 12,
+      "battle-tested": 7
+    }
+  },
+  "practice_scores": {
+    "prompt_engineering": {
+      "score": 4,
+      "example": "35 skills use YAML frontmatter with dimension-scoped MCP access. Each dimension (work, personal, finance, housing, open-source) has its own CLAUDE.md with explicit ALLOWED/PROHIBITED MCP lists, creating a firewall that prevents cross-context credential leakage. Skills invoke via slash commands with role-scoped context injection. HERMES prompt chains use 5-stage templates with a mandatory security gate (Stage 4) between content generation and artifact delivery."
+    },
+    "security": {
+      "score": 4,
+      "example": "Authored ARC-8446 (Encrypted Bus Protocol): Ed25519 signing + X25519 ECDHE + AES-256-GCM + HKDF-SHA256. Canonical v1.2 params locked with 30-day migration window. Multi-dimensional MCP firewall enforces that HERMES dimension has ZERO external MCPs — pure research, no credential surface. Supply chain SOP: uv lockfiles with hashes, Tier 1 packages pinned with ==, file permissions 600 on all secrets. Bilateral ECDHE verified with Clan JEI — 3 interop divergences caught and resolved to canonical alignment."
+    },
+    "orchestration": {
+      "score": 4,
+      "example": "35-skill ecosystem across 7 life dimensions with formalized governance layers: Consejo (3-5 voices for deliberation), Dojo (SDN-style dispatch), Arena (collaborative training with XP/medals), HERMES bus (inter-dimensional state sync via JSONL). Each dimension has a head skill (e.g., Niky-CEO for Nymyka, Protocol Architect for HERMES). Skills communicate via bus.jsonl without crossing credential boundaries. Agent Service Platform (ARC-0369) provides 7-state FSM for agent lifecycle and notification throttling."
+    },
+    "knowledge_mgmt": {
+      "score": 4,
+      "example": "4 typed persistent memory (user/feedback/project/reference) with MEMORY.md as pure index — content in topic files. Mandatory 7-step exit protocol harvests session insights, syncs bus, updates memory, commits changes, and produces a next-session ramp-up prompt. MEMORY.md compaction checks enforce 200-line hard limit with automated extraction to topic files. Bus protocol (HERMES) syncs state across dimensions. No equivalent to JEI's autonomous learning daemon — learning is session-bound via exit protocol harvest."
+    },
+    "testing": {
+      "score": 4,
+      "example": "1451 tests across 23 test files covering 19 Python modules. 81% code coverage with CI threshold at 80%. ARC-1122 Conformance spec: 126 test vectors across 3 levels (L1=51 Bus-Compatible, L2=34 Clan-Ready, L3=41 Network-Ready) — golden samples for external implementors. Bilateral ECDHE verification caught 3 crypto divergences between Clan DANI and Clan JEI. GitHub Actions CI with SHA-pinned actions, matrix testing Python 3.11/3.12/3.13. Gaps: worktrees (0% usage), checkpointing not adopted."
+    }
+  },
+  "patterns": {
+    "top_practices": [
+      "Multi-dimensional MCP firewall: each life dimension (work, personal, finance, housing, open-source) is a separate namespace with explicit ALLOWED/PROHIBITED MCP lists in its CLAUDE.md. A HERMES skill cannot touch Gmail; a Nymyka skill cannot access personal accounts. Credentials never cross dimension boundaries. The bus protocol syncs state (not credentials) between dimensions. This prevents the class of bugs where an AI agent accidentally sends work data through a personal channel or vice versa.",
+      "Exit protocol as institutional ritual (7-step mandatory): Session Harvest captures decisions and insights into monthly logs. HERMES FIN syncs bus state. Memory Update compacts and indexes. Commit & Push prevents invisible work. Dashboard Sync publishes state. Next Session Prompt eliminates cold-start ramp-up. Gratitude Ping connects work to purpose. The discipline ensures zero session-end data loss and makes every session benefit the next one.",
+      "Arena as collaborative training system: skills grow XP through structured exercises (PvP partnerships, Multi-team, BR society-of-clans). Evaluations score on 5 axes; skills earn medals (First Blood, Nakama, Innovation Wave). The Arena converts what would be routine maintenance into measurable growth milestones. 3524 total XP across 35 skills, 25+ medals earned. Critical: skills grow together (collaborative), they don't compete (adversarial)."
+    ],
+    "anti_patterns": [
+      "Worktrees completely unused (0%): git worktrees enable parallel branch work without stashing, but have never been adopted despite QUEST-004 flagging this gap. The workflow remains single-branch sequential, which creates bottlenecks when multiple features need parallel development. Root cause: habit inertia — the single-branch workflow 'works well enough' and worktrees require a mental model shift.",
+      "Checkpointing not adopted: no structured checkpoint/rollback mechanism beyond git commits. Long sessions accumulate state that is hard to roll back partially. QUEST-004 identified this gap (11.1) but no fix has been implemented. The exit protocol partially compensates by forcing session harvest, but mid-session checkpoints would reduce risk of compound errors.",
+      "IDE integration minimal: no VS Code plugin, no custom keybindings, no Copilot configuration. All interaction is CLI-based (Claude Code). This limits the feedback loop speed for visual tasks (CSS, diagrams) and means the rich IDE ecosystem (linters, formatters, debuggers integrated into editor) is underutilized. Not a blocker for protocol work but a gap for product development dimensions."
+    ],
+    "unconventional": "Dimension-as-identity architecture: instead of organizing skills by function (security, engineering, ops), DANI organizes by life dimension — each representing a distinct identity context (professional, enterprise, editorial, financial, housing, open-source). Each dimension has its own head skill, credential scope, and communication rules. Skills can 'travel' between dimensions via the HERMES bus but must obey the firewall at each boundary. The bus carries state, never credentials. This maps the human reality that Daniel operates across multiple professional and personal contexts that must never leak into each other — a constraint most AI orchestration systems ignore entirely."
+  },
+  "redactions": 0,
+  "signed_by": "Daniel Reyes"
+}
