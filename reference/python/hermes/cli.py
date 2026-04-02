@@ -874,10 +874,13 @@ def _add_dir_arg(parser: argparse.ArgumentParser) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     """Build the CLI argument parser."""
+    from hermes import __version__
+
     parser = argparse.ArgumentParser(
         prog="hermes",
         description="HERMES Gateway CLI — Inter-clan communication",
     )
+    parser.add_argument("--version", action="version", version=f"hermes {__version__}")
     sub = parser.add_subparsers(dest="command")
 
     # init

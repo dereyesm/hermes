@@ -6,7 +6,8 @@ build-backend = "setuptools.build_meta"
 name = "hermes-protocol"
 version = "0.4.2a1"
 description = "HERMES: A lightweight, file-based inter-agent communication protocol"
-readme = {text = "HERMES reference implementation. See https://github.com/dereyesm/hermes", content-type = "text/plain"}
+readme = "README.md"
+keywords = ["agent", "communication", "protocol", "multi-agent", "AI", "inter-agent"]
 license = "MIT"
 requires-python = ">=3.11"
 authors = [
