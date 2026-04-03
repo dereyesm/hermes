@@ -445,7 +445,7 @@ def cmd_peer_accept(args: argparse.Namespace) -> int:
 
     print(f"Peer accepted: {peer_clan_id} ({display_name})")
     print(f"  Public key saved to: {pub_file}")
-    print(f"  Status: active")
+    print("  Status: active")
     print(f"  Protocol: {invite.get('protocol_version', 'unknown')}")
     return 0
 
@@ -837,7 +837,7 @@ def cmd_hook(args: argparse.Namespace) -> int:
 
 def cmd_llm(args: argparse.Namespace) -> int:
     """Manage LLM backends."""
-    from .llm import AdapterManager, create_adapter
+    from .llm import AdapterManager, LLMAdapter, create_adapter
 
     llm_cmd = getattr(args, "llm_command", None)
     if llm_cmd is None:
@@ -907,17 +907,18 @@ def cmd_llm(args: argparse.Namespace) -> int:
             except (ValueError, ImportError):
                 pass
 
+        selected: LLMAdapter | None
         if backend_name:
-            adapter = manager.get_by_name(backend_name)
+            selected = manager.get_by_name(backend_name)
         else:
-            adapter = manager.get_healthy()
+            selected = manager.get_healthy()
 
-        if adapter is None:
+        if selected is None:
             print("No healthy LLM backend available.", file=sys.stderr)
             return 1
 
-        print(f"Testing {adapter.name()}...")
-        resp = adapter.complete(
+        print(f"Testing {selected.name()}...")
+        resp = selected.complete(
             "You are a HERMES protocol test bot. Respond briefly.",
             "What protocol are you part of?",
             max_tokens=100,
@@ -1329,7 +1330,14 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "hub":
-        from .hub import cmd_hub_init, cmd_hub_listen, cmd_hub_peers, cmd_hub_start, cmd_hub_status, cmd_hub_stop
+        from .hub import (
+            cmd_hub_init,
+            cmd_hub_listen,
+            cmd_hub_peers,
+            cmd_hub_start,
+            cmd_hub_status,
+            cmd_hub_stop,
+        )
 
         hub_dir = _resolve_clan_dir(args)
         hub_commands = {

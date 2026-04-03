@@ -178,6 +178,69 @@ class TestConnectionTable:
         ids = ct.connected_clan_ids()
         assert set(ids) == {"x", "y"}
 
+    def test_multi_connection_same_clan(self):
+        """Multiple connections from the same clan_id coexist."""
+        ct = ConnectionTable()
+        ws1 = _make_ws_mock()
+        ws2 = _make_ws_mock()
+        ct.add("momoshod", ws1)
+        ct.add("momoshod", ws2)
+        assert len(ct) == 2
+        assert ct.is_online("momoshod")
+        all_entries = ct.get_all("momoshod")
+        assert len(all_entries) == 2
+
+    def test_multi_connection_get_returns_first(self):
+        """get() returns the first connection (backward compat)."""
+        ct = ConnectionTable()
+        ws1 = _make_ws_mock()
+        ws2 = _make_ws_mock()
+        e1 = ct.add("momoshod", ws1)
+        ct.add("momoshod", ws2)
+        assert ct.get("momoshod") is e1
+
+    def test_remove_specific_ws(self):
+        """Remove a specific ws without affecting other connections."""
+        ct = ConnectionTable()
+        ws1 = _make_ws_mock()
+        ws2 = _make_ws_mock()
+        ct.add("momoshod", ws1)
+        ct.add("momoshod", ws2)
+        removed = ct.remove("momoshod", ws1)
+        assert removed is not None
+        assert removed.ws is ws1
+        assert len(ct) == 1
+        assert ct.is_online("momoshod")
+        assert ct.get("momoshod").ws is ws2
+
+    def test_remove_last_connection_cleans_clan(self):
+        """Removing the last connection for a clan removes the clan entry."""
+        ct = ConnectionTable()
+        ws = _make_ws_mock()
+        ct.add("momoshod", ws)
+        ct.remove("momoshod", ws)
+        assert not ct.is_online("momoshod")
+        assert len(ct) == 0
+        assert ct.get_all("momoshod") == []
+
+    def test_all_except_with_multi_connections(self):
+        """all_except returns all connections from other clans."""
+        ct = ConnectionTable()
+        ct.add("a", _make_ws_mock())
+        ct.add("a", _make_ws_mock())
+        ct.add("b", _make_ws_mock())
+        result = ct.all_except("a")
+        assert len(result) == 1
+        assert result[0].clan_id == "b"
+
+    def test_max_connections_counts_total(self):
+        """Max limit counts total connections, not unique clans."""
+        ct = ConnectionTable(max_connections=2)
+        ct.add("a", _make_ws_mock())
+        ct.add("a", _make_ws_mock())
+        with pytest.raises(RuntimeError, match="Max connections"):
+            ct.add("b", _make_ws_mock())
+
 
 # ---------------------------------------------------------------------------
 # TestStoreForwardQueue
