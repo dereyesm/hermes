@@ -1214,6 +1214,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_hub_peers = hub_sub.add_parser("peers", help="List registered peers")
     _add_dir_arg(p_hub_peers)
 
+    p_hub_listen = hub_sub.add_parser("listen", help="Listen for hub messages (writes to hub-inbox.jsonl)")
+    p_hub_listen.add_argument("--daemon", action="store_true", help="Run as background daemon")
+    _add_dir_arg(p_hub_listen)
+
     # llm (Multi-LLM adapters)
     p_llm = sub.add_parser("llm", help="Manage LLM backends")
     llm_sub = p_llm.add_subparsers(dest="llm_command")
@@ -1325,7 +1329,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "hub":
-        from .hub import cmd_hub_init, cmd_hub_peers, cmd_hub_start, cmd_hub_status, cmd_hub_stop
+        from .hub import cmd_hub_init, cmd_hub_listen, cmd_hub_peers, cmd_hub_start, cmd_hub_status, cmd_hub_stop
 
         hub_dir = _resolve_clan_dir(args)
         hub_commands = {
@@ -1334,6 +1338,7 @@ def main(argv: list[str] | None = None) -> int:
             "stop": lambda: cmd_hub_stop(hub_dir),
             "status": lambda: cmd_hub_status(hub_dir),
             "peers": lambda: cmd_hub_peers(hub_dir),
+            "listen": lambda: cmd_hub_listen(hub_dir, daemon=getattr(args, "daemon", False)),
         }
         if args.hub_command is None:
             parser.parse_args(["hub", "--help"])

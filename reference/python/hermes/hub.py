@@ -1303,6 +1303,186 @@ def _read_sign_pub(pub_path: Path) -> str | None:
         return None
 
 
+def cmd_hub_listen(hub_dir: Path, daemon: bool = False) -> int:
+    """Listen for hub messages and write to hub-inbox.jsonl.
+
+    Connects to the local hub as a peer, receives messages in real-time,
+    and appends them to hub-inbox.jsonl for the hub_inject hook to pick up.
+    """
+    import signal as _signal
+
+    config_path = hub_dir / "gateway.json"
+    if not config_path.exists():
+        config_path = hub_dir / "config.toml"
+
+    config = load_hub_config(config_path)
+    inbox_path = hub_dir / "hub-inbox.jsonl"
+
+    # Load clan identity
+    gw_config_path = hub_dir / "gateway.json"
+    if not gw_config_path.exists():
+        gw_config_path = hub_dir / "config.toml"
+
+    try:
+        from .config import load_config
+        gw = load_config(gw_config_path)
+        clan_id = gw.clan_id
+        key_path = hub_dir / gw.keys_private
+    except Exception:
+        print("Error: cannot load clan config. Run 'hermes init' first.")
+        return 1
+
+    if not key_path.exists():
+        print(f"Error: key file not found: {key_path}")
+        return 1
+
+    try:
+        key_data = json.loads(key_path.read_text())
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+        sign_priv = Ed25519PrivateKey.from_private_bytes(
+            bytes.fromhex(key_data["sign_private"])
+        )
+        sign_pub_hex = key_data.get("sign_public", "")
+        if not sign_pub_hex:
+            sign_pub_hex = sign_priv.public_key().public_bytes_raw().hex()
+    except Exception as e:
+        print(f"Error loading keys: {e}")
+        return 1
+
+    # Daemon mode: fork to background
+    if daemon:
+        pid = os.fork()
+        if pid > 0:
+            pid_file = hub_dir / "hub-listen.pid"
+            pid_file.write_text(str(pid))
+            print(f"Listener started (PID {pid})")
+            return 0
+        # Child continues below
+
+    running = True
+
+    def _stop(signum: int, frame: Any) -> None:
+        nonlocal running
+        running = False
+
+    _signal.signal(_signal.SIGTERM, _stop)
+    _signal.signal(_signal.SIGINT, _stop)
+
+    uri = f"ws://127.0.0.1:{config.listen_port}"
+    print(f"Listening on {uri} as {clan_id}...")
+
+    async def _listen() -> None:
+        import websockets
+
+        backoff = 1.0
+        while running:
+            try:
+                async with websockets.connect(uri) as ws:
+                    # Ed25519 HELLO/CHALLENGE/AUTH
+                    await ws.send(json.dumps({
+                        "type": "hello",
+                        "clan_id": clan_id,
+                        "sign_pub": sign_pub_hex,
+                        "protocol_version": "0.4.2a1",
+                        "capabilities": ["e2e_crypto"],
+                    }))
+
+                    frame = json.loads(await asyncio.wait_for(ws.recv(), 10))
+                    if frame.get("type") != "challenge":
+                        print(f"Unexpected: {frame.get('type')}")
+                        await asyncio.sleep(backoff)
+                        continue
+
+                    sig = sign_priv.sign(bytes.fromhex(frame["nonce"]))
+                    await ws.send(json.dumps({
+                        "type": "auth",
+                        "nonce_response": sig.hex(),
+                    }))
+
+                    resp = json.loads(await asyncio.wait_for(ws.recv(), 10))
+                    if resp.get("type") != "auth_ok":
+                        print(f"Auth failed: {resp}")
+                        await asyncio.sleep(backoff)
+                        backoff = min(backoff * 2, 60)
+                        continue
+
+                    print(f"Connected. Queue depth: {resp.get('queue_depth', 0)}")
+                    backoff = 1.0
+
+                    # Receive loop — write to inbox
+                    async for raw in ws:
+                        try:
+                            frame = json.loads(raw)
+                        except json.JSONDecodeError:
+                            continue
+
+                        ftype = frame.get("type", "")
+                        entry = None
+
+                        if ftype == "msg":
+                            p = frame.get("payload", {})
+                            entry = {
+                                "ts": datetime.now(UTC).isoformat(),
+                                "from": p.get("src", "?"),
+                                "msg": p.get("msg", ""),
+                                "type": p.get("type", "event"),
+                                "dst": p.get("dst", ""),
+                            }
+                        elif ftype == "drain":
+                            for m in frame.get("messages", []):
+                                entry = {
+                                    "ts": datetime.now(UTC).isoformat(),
+                                    "from": m.get("src", "?"),
+                                    "msg": m.get("msg", ""),
+                                    "type": m.get("type", "event"),
+                                    "queued": True,
+                                }
+                                with open(inbox_path, "a", encoding="utf-8") as f:
+                                    f.write(json.dumps(entry) + "\n")
+                                print(f"  [{entry['from']}] {entry['msg'][:80]}")
+                            continue
+                        elif ftype == "presence":
+                            entry = {
+                                "ts": datetime.now(UTC).isoformat(),
+                                "from": "HUB",
+                                "msg": f"{frame.get('clan_id','?')}: {frame.get('status','?')}",
+                                "type": "presence",
+                            }
+                        elif ftype == "pong":
+                            continue
+
+                        if entry:
+                            with open(inbox_path, "a", encoding="utf-8") as f:
+                                f.write(json.dumps(entry) + "\n")
+                            if entry["type"] != "presence":
+                                print(f"  [{entry['from']}] {entry['msg'][:80]}")
+
+            except (ConnectionRefusedError, OSError) as e:
+                if running:
+                    print(f"Connection failed: {e} (retry in {backoff:.0f}s)")
+            except Exception as e:
+                if running:
+                    print(f"Disconnected: {e} (retry in {backoff:.0f}s)")
+
+            if not running:
+                break
+            await asyncio.sleep(backoff)
+            backoff = min(backoff * 2, 60)
+
+    loop = asyncio.new_event_loop()
+    try:
+        loop.run_until_complete(_listen())
+    except KeyboardInterrupt:
+        pass
+    finally:
+        loop.close()
+        pid_file = hub_dir / "hub-listen.pid"
+        if pid_file.exists():
+            pid_file.unlink(missing_ok=True)
+
+    return 0
+
+
 def cmd_hub_peers(hub_dir: Path) -> int:
     """List registered peers."""
     config = load_hub_config(hub_dir / "gateway.json")
