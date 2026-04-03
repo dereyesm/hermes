@@ -1356,3 +1356,151 @@ class TestLevel3Bridge:
         assert hasattr(OutboundFilter, "ALLOWED_TYPES")
         assert hasattr(InboundValidator, "SUPPORTED_INBOUND_TYPES")
         assert msg.type is not None  # gateway can inspect and filter
+
+    # -- Hub Handshake Conformance (ARC-4601 §15.6) --
+
+    @staticmethod
+    def _make_hub_ws():
+        """Create a minimal mock WebSocket for hub auth tests."""
+        from unittest.mock import AsyncMock
+        ws = AsyncMock()
+        ws.close = AsyncMock()
+        return ws
+
+    def test_l3_40_hub_hello_frame_required(self, tmp_path):
+        """L3-40: Hub MUST wait for client HELLO before sending CHALLENGE."""
+        from hermes.hub import HubServer, HubConfig
+        import asyncio
+
+        (tmp_path / "hub-peers.json").write_text(json.dumps({"peers": {}}))
+        config = HubConfig(listen_port=19443, auth_timeout=2)
+        server = HubServer(config, tmp_path)
+        ws = self._make_hub_ws()
+
+        # Client sends non-hello → auth_fail
+        async def mock_recv():
+            return json.dumps({"type": "ping"})
+
+        ws.recv = mock_recv
+
+        loop = asyncio.new_event_loop()
+        try:
+            result = loop.run_until_complete(server._authenticate(ws))
+        finally:
+            loop.close()
+
+        # Should reject (not hello, not legacy auth)
+        assert result is None
+
+    def test_l3_41_hub_hello_with_capabilities(self, tmp_path):
+        """L3-41: Hub MUST include server_version and server_capabilities in CHALLENGE."""
+        from hermes.hub import HubServer, HubConfig
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+        import asyncio
+
+        privkey = Ed25519PrivateKey.generate()
+        pubkey_hex = privkey.public_key().public_bytes_raw().hex()
+
+        peers_data = {"peers": {"test_clan": {"sign_pub": pubkey_hex, "display_name": "Test"}}}
+        (tmp_path / "hub-peers.json").write_text(json.dumps(peers_data))
+
+        config = HubConfig(listen_port=19444, auth_timeout=5)
+        server = HubServer(config, tmp_path)
+        ws = self._make_hub_ws()
+
+        sent_messages = []
+        recv_count = 0
+
+        async def mock_send(msg):
+            sent_messages.append(json.loads(msg))
+
+        async def mock_recv():
+            nonlocal recv_count
+            recv_count += 1
+            if recv_count == 1:
+                return json.dumps({
+                    "type": "hello",
+                    "clan_id": "test_clan",
+                    "sign_pub": pubkey_hex,
+                    "protocol_version": "0.4.2a1",
+                    "capabilities": ["e2e_crypto"],
+                })
+            else:
+                # Sign the challenge nonce
+                challenge = sent_messages[-1]
+                nonce = challenge["nonce"]
+                sig = privkey.sign(bytes.fromhex(nonce)).hex()
+                return json.dumps({"type": "auth", "nonce_response": sig})
+
+        ws.send = mock_send
+        ws.recv = mock_recv
+
+        loop = asyncio.new_event_loop()
+        try:
+            result = loop.run_until_complete(server._authenticate(ws))
+        finally:
+            loop.close()
+
+        assert result == "test_clan"
+        # Verify CHALLENGE contains server_version and server_capabilities
+        challenge_frame = sent_messages[0]
+        assert challenge_frame["type"] == "challenge"
+        assert "server_version" in challenge_frame
+        assert "server_capabilities" in challenge_frame
+        assert isinstance(challenge_frame["server_capabilities"], list)
+
+    def test_l3_42_hub_legacy_backward_compat(self, tmp_path):
+        """L3-42: Hub MUST support legacy clients that send auth without hello."""
+        from hermes.hub import HubServer, HubConfig
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+        import asyncio
+
+        privkey = Ed25519PrivateKey.generate()
+        pubkey_hex = privkey.public_key().public_bytes_raw().hex()
+
+        peers_data = {"peers": {"legacy_clan": {"sign_pub": pubkey_hex, "display_name": "Legacy"}}}
+        (tmp_path / "hub-peers.json").write_text(json.dumps(peers_data))
+
+        config = HubConfig(listen_port=19445, auth_timeout=5)
+        server = HubServer(config, tmp_path)
+        ws = self._make_hub_ws()
+
+        sent_messages = []
+        recv_count = 0
+
+        async def mock_send(msg):
+            sent_messages.append(json.loads(msg))
+
+        async def mock_recv():
+            nonlocal recv_count
+            recv_count += 1
+            if recv_count == 1:
+                # Legacy client sends auth directly (no hello)
+                return json.dumps({
+                    "type": "auth",
+                    "clan_id": "legacy_clan",
+                    "nonce_response": "placeholder",
+                    "sign_pub": pubkey_hex,
+                })
+            else:
+                # Sign the challenge nonce from the server
+                challenge = sent_messages[-1]
+                nonce = challenge["nonce"]
+                sig = privkey.sign(bytes.fromhex(nonce)).hex()
+                return json.dumps({
+                    "type": "auth",
+                    "clan_id": "legacy_clan",
+                    "nonce_response": sig,
+                    "sign_pub": pubkey_hex,
+                })
+
+        ws.send = mock_send
+        ws.recv = mock_recv
+
+        loop = asyncio.new_event_loop()
+        try:
+            result = loop.run_until_complete(server._authenticate(ws))
+        finally:
+            loop.close()
+
+        assert result == "legacy_clan"
