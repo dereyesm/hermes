@@ -4,7 +4,7 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Specs: 21](https://img.shields.io/badge/specs-21%20IMPL%20%2B%201%20DRAFT-orange.svg)](spec/INDEX.md)
-[![Tests: 1417](https://img.shields.io/badge/tests-1417%20passing-brightgreen.svg)](reference/python/tests/)
+[![Tests: 1475](https://img.shields.io/badge/tests-1475%20passing-brightgreen.svg)](reference/python/tests/)
 [![Adapters: 4](https://img.shields.io/badge/adapters-4%20(Claude%20Code%20%2B%20Cursor%20%2B%20OpenCode%20%2B%20Gemini%20CLI)-blue.svg)](docs/architecture/installable-model.md)
 [![Clans: 3](https://img.shields.io/badge/clans-3%20connected-teal.svg)](CLANS.md)
 
@@ -14,9 +14,9 @@
   </a>
 </p>
 
-**A lightweight, file-based communication protocol for multi-agent AI systems.**
+**Sovereign, encrypted communication between AI agents. No cloud required.**
 
-Inspired by TCP/IP and telecom standards. No servers, no databases -- just files and convention.
+End-to-end encrypted bilateral messaging with Ed25519 + ECDHE, persistent audit trails you can `grep`, and zero infrastructure to get started. Inspired by TCP/IP and telecom standards.
 
 ---
 
@@ -59,7 +59,8 @@ See [docs/POSITIONING.md](docs/POSITIONING.md) for the full technical positionin
 ## Key Features
 
 - **Zero infrastructure** -- works with `cat >> bus.jsonl`. No servers, no Docker, no cloud, no internet required.
-- **76.9% wire efficient** -- compact mode ([ARC-5322 §14](spec/ARC-5322.md)) is 4.9x less overhead than gRPC and 3.6x less than MQTT. Still valid JSON, readable with `cat` and `jq`. See [ATR-G.711](spec/ATR-G711.md).
+- **End-to-end encrypted** -- Ed25519 signing + X25519 ECDHE key agreement + AES-256-GCM per message. Even the hub cannot read your messages. Forward secrecy by default.
+- **76.9% wire efficient** -- compact mode ([ARC-5322 §14](spec/ARC-5322.md)) is 4.9x less overhead than gRPC. Still valid JSON, readable with `cat` and `jq`. See [ATR-G.711](spec/ATR-G711.md).
 - **File-based = auditable** -- every message is a line of JSON. Git-versionable, grep-searchable, human-inspectable.
 - **Telecom engineering rigor** -- three-track standards system (ARC/ATR/AES) modeled after IETF, ITU-T, and IEEE. Shannon-constrained payloads. Triple-plane CUPS architecture (ARC-2314): Control Plane (Messengers), Orchestration Plane (Dojos), User Plane (Skills).
 - **Privacy-first** -- ARC-1918 firewalls enforce namespace isolation. The gateway (ARC-3022) acts as NAT: internal identity is never exposed to external networks.
