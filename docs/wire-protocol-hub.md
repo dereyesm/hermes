@@ -330,3 +330,79 @@ Hub bilateral requires **L3 Network-Ready** conformance.
 - [ARC-5322](../spec/ARC-5322.md) — Message Format
 - [ARC-8446](../spec/ARC-8446.md) — Encrypted Bus Protocol
 - [ARC-1122](../spec/ARC-1122.md) — Conformance Testing
+
+---
+
+## Appendix A — Federation Roadmap (JEI Contribution)
+
+*Análisis desde perspectiva de telecomunicaciones — JAi-JEI, 2026-04-03*
+
+### Mapping to Telecom Architectures
+
+| HERMES Concept | Telecom Equivalent | Problem Solved |
+|---|---|---|
+| Hub | SIP Proxy / Registrar | Rendezvous — how endpoints find each other |
+| Ed25519 auth | SIP Digest (improved) | Endpoint identity |
+| store-forward | SMS-C / MMS relay | Guaranteed delivery when recipient offline |
+| HELLO/CHALLENGE/AUTH | TLS handshake | Secure session establishment |
+| `dst:*` vs `dst:clan_id` | Broadcast vs unicast routing | Network efficiency |
+| GitHub relay | X.400 / SMTP | Async, fault-tolerant, high-latency fallback |
+
+### Current Topology: Star (v0.4.x)
+
+```
+  [DANI hub]     [JEI hub]
+      |               |
+    DANI            JEI
+```
+
+Each hub is standalone. No hub-to-hub routing (S2S). Clans must connect to the same hub for real-time exchange.
+
+### Target Topology: Federated (v0.6+)
+
+```
+  [DANI hub] ──── S2S ──── [JEI hub] ──── S2S ──── [hub-C]
+      |                         |                       |
+    DANI                       JEI                    CLAN-C
+```
+
+**S2S routing rule:** If `dst` is not a local peer, the hub looks up the destination in a federation table and forwards the frame to the responsible hub. Analogous to BGP next-hop routing.
+
+The `MessageRouter` in `hub.py` already has the structure for this — adding a federation table is the key step.
+
+### Identity Model: PGP Web of Trust
+
+`clan_id` is a human-readable alias. The canonical identity is the **Ed25519 public key**. If two clans claim the same `clan_id`, the public key fingerprint resolves the conflict — same model as PGP key IDs.
+
+For federation: `clan_id` will evolve to `clan_id@hub` (analogous to XMPP JIDs: `jei@hub-jei.local`), enabling unambiguous routing across hub boundaries without breaking the current flat `clan_id` convention.
+
+### Discovery Roadmap
+
+| Phase | Mechanism | Scope |
+|---|---|---|
+| v0.4.x (now) | Manual config (`hub-peers.json`, CLI args) | LAN/fixed |
+| v0.5 | mDNS `_hermes._tcp.local` (Bonjour/Avahi) | Auto-discovery on LAN |
+| v0.6 | DNS SRV `_hermes._tcp.example.com` | WAN / public clans |
+| v0.7 | Agora registry with hub endpoints | Internet-scale |
+
+### Multiplexing Model
+
+One WebSocket connection per hub, messages multiplexed using `payload.dst` as the demultiplexing key. Equivalent to MQTT (one socket, N topics). No concept of sub-channels or streams — consistent with KISS principle.
+
+For N clans on the same hub: no protocol changes required. DANI + JEI + CLAN-C each connect to the hub; the router delivers each message to the correct peer(s) based on `dst`.
+
+### Version Negotiation
+
+`HELLO` carries `protocol_version` and `capabilities[]`. The server announces its version in `CHALLENGE`. Current behavior: informative only (graceful degradation). Future: `minimum_version` in `CHALLENGE` to reject incompatible clients with a `version_too_old` error.
+
+`capabilities[]` is the primary feature negotiation mechanism — analogous to TLS cipher suites. A client that doesn't support `store_forward` simply doesn't receive queued messages.
+
+### Sovereign-First Principle (Consejo Ampliado, 2026-04-03)
+
+Cloud infrastructure is appropriate **only when it generates direct value** (monetizable quests, public demos, onboarding external clans). For daily lab work between co-located clans:
+
+1. **LAN hub** — zero cost, <1ms latency, sovereign, no intermediaries
+2. **cloudflared tunnel** — temporary, ephemeral, no persistent state, for remote sessions
+3. **GCloud/Fly.io** — only when persistent availability generates revenue
+
+This mirrors the HERMES dual-mode architecture: Sovereign (LAN) + Hosted (cloud) — where Hosted is opt-in, not the default.
