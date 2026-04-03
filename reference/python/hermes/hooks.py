@@ -135,6 +135,84 @@ def cmd_hook_pull_on_prompt() -> None:
         sys.stdout.flush()
 
 
+def cmd_hook_hub_inject() -> None:
+    """UserPromptSubmit hook: inject pending hub messages into conversation.
+
+    Reads ~/.hermes/hub-inbox.jsonl from cursor position, injects new
+    messages as systemMessage. Updates cursor after reading.
+    Runs on EVERY prompt — no prefix required. Fast (file read only).
+    """
+    try:
+        json.load(sys.stdin)
+    except (json.JSONDecodeError, ValueError):
+        pass
+
+    clan_dir = _default_clan_dir()
+    inbox_path = clan_dir / "hub-inbox.jsonl"
+    cursor_path = clan_dir / "hub-inbox.cursor"
+
+    if not inbox_path.exists():
+        return
+
+    # Read cursor (byte offset)
+    cursor = 0
+    if cursor_path.exists():
+        try:
+            cursor = int(cursor_path.read_text().strip())
+        except (ValueError, OSError):
+            cursor = 0
+
+    # Read new lines from cursor
+    try:
+        file_size = inbox_path.stat().st_size
+        if file_size <= cursor:
+            return  # No new data
+
+        new_messages = []
+        with open(inbox_path, encoding="utf-8") as f:
+            f.seek(cursor)
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    msg = json.loads(line)
+                    if msg.get("type") != "presence":
+                        new_messages.append(msg)
+                except json.JSONDecodeError:
+                    continue
+            new_cursor = f.tell()
+
+        if not new_messages:
+            # Update cursor even if only presence events
+            cursor_path.write_text(str(new_cursor))
+            return
+
+        # Format messages
+        lines = []
+        for msg in new_messages[-5:]:  # Last 5 max
+            src = msg.get("from", msg.get("src", "?"))
+            text = msg.get("msg", msg.get("text", ""))
+            lines.append(f"  [{src}] {text}")
+
+        if len(new_messages) > 5:
+            lines.insert(0, f"  ({len(new_messages) - 5} earlier messages omitted)")
+
+        summary = "\n".join(lines)
+        system_msg = f"[HUB] {len(new_messages)} new message(s) from peers:\n{summary}"
+
+        output = {"systemMessage": system_msg}
+        json.dump(output, sys.stdout)
+        sys.stdout.write("\n")
+        sys.stdout.flush()
+
+        # Update cursor
+        cursor_path.write_text(str(new_cursor))
+
+    except Exception:
+        pass  # Never block the prompt
+
+
 def cmd_hook_exit_reminder() -> None:
     """Stop hook: count unacked messages, remind user.
 
@@ -172,6 +250,7 @@ def main() -> None:
     commands = {
         "pull_on_start": cmd_hook_pull_on_start,
         "pull_on_prompt": cmd_hook_pull_on_prompt,
+        "hub_inject": cmd_hook_hub_inject,
         "exit_reminder": cmd_hook_exit_reminder,
     }
 
