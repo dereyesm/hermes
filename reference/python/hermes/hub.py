@@ -532,13 +532,9 @@ class HubServer:
             return None
 
         if hello.get("type") != "hello":
-            # Backward compat: if client sends "auth" directly (old protocol),
-            # treat it as a HELLO+AUTH combined (no capability negotiation)
-            if hello.get("type") == "auth":
-                return await self._authenticate_legacy(ws, hello)
-            await ws.send(json.dumps({"type": "auth_fail", "reason": "expected hello"}))
-            await ws.close()
-            return None
+            # Backward compat: any non-hello frame goes to legacy auth
+            # This handles: type=auth, type=handshake, or any custom format
+            return await self._authenticate_legacy(ws, hello)
 
         client_clan_id = hello.get("clan_id", "")
         client_pub = hello.get("sign_pub", "")
@@ -587,11 +583,17 @@ class HubServer:
         }))
         return client_clan_id
 
-    async def _authenticate_legacy(self, ws: Any, auth_frame: dict) -> str | None:
+    async def _authenticate_legacy(self, ws: Any, first_frame: dict) -> str | None:
         """Handle legacy clients that skip HELLO and send auth directly.
 
-        For backward compatibility with pre-§15.6 implementations.
+        Tolerant mode: extracts clan_id/sign_pub from whatever the client
+        sent first, then runs challenge-response. Accepts clan_id and sign_pub
+        from either the first frame or the auth response frame.
         """
+        # Extract identity from first frame (whatever type it is)
+        initial_clan_id = first_frame.get("clan_id", first_frame.get("from", ""))
+        initial_pub = first_frame.get("sign_pub", "")
+
         # Generate challenge and send it
         nonce = self.auth.generate_challenge()
         await ws.send(json.dumps({"type": "challenge", "nonce": nonce}))
@@ -605,14 +607,16 @@ class HubServer:
             await ws.close()
             return None
 
-        if frame.get("type") != "auth":
-            await ws.send(json.dumps({"type": "auth_fail", "reason": "expected auth"}))
+        # Tolerant: accept any frame with nonce_response, not just type=auth
+        sig = frame.get("nonce_response", "")
+        if not sig:
+            await ws.send(json.dumps({"type": "auth_fail", "reason": "missing nonce_response"}))
             await ws.close()
             return None
 
-        clan_id = frame.get("clan_id", "")
-        sig = frame.get("nonce_response", "")
-        pub = frame.get("sign_pub", "")
+        # Use clan_id/sign_pub from auth frame if present, fall back to first frame
+        clan_id = frame.get("clan_id", initial_clan_id)
+        pub = frame.get("sign_pub", initial_pub)
 
         if not self.auth.verify_response(clan_id, nonce, sig, pub):
             await ws.send(json.dumps({"type": "auth_fail", "reason": "authentication failed"}))
