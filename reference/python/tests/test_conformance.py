@@ -1390,7 +1390,7 @@ class TestLevel3Bridge:
             loop.close()
 
         # Should reject (not hello, not legacy auth)
-        assert result is None
+        assert result[0] is None
 
     def test_l3_41_hub_hello_with_capabilities(self, tmp_path):
         """L3-41: Hub MUST include server_version and server_capabilities in CHALLENGE."""
@@ -1441,7 +1441,7 @@ class TestLevel3Bridge:
         finally:
             loop.close()
 
-        assert result == "test_clan"
+        assert result[0] == "test_clan"
         # Verify CHALLENGE contains server_version and server_capabilities
         challenge_frame = sent_messages[0]
         assert challenge_frame["type"] == "challenge"
@@ -1503,4 +1503,4 @@ class TestLevel3Bridge:
         finally:
             loop.close()
 
-        assert result == "legacy_clan"
+        assert result[0] == "legacy_clan"

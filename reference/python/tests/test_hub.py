@@ -10,6 +10,8 @@ import pytest
 from hermes.hub import (
     AuthHandler,
     ConnectionTable,
+    FederationLink,
+    FederationTable,
     HubConfig,
     HubServer,
     HubState,
@@ -603,7 +605,7 @@ class TestHubServer:
         finally:
             loop.close()
 
-        assert result == "test_clan"
+        assert result == ("test_clan", "peer", [])
 
     def test_authenticate_failure(self, tmp_hub, sample_config):
         server = HubServer(sample_config, tmp_hub)
@@ -627,7 +629,7 @@ class TestHubServer:
         finally:
             loop.close()
 
-        assert result is None
+        assert result[0] is None
         ws.close.assert_called_once()
 
     def test_authenticate_timeout(self, tmp_hub):
@@ -647,7 +649,7 @@ class TestHubServer:
         finally:
             loop.close()
 
-        assert result is None
+        assert result[0] is None
 
 
 # ---------------------------------------------------------------------------
@@ -801,3 +803,294 @@ class TestHubInit:
         data = json.loads((tmp_path / "hub-peers.json").read_text())
         assert data["peers"]["rawpeer"]["sign_pub"] == "ee" * 32
         assert data["peers"]["jsonpeer"]["sign_pub"] == "ff" * 32
+
+
+# ---------------------------------------------------------------------------
+# S2S Federation Tests (ARC-4601 §17)
+# ---------------------------------------------------------------------------
+
+
+class TestFederationTable:
+    """Tests for FederationTable — S2S routing table."""
+
+    def test_empty_table(self):
+        table = FederationTable()
+        assert table.get_link_for("jei") is None
+        assert not table.is_federated("jei")
+        assert table.active_links() == []
+        assert table.routing_table() == {}
+
+    def test_load_from_json(self, tmp_path):
+        config = {
+            "hubs": {
+                "jei-hub": {
+                    "ws_uri": "ws://192.168.68.101:8443",
+                    "sign_pub": "bb" * 32,
+                    "peers": ["jei"],
+                    "auto_connect": True,
+                }
+            },
+            "self": {"hub_id": "dani-hub", "sign_pub": "aa" * 32},
+        }
+        fed_path = tmp_path / "federation-peers.json"
+        fed_path.write_text(json.dumps(config))
+
+        table = FederationTable.load(fed_path)
+        assert table.is_federated("jei")
+        assert not table.is_federated("momoshod")
+        link = table.get_link_for("jei")
+        assert link is not None
+        assert link.hub_id == "jei-hub"
+        assert link.ws_uri == "ws://192.168.68.101:8443"
+        assert link.sign_pub_hex == "bb" * 32
+        assert link.remote_peers == ["jei"]
+
+    def test_load_missing_file(self, tmp_path):
+        table = FederationTable.load(tmp_path / "nonexistent.json")
+        assert table.routing_table() == {}
+        assert table.all_links() == {}
+
+    def test_register_link(self):
+        table = FederationTable()
+        ws = _make_ws_mock()
+        link = table.register_link("jei-hub", ws, ["jei", "alice"])
+        assert link.connected
+        assert link.ws is ws
+        assert table.is_federated("jei")
+        assert table.is_federated("alice")
+        assert len(table.active_links()) == 1
+
+    def test_unregister_link(self):
+        table = FederationTable()
+        ws = _make_ws_mock()
+        table.register_link("jei-hub", ws, ["jei"])
+        table.unregister_link("jei-hub")
+        assert table.active_links() == []
+        link = table.get_link_for("jei")
+        assert link is not None  # still in table
+        assert not link.connected  # but disconnected
+
+    def test_update_remote_peers(self):
+        table = FederationTable()
+        ws = _make_ws_mock()
+        table.register_link("jei-hub", ws, ["jei"])
+        assert table.is_federated("jei")
+        assert not table.is_federated("alice")
+
+        table.update_remote_peers("jei-hub", ["jei", "alice"])
+        assert table.is_federated("alice")
+
+        table.update_remote_peers("jei-hub", ["alice"])
+        assert not table.is_federated("jei")
+        assert table.is_federated("alice")
+
+    def test_case_insensitive_lookup(self):
+        table = FederationTable()
+        ws = _make_ws_mock()
+        table.register_link("jei-hub", ws, ["JEI"])
+        assert table.get_link_for("jei") is not None
+        assert table.get_link_for("JEI") is not None
+
+    def test_multiple_hubs(self, tmp_path):
+        config = {
+            "hubs": {
+                "jei-hub": {
+                    "ws_uri": "ws://192.168.68.101:8443",
+                    "sign_pub": "bb" * 32,
+                    "peers": ["jei"],
+                },
+                "nymyka-hub": {
+                    "ws_uri": "ws://192.168.68.102:8443",
+                    "sign_pub": "cc" * 32,
+                    "peers": ["nymyka", "carolina"],
+                },
+            },
+        }
+        fed_path = tmp_path / "federation-peers.json"
+        fed_path.write_text(json.dumps(config))
+
+        table = FederationTable.load(fed_path)
+        jei_link = table.get_link_for("jei")
+        nyk_link = table.get_link_for("nymyka")
+        car_link = table.get_link_for("carolina")
+        assert jei_link.hub_id == "jei-hub"
+        assert nyk_link.hub_id == "nymyka-hub"
+        assert car_link.hub_id == "nymyka-hub"
+
+
+class TestS2SRouting:
+    """Tests for MessageRouter with S2S federation."""
+
+    def _make_federated_router(self):
+        ct = ConnectionTable()
+        q = StoreForwardQueue()
+        ft = FederationTable()
+        router = MessageRouter(ct, q, ft)
+        return router, ct, q, ft
+
+    def test_unicast_federated(self):
+        """Message to remote peer routes via S2S link."""
+        router, ct, q, ft = self._make_federated_router()
+        ws_s2s = _make_ws_mock()
+        ft.register_link("jei-hub", ws_s2s, ["jei"])
+
+        loop = asyncio.new_event_loop()
+        try:
+            result = loop.run_until_complete(
+                router.route({"src": "momoshod", "dst": "jei", "msg": "enc"}, "momoshod")
+            )
+        finally:
+            loop.close()
+
+        assert result["status"] == "federated"
+        assert result["via"] == "jei-hub"
+        ws_s2s.send.assert_called_once()
+        sent = json.loads(ws_s2s.send.call_args[0][0])
+        assert sent["type"] == "msg"
+        assert sent["payload"]["dst"] == "jei"
+
+    def test_local_preferred_over_federation(self):
+        """Local peer takes priority over federation routing."""
+        router, ct, q, ft = self._make_federated_router()
+        ws_local = _make_ws_mock()
+        ws_s2s = _make_ws_mock()
+        ct.add("jei", ws_local)
+        ft.register_link("jei-hub", ws_s2s, ["jei"])
+
+        loop = asyncio.new_event_loop()
+        try:
+            result = loop.run_until_complete(
+                router.route({"src": "momoshod", "dst": "jei", "msg": "enc"}, "momoshod")
+            )
+        finally:
+            loop.close()
+
+        assert result["status"] == "delivered"  # local, not federated
+        ws_local.send.assert_called_once()
+        ws_s2s.send.assert_not_called()
+
+    def test_unicast_unknown_peer_queues(self):
+        """Message to unknown peer (not local, not federated) queues locally."""
+        router, ct, q, ft = self._make_federated_router()
+
+        loop = asyncio.new_event_loop()
+        try:
+            result = loop.run_until_complete(
+                router.route({"src": "momoshod", "dst": "unknown", "msg": "enc"}, "momoshod")
+            )
+        finally:
+            loop.close()
+
+        assert result["status"] == "queued"
+        assert q.depth("unknown") == 1
+
+    def test_s2s_link_down_queues(self):
+        """If S2S link is disconnected, message queues locally."""
+        router, ct, q, ft = self._make_federated_router()
+        ws_s2s = _make_ws_mock()
+        ft.register_link("jei-hub", ws_s2s, ["jei"])
+        ft.unregister_link("jei-hub")  # disconnect
+
+        loop = asyncio.new_event_loop()
+        try:
+            result = loop.run_until_complete(
+                router.route({"src": "momoshod", "dst": "jei", "msg": "enc"}, "momoshod")
+            )
+        finally:
+            loop.close()
+
+        assert result["status"] == "queued"
+
+    def test_s2s_send_failure_queues(self):
+        """If S2S send raises, message queues locally."""
+        router, ct, q, ft = self._make_federated_router()
+        ws_s2s = _make_ws_mock()
+        ws_s2s.send = AsyncMock(side_effect=ConnectionError("broken"))
+        ft.register_link("jei-hub", ws_s2s, ["jei"])
+
+        loop = asyncio.new_event_loop()
+        try:
+            result = loop.run_until_complete(
+                router.route({"src": "momoshod", "dst": "jei", "msg": "enc"}, "momoshod")
+            )
+        finally:
+            loop.close()
+
+        assert result["status"] == "queued"
+
+    def test_broadcast_includes_s2s(self):
+        """Broadcast delivers to both local peers and S2S links."""
+        router, ct, q, ft = self._make_federated_router()
+        ws_local = _make_ws_mock()
+        ws_s2s = _make_ws_mock()
+        ct.add("local-peer", ws_local)
+        ft.register_link("jei-hub", ws_s2s, ["jei"])
+
+        loop = asyncio.new_event_loop()
+        try:
+            result = loop.run_until_complete(
+                router.route({"src": "momoshod", "dst": "*", "msg": "enc"}, "momoshod")
+            )
+        finally:
+            loop.close()
+
+        assert result["status"] == "broadcast"
+        assert result["delivered"] == 1
+        assert result["s2s_delivered"] == 1
+        ws_local.send.assert_called_once()
+        ws_s2s.send.assert_called_once()
+
+    def test_no_federation_fallback(self):
+        """Router without federation table works normally."""
+        ct = ConnectionTable()
+        q = StoreForwardQueue()
+        router = MessageRouter(ct, q)  # no federation param
+
+        loop = asyncio.new_event_loop()
+        try:
+            result = loop.run_until_complete(
+                router.route({"src": "momoshod", "dst": "jei", "msg": "enc"}, "momoshod")
+            )
+        finally:
+            loop.close()
+
+        assert result["status"] == "queued"
+
+    def test_e2e_passthrough(self):
+        """Federated routing preserves payload unchanged (E2E passthrough)."""
+        router, ct, q, ft = self._make_federated_router()
+        ws_s2s = _make_ws_mock()
+        ft.register_link("jei-hub", ws_s2s, ["jei"])
+
+        original_payload = {
+            "src": "momoshod",
+            "dst": "jei",
+            "type": "event",
+            "msg": "encrypted-sealed-blob-abc123",
+            "ttl": 3600,
+        }
+
+        loop = asyncio.new_event_loop()
+        try:
+            loop.run_until_complete(router.route(original_payload, "momoshod"))
+        finally:
+            loop.close()
+
+        sent = json.loads(ws_s2s.send.call_args[0][0])
+        assert sent["payload"] == original_payload
+
+    def test_routing_counter(self):
+        """Federated messages increment total_routed counter."""
+        router, ct, q, ft = self._make_federated_router()
+        ws_s2s = _make_ws_mock()
+        ft.register_link("jei-hub", ws_s2s, ["jei"])
+
+        loop = asyncio.new_event_loop()
+        try:
+            loop.run_until_complete(
+                router.route({"src": "momoshod", "dst": "jei", "msg": "enc"}, "momoshod")
+            )
+        finally:
+            loop.close()
+
+        assert router.total_routed == 1

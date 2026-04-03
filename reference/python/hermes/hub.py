@@ -40,11 +40,14 @@ class HubConfig:
     tls_cert: str | None = None
     tls_key: str | None = None
     peers_file: str = "hub-peers.json"
+    federation_file: str = "federation-peers.json"
     max_queue_depth: int = 1000
     queue_sweep_interval: int = 60
     legacy_endpoints: bool = True
     max_connections: int = 100
     auth_timeout: int = 10
+    s2s_reconnect_interval: int = 30
+    s2s_max_backoff: int = 300
 
     @classmethod
     def from_dict(cls, d: dict) -> HubConfig:
@@ -213,6 +216,117 @@ class StoreForwardQueue:
 
 
 # ---------------------------------------------------------------------------
+# S2S Federation (ARC-4601 §17)
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class FederationLink:
+    """A hub-to-hub S2S link."""
+
+    hub_id: str
+    ws_uri: str
+    sign_pub_hex: str
+    remote_peers: list[str] = field(default_factory=list)
+    auto_connect: bool = True
+    ws: Any = None
+    connected: bool = False
+    reconnect_backoff: float = 1.0
+
+
+class FederationTable:
+    """Maps clan_id -> FederationLink for inter-hub routing (ARC-4601 §17)."""
+
+    def __init__(self) -> None:
+        self._links: dict[str, FederationLink] = {}  # hub_id -> link
+        self._routing: dict[str, str] = {}  # clan_id -> hub_id
+
+    @classmethod
+    def load(cls, path: Path) -> FederationTable:
+        """Load federation config from federation-peers.json."""
+        table = cls()
+        if not path.exists():
+            return table
+        data = json.loads(path.read_text())
+        for hub_id, info in data.get("hubs", {}).items():
+            link = FederationLink(
+                hub_id=hub_id,
+                ws_uri=info.get("ws_uri", ""),
+                sign_pub_hex=info.get("sign_pub", ""),
+                remote_peers=info.get("peers", []),
+                auto_connect=info.get("auto_connect", True),
+            )
+            table._links[hub_id] = link
+            for peer in link.remote_peers:
+                table._routing[peer] = hub_id
+        return table
+
+    def get_link_for(self, dst: str) -> FederationLink | None:
+        """Find the S2S link responsible for a destination clan_id."""
+        hub_id = self._routing.get(dst)
+        if hub_id:
+            return self._links.get(hub_id)
+        # Case-insensitive fallback
+        for cid, hid in self._routing.items():
+            if cid.lower() == dst.lower():
+                return self._links.get(hid)
+        return None
+
+    def is_federated(self, dst: str) -> bool:
+        """Check if dst is reachable via a federation link."""
+        return self.get_link_for(dst) is not None
+
+    def register_link(self, hub_id: str, ws: Any, remote_peers: list[str]) -> FederationLink:
+        """Register an inbound S2S link from a remote hub."""
+        link = self._links.get(hub_id)
+        if link:
+            link.ws = ws
+            link.connected = True
+            link.remote_peers = remote_peers
+        else:
+            link = FederationLink(
+                hub_id=hub_id,
+                ws_uri="",
+                sign_pub_hex="",
+                remote_peers=remote_peers,
+                ws=ws,
+                connected=True,
+            )
+            self._links[hub_id] = link
+        for peer in remote_peers:
+            self._routing[peer] = hub_id
+        return link
+
+    def unregister_link(self, hub_id: str) -> None:
+        """Mark a federation link as disconnected."""
+        link = self._links.get(hub_id)
+        if link:
+            link.ws = None
+            link.connected = False
+
+    def active_links(self) -> list[FederationLink]:
+        """Return all connected S2S links."""
+        return [l for l in self._links.values() if l.connected and l.ws]
+
+    def update_remote_peers(self, hub_id: str, peers: list[str]) -> None:
+        """Update the peer list for a remote hub (e.g. from s2s_presence)."""
+        link = self._links.get(hub_id)
+        if not link:
+            return
+        # Remove old routing entries for this hub
+        self._routing = {k: v for k, v in self._routing.items() if v != hub_id}
+        link.remote_peers = peers
+        for peer in peers:
+            self._routing[peer] = hub_id
+
+    def all_links(self) -> dict[str, FederationLink]:
+        return dict(self._links)
+
+    def routing_table(self) -> dict[str, str]:
+        return dict(self._routing)
+
+
+# ---------------------------------------------------------------------------
 # Authentication
 # ---------------------------------------------------------------------------
 
@@ -286,15 +400,20 @@ class MessageRouter:
     The router operates in E2E passthrough mode: it inspects only the
     `dst` and `src` fields for routing. The `msg` field (encrypted
     ARC-8446 envelope) is forwarded without inspection or modification.
+
+    Federation (§17): If dst is not a local peer, the router checks
+    the FederationTable and forwards to the responsible hub via S2S link.
     """
 
     def __init__(
         self,
         connections: ConnectionTable,
         queue: StoreForwardQueue,
+        federation: FederationTable | None = None,
     ):
         self._connections = connections
         self._queue = queue
+        self._federation = federation
         self.total_routed = 0
 
     async def route(self, payload: dict, sender: str) -> dict:
@@ -311,6 +430,7 @@ class MessageRouter:
             return await self._unicast(payload, dst)
 
     async def _unicast(self, payload: dict, dst: str) -> dict:
+        # 1. Try local delivery
         entry = self._connections.get(dst)
         if entry:
             try:
@@ -322,16 +442,30 @@ class MessageRouter:
                 logger.warning("Failed to send to %s: %s", dst, e)
                 self._queue.enqueue(dst, payload, payload.get("ttl", 604800))
                 return {"status": "queued", "dst": dst, "reason": str(e)}
+
+        # 2. Try federation routing (S2S)
+        if self._federation:
+            link = self._federation.get_link_for(dst)
+            if link and link.connected and link.ws:
+                try:
+                    await link.ws.send(json.dumps({"type": "msg", "payload": payload}))
+                    self.total_routed += 1
+                    return {"status": "federated", "dst": dst, "via": link.hub_id}
+                except Exception as e:
+                    logger.warning("S2S send to %s via %s failed: %s", dst, link.hub_id, e)
+                    # Fall through to local queue
+
+        # 3. Queue locally (offline or unreachable)
+        ttl = payload.get("ttl", 604800)
+        if isinstance(ttl, int):
+            ttl_sec = ttl if ttl > 86400 else ttl * 86400  # handle days vs seconds
         else:
-            ttl = payload.get("ttl", 604800)
-            if isinstance(ttl, int):
-                ttl_sec = ttl if ttl > 86400 else ttl * 86400  # handle days vs seconds
-            else:
-                ttl_sec = 604800
-            ok = self._queue.enqueue(dst, payload, ttl_sec)
-            return {"status": "queued" if ok else "queue_full", "dst": dst}
+            ttl_sec = 604800
+        ok = self._queue.enqueue(dst, payload, ttl_sec)
+        return {"status": "queued" if ok else "queue_full", "dst": dst}
 
     async def _broadcast(self, payload: dict, sender: str) -> dict:
+        # Local broadcast
         peers = self._connections.all_except(sender)
         delivered = 0
         failed = 0
@@ -342,8 +476,24 @@ class MessageRouter:
                 delivered += 1
             except Exception:
                 failed += 1
-        self.total_routed += delivered
-        return {"status": "broadcast", "delivered": delivered, "failed": failed}
+
+        # S2S broadcast: forward to federated hubs (except sender's hub)
+        s2s_delivered = 0
+        if self._federation:
+            for link in self._federation.active_links():
+                try:
+                    await link.ws.send(json.dumps({"type": "msg", "payload": payload}))
+                    s2s_delivered += 1
+                except Exception:
+                    pass
+
+        self.total_routed += delivered + s2s_delivered
+        return {
+            "status": "broadcast",
+            "delivered": delivered,
+            "failed": failed,
+            "s2s_delivered": s2s_delivered,
+        }
 
 
 # ---------------------------------------------------------------------------
@@ -415,7 +565,15 @@ class HubServer:
         self.auth = AuthHandler(self.peers)
         self.connections = ConnectionTable(config.max_connections)
         self.queue = StoreForwardQueue(config.max_queue_depth)
-        self.router = MessageRouter(self.connections, self.queue)
+
+        # S2S Federation (ARC-4601 §17)
+        fed_path = hub_dir / config.federation_file
+        self.federation = FederationTable.load(fed_path)
+        self.router = MessageRouter(self.connections, self.queue, self.federation)
+
+        # Hub identity for S2S auth
+        self._hub_id = self._load_hub_id(fed_path)
+
         self.state = HubState(
             pid=os.getpid(),
             started_at=datetime.now(UTC).isoformat(),
@@ -423,6 +581,18 @@ class HubServer:
         self._server = None
         self._started_at = time.time()
         self._running = False
+        self._s2s_tasks: list[asyncio.Task] = []
+
+    @staticmethod
+    def _load_hub_id(fed_path: Path) -> str:
+        """Load hub_id from federation config, default 'hub'."""
+        if not fed_path.exists():
+            return "hub"
+        try:
+            data = json.loads(fed_path.read_text())
+            return data.get("self", {}).get("hub_id", "hub")
+        except Exception:
+            return "hub"
 
     async def start(self) -> None:
         """Start the Hub server."""
@@ -453,6 +623,13 @@ class HubServer:
 
         self.state.save(self.hub_dir / "hub-state.json")
 
+        # Launch S2S outbound connections
+        for hub_id, link in self.federation.all_links().items():
+            if link.auto_connect and link.ws_uri:
+                task = asyncio.create_task(self._s2s_outbound(link))
+                self._s2s_tasks.append(task)
+                logger.info("S2S outbound task started for %s (%s)", hub_id, link.ws_uri)
+
         # Run sweep loop alongside server
         try:
             await self._sweep_loop()
@@ -460,6 +637,8 @@ class HubServer:
             pass
         finally:
             self._running = False
+            for task in self._s2s_tasks:
+                task.cancel()
 
     async def stop(self) -> None:
         """Graceful shutdown."""
@@ -477,72 +656,126 @@ class HubServer:
     # -- WebSocket handler --------------------------------------------------
 
     async def _handle_connection(self, ws: Any) -> None:
-        """Handle a single WebSocket peer connection."""
+        """Handle a single WebSocket peer or S2S hub connection."""
         clan_id = None
+        is_hub = False
         try:
-            # Step 1: Authentication (§15.6)
-            clan_id = await self._authenticate(ws)
+            # Step 1: Authentication (§15.6 / §17)
+            clan_id, role, remote_peers = await self._authenticate(ws)
             if not clan_id:
                 return
 
-            # Step 2: Register connection
-            self.connections.add(clan_id, ws)
-            logger.info("Peer connected: %s", clan_id)
+            is_hub = role == "hub"
 
-            # Step 3: Notify other peers
-            await self._broadcast_presence(clan_id, "online")
+            if is_hub:
+                # S2S inbound: register as federation link
+                link = self.federation.register_link(clan_id, ws, remote_peers)
+                logger.info("S2S hub connected: %s (peers: %s)", clan_id, remote_peers)
 
-            # Step 4: Drain queued messages
-            await self._drain_queue(ws, clan_id)
-
-            # Step 5: Message loop
-            async for raw in ws:
-                try:
-                    frame = json.loads(raw)
-                except json.JSONDecodeError:
-                    continue
-
-                frame_type = frame.get("type", "")
-
-                if frame_type == "msg":
-                    payload = frame.get("payload", {})
-                    if not isinstance(payload, dict) or "dst" not in payload:
+                # Message loop for S2S link — route locally
+                async for raw in ws:
+                    try:
+                        frame = json.loads(raw)
+                    except json.JSONDecodeError:
                         continue
-                    await self.router.route(payload, clan_id)
 
-                elif frame_type == "ping":
-                    depth = self.queue.depth(clan_id)
-                    await ws.send(
-                        json.dumps(
-                            {
-                                "type": "pong",
-                                "ts": datetime.now(UTC).isoformat(),
-                                "queue_depth": depth,
-                            }
+                    frame_type = frame.get("type", "")
+
+                    if frame_type == "msg":
+                        payload = frame.get("payload", {})
+                        if not isinstance(payload, dict) or "dst" not in payload:
+                            continue
+                        # Route the message locally (or to another S2S link)
+                        await self.router.route(payload, clan_id)
+
+                    elif frame_type == "s2s_presence":
+                        # Remote hub notifying us of peer status changes
+                        peer_id = frame.get("clan_id", "")
+                        status = frame.get("status", "")
+                        hub_id = frame.get("hub_id", clan_id)
+                        if status == "online" and peer_id:
+                            current = list(link.remote_peers)
+                            if peer_id not in current:
+                                current.append(peer_id)
+                                self.federation.update_remote_peers(hub_id, current)
+                        elif status == "offline" and peer_id:
+                            current = [p for p in link.remote_peers if p != peer_id]
+                            self.federation.update_remote_peers(hub_id, current)
+                        logger.info("S2S presence: %s %s (via %s)", peer_id, status, hub_id)
+
+                    elif frame_type == "ping":
+                        await ws.send(json.dumps({
+                            "type": "pong",
+                            "ts": datetime.now(UTC).isoformat(),
+                        }))
+
+            else:
+                # Regular peer connection
+                # Step 2: Register connection
+                self.connections.add(clan_id, ws)
+                logger.info("Peer connected: %s", clan_id)
+
+                # Step 3: Notify other peers + S2S links
+                await self._broadcast_presence(clan_id, "online")
+
+                # Step 4: Drain queued messages
+                await self._drain_queue(ws, clan_id)
+
+                # Step 5: Message loop
+                async for raw in ws:
+                    try:
+                        frame = json.loads(raw)
+                    except json.JSONDecodeError:
+                        continue
+
+                    frame_type = frame.get("type", "")
+
+                    if frame_type == "msg":
+                        payload = frame.get("payload", {})
+                        if not isinstance(payload, dict) or "dst" not in payload:
+                            continue
+                        await self.router.route(payload, clan_id)
+
+                    elif frame_type == "ping":
+                        depth = self.queue.depth(clan_id)
+                        await ws.send(
+                            json.dumps(
+                                {
+                                    "type": "pong",
+                                    "ts": datetime.now(UTC).isoformat(),
+                                    "queue_depth": depth,
+                                }
+                            )
                         )
-                    )
 
         except Exception as e:
             if clan_id:
-                logger.info("Peer disconnected: %s (%s)", clan_id, type(e).__name__)
+                logger.info("%s disconnected: %s (%s)",
+                            "S2S hub" if is_hub else "Peer", clan_id, type(e).__name__)
         finally:
             if clan_id:
-                self.connections.remove(clan_id)
-                await self._broadcast_presence(clan_id, "offline")
+                if is_hub:
+                    self.federation.unregister_link(clan_id)
+                else:
+                    self.connections.remove(clan_id)
+                    await self._broadcast_presence(clan_id, "offline")
                 self._save_state()
 
-    async def _authenticate(self, ws: Any) -> str | None:
-        """Run HELLO + challenge-response auth (ARC-4601 §15.6).
+    async def _authenticate(self, ws: Any) -> tuple[str | None, str, list[str]]:
+        """Run HELLO + challenge-response auth (ARC-4601 §15.6, §17).
 
         Wire sequence (normative):
-          1. Client → Server: HELLO  {type:"hello", clan_id, sign_pub, protocol_version, capabilities:[]}
+          1. Client → Server: HELLO  {type:"hello", clan_id, sign_pub, protocol_version, capabilities:[], [role, local_peers]}
           2. Server → Client: CHALLENGE {type:"challenge", nonce, server_version, server_clan_id, server_capabilities:[]}
           3. Client → Server: AUTH  {type:"auth", nonce_response (Ed25519 signature of nonce)}
           4. Server → Client: AUTH_OK {type:"auth_ok", clan_id, queue_depth}
 
-        Returns clan_id on success, None on failure.
+        Returns (clan_id, role, remote_peers) on success, (None, "", []) on failure.
+        Role is "hub" for S2S connections, "peer" for regular peers.
         """
         from hermes import __version__
+
+        fail = (None, "", [])
 
         # Step 1: Wait for client HELLO (client initiates)
         try:
@@ -551,28 +784,50 @@ class HubServer:
         except (TimeoutError, json.JSONDecodeError):
             await ws.send(json.dumps({"type": "auth_fail", "reason": "timeout waiting for hello"}))
             await ws.close()
-            return None
+            return fail
 
         if hello.get("type") != "hello":
             # Backward compat: any non-hello frame goes to legacy auth
-            # This handles: type=auth, type=handshake, or any custom format
-            return await self._authenticate_legacy(ws, hello)
+            clan_id = await self._authenticate_legacy(ws, hello)
+            return (clan_id, "peer", []) if clan_id else fail
 
         client_clan_id = hello.get("clan_id", "")
         client_pub = hello.get("sign_pub", "")
         client_version = hello.get("protocol_version", "unknown")
         client_caps = hello.get("capabilities", [])
+        client_role = hello.get("role", "peer")
+        client_local_peers = hello.get("local_peers", [])
 
-        logger.info("HELLO from %s (v%s, caps=%s)", client_clan_id, client_version, client_caps)
+        logger.info("HELLO from %s (v%s, role=%s, caps=%s)", client_clan_id, client_version, client_role, client_caps)
+
+        # For S2S hubs: verify against federation config instead of peers
+        if client_role == "hub":
+            fed_link = self.federation.all_links().get(client_clan_id)
+            if not fed_link:
+                # Unknown hub — check if sign_pub matches any configured hub
+                found = False
+                for hid, fl in self.federation.all_links().items():
+                    if fl.sign_pub_hex and fl.sign_pub_hex == client_pub:
+                        client_clan_id = hid
+                        found = True
+                        break
+                if not found:
+                    logger.warning("S2S: unknown hub %s (not in federation config)", client_clan_id)
+                    await ws.send(json.dumps({"type": "auth_fail", "reason": "unknown hub"}))
+                    await ws.close()
+                    return fail
 
         # Step 2: Send CHALLENGE with server identity
         nonce = self.auth.generate_challenge()
+        server_caps = ["store_forward", "e2e_passthrough", "presence"]
+        if self.federation.all_links():
+            server_caps.append("s2s")
         await ws.send(json.dumps({
             "type": "challenge",
             "nonce": nonce,
             "server_version": __version__,
-            "server_clan_id": getattr(self, '_clan_id', 'hub'),
-            "server_capabilities": ["store_forward", "e2e_passthrough", "presence"],
+            "server_clan_id": self._hub_id,
+            "server_capabilities": server_caps,
         }))
 
         # Step 3: Wait for AUTH (signed nonce)
@@ -582,28 +837,42 @@ class HubServer:
         except (TimeoutError, json.JSONDecodeError):
             await ws.send(json.dumps({"type": "auth_fail", "reason": "timeout waiting for auth"}))
             await ws.close()
-            return None
+            return fail
 
         if auth_frame.get("type") != "auth":
             await ws.send(json.dumps({"type": "auth_fail", "reason": "expected auth after challenge"}))
             await ws.close()
-            return None
+            return fail
 
         sig = auth_frame.get("nonce_response", "")
 
-        if not self.auth.verify_response(client_clan_id, nonce, sig, client_pub):
-            await ws.send(json.dumps({"type": "auth_fail", "reason": "authentication failed"}))
-            await ws.close()
-            return None
+        # For S2S: verify using federation sign_pub
+        if client_role == "hub":
+            fed_link = self.federation.all_links().get(client_clan_id)
+            verify_pub = fed_link.sign_pub_hex if fed_link and fed_link.sign_pub_hex else client_pub
+            try:
+                from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+                pub_key = Ed25519PublicKey.from_public_bytes(bytes.fromhex(verify_pub))
+                pub_key.verify(bytes.fromhex(sig), bytes.fromhex(nonce))
+            except Exception as e:
+                logger.warning("S2S auth failed for %s: %s", client_clan_id, e)
+                await ws.send(json.dumps({"type": "auth_fail", "reason": "s2s authentication failed"}))
+                await ws.close()
+                return fail
+        else:
+            if not self.auth.verify_response(client_clan_id, nonce, sig, client_pub):
+                await ws.send(json.dumps({"type": "auth_fail", "reason": "authentication failed"}))
+                await ws.close()
+                return fail
 
         # Step 4: AUTH_OK
-        depth = self.queue.depth(client_clan_id)
+        depth = self.queue.depth(client_clan_id) if client_role != "hub" else 0
         await ws.send(json.dumps({
             "type": "auth_ok",
             "clan_id": client_clan_id,
             "queue_depth": depth,
         }))
-        return client_clan_id
+        return (client_clan_id, client_role, client_local_peers)
 
     async def _authenticate_legacy(self, ws: Any, first_frame: dict) -> str | None:
         """Handle legacy clients that skip HELLO and send auth directly.
@@ -679,6 +948,157 @@ class HubServer:
                 await entry.ws.send(frame)
             except Exception:
                 pass
+
+        # S2S: Notify federated hubs of local peer status change (§17)
+        s2s_frame = json.dumps({
+            "type": "s2s_presence",
+            "clan_id": clan_id,
+            "status": status,
+            "hub_id": self._hub_id,
+        })
+        for link in self.federation.active_links():
+            try:
+                await link.ws.send(s2s_frame)
+            except Exception:
+                pass
+
+    # -- S2S Outbound (§17) ------------------------------------------------
+
+    async def _s2s_outbound(self, link: FederationLink) -> None:
+        """Maintain a persistent S2S connection to a remote hub."""
+        import websockets
+
+        while self._running:
+            try:
+                link.reconnect_backoff = max(link.reconnect_backoff, 1.0)
+                logger.info("S2S connecting to %s (%s)", link.hub_id, link.ws_uri)
+
+                async with websockets.connect(link.ws_uri) as ws:
+                    # HELLO with role: "hub"
+                    local_peers = self.connections.connected_clan_ids()
+                    await ws.send(json.dumps({
+                        "type": "hello",
+                        "clan_id": self._hub_id,
+                        "role": "hub",
+                        "sign_pub": self._get_hub_sign_pub(),
+                        "protocol_version": self._get_version(),
+                        "capabilities": ["e2e_crypto", "store_forward", "s2s"],
+                        "local_peers": local_peers,
+                    }))
+
+                    # CHALLENGE
+                    raw = await asyncio.wait_for(ws.recv(), timeout=10)
+                    frame = json.loads(raw)
+                    if frame.get("type") != "challenge":
+                        logger.warning("S2S %s: expected challenge, got %s", link.hub_id, frame.get("type"))
+                        continue
+
+                    nonce_hex = frame["nonce"]
+                    sig = self._sign_nonce(nonce_hex)
+                    if not sig:
+                        logger.error("S2S %s: cannot sign nonce (no keys)", link.hub_id)
+                        continue
+
+                    await ws.send(json.dumps({"type": "auth", "nonce_response": sig}))
+
+                    # AUTH_OK
+                    raw = await asyncio.wait_for(ws.recv(), timeout=10)
+                    frame = json.loads(raw)
+                    if frame.get("type") != "auth_ok":
+                        logger.warning("S2S %s: auth failed: %s", link.hub_id, frame)
+                        await asyncio.sleep(link.reconnect_backoff)
+                        link.reconnect_backoff = min(link.reconnect_backoff * 2, self.config.s2s_max_backoff)
+                        continue
+
+                    # Connected!
+                    link.ws = ws
+                    link.connected = True
+                    link.reconnect_backoff = 1.0
+                    logger.info("S2S connected to %s", link.hub_id)
+
+                    # Recv loop: forward incoming messages to local router
+                    async for raw in ws:
+                        try:
+                            frame = json.loads(raw)
+                        except json.JSONDecodeError:
+                            continue
+
+                        ftype = frame.get("type", "")
+
+                        if ftype == "msg":
+                            payload = frame.get("payload", {})
+                            if isinstance(payload, dict) and "dst" in payload:
+                                await self.router.route(payload, link.hub_id)
+
+                        elif ftype == "s2s_presence":
+                            peer_id = frame.get("clan_id", "")
+                            status = frame.get("status", "")
+                            hub_id = frame.get("hub_id", link.hub_id)
+                            if peer_id:
+                                current = list(link.remote_peers)
+                                if status == "online" and peer_id not in current:
+                                    current.append(peer_id)
+                                elif status == "offline":
+                                    current = [p for p in current if p != peer_id]
+                                self.federation.update_remote_peers(hub_id, current)
+                            logger.info("S2S presence from %s: %s %s", hub_id, peer_id, status)
+
+                        elif ftype == "pong":
+                            pass  # keepalive
+
+            except (ConnectionRefusedError, OSError) as e:
+                logger.info("S2S %s: connection failed: %s (retry in %.0fs)",
+                            link.hub_id, e, link.reconnect_backoff)
+            except Exception as e:
+                logger.info("S2S %s: disconnected: %s (retry in %.0fs)",
+                            link.hub_id, e, link.reconnect_backoff)
+            finally:
+                link.ws = None
+                link.connected = False
+
+            if not self._running:
+                break
+            await asyncio.sleep(link.reconnect_backoff)
+            link.reconnect_backoff = min(link.reconnect_backoff * 2, self.config.s2s_max_backoff)
+
+    def _get_hub_sign_pub(self) -> str:
+        """Get this hub's Ed25519 public key hex for S2S auth."""
+        fed_path = self.hub_dir / self.config.federation_file
+        if not fed_path.exists():
+            return ""
+        try:
+            data = json.loads(fed_path.read_text())
+            return data.get("self", {}).get("sign_pub", "")
+        except Exception:
+            return ""
+
+    def _sign_nonce(self, nonce_hex: str) -> str | None:
+        """Sign a nonce with this hub's Ed25519 private key."""
+        fed_path = self.hub_dir / self.config.federation_file
+        if not fed_path.exists():
+            return None
+        try:
+            data = json.loads(fed_path.read_text())
+            key_file = data.get("self", {}).get("key_file", "")
+            if not key_file:
+                return None
+            key_path = Path(os.path.expanduser(key_file))
+            key_data = json.loads(key_path.read_text())
+            from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+            priv = Ed25519PrivateKey.from_private_bytes(bytes.fromhex(key_data["sign_private"]))
+            sig = priv.sign(bytes.fromhex(nonce_hex))
+            return sig.hex()
+        except Exception as e:
+            logger.error("Failed to sign nonce: %s", e)
+            return None
+
+    @staticmethod
+    def _get_version() -> str:
+        try:
+            from hermes import __version__
+            return __version__
+        except Exception:
+            return "0.4.2a1"
 
     # -- Legacy HTTP handler ------------------------------------------------
 
