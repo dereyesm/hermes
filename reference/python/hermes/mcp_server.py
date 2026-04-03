@@ -29,7 +29,6 @@ from hermes.bus import (
     filter_for_namespace,
     find_expired,
     find_stale,
-    find_unresolved,
     read_bus,
     write_message,
 )
@@ -180,7 +179,7 @@ def tool_syn(namespace: str) -> dict:
         "report": report,
         "pending": len(result.pending),
         "stale": len(result.stale),
-        "unresolved": len(result.unresolved),
+        "unresolved": len(result.unresolved) if result.unresolved else 0,
         "total_bus_messages": result.total_bus_messages,
         "messages": [_msg_to_dict(m) for m in result.pending[:20]],
     }
@@ -258,9 +257,8 @@ def tool_peers() -> list[dict]:
 
 def tool_seal(peer_clan_id: str, msg: str, envelope_meta: dict | None = None) -> dict:
     """Encrypt + sign a message for a peer using ECDHE (ARC-8446)."""
-    from hermes.crypto import ClanKeyPair, seal_bus_message_ecdhe
     from hermes.config import load_config
-    from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+    from hermes.crypto import ClanKeyPair, seal_bus_message_ecdhe
 
     cfg = load_config(str(_HERMES_DIR))
     my_keys = ClanKeyPair.load(str(_HERMES_DIR / ".keys"), cfg.clan_id)
@@ -284,10 +282,11 @@ def tool_seal(peer_clan_id: str, msg: str, envelope_meta: dict | None = None) ->
 
 def tool_open(sealed_json: dict, sender_clan_id: str, envelope_meta: dict | None = None) -> dict:
     """Decrypt + verify a sealed message from a peer (ARC-8446)."""
-    from hermes.crypto import ClanKeyPair, open_bus_message
-    from hermes.config import load_config
     from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
     from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PublicKey
+
+    from hermes.config import load_config
+    from hermes.crypto import ClanKeyPair, open_bus_message
 
     cfg = load_config(str(_HERMES_DIR))
     my_keys = ClanKeyPair.load(str(_HERMES_DIR / ".keys"), cfg.clan_id)
@@ -351,10 +350,10 @@ def tool_integrity_check() -> dict:
 def create_server():
     """Create and configure the MCP server with all HERMES tools and resources."""
     try:
-        from mcp.server import Server
         import mcp.types as types
-    except ImportError:
-        raise ImportError("MCP SDK required: pip install 'hermes-protocol[mcp]'")
+        from mcp.server import Server
+    except ImportError as err:
+        raise ImportError("MCP SDK required: pip install 'hermes-protocol[mcp]'") from err
 
     server = Server("hermes-bus")
 
@@ -530,21 +529,23 @@ def create_server():
 
     @server.list_resources()
     async def list_resources() -> list[types.Resource]:
+        from pydantic import AnyUrl
+
         return [
             types.Resource(
-                uri="hermes://protocol/version",
+                uri=AnyUrl("hermes://protocol/version"),
                 name="HERMES Protocol Version",
                 description=f"HERMES v{__version__} — 21 specs, 1451+ tests, 19 modules, 4 adapters",
                 mimeType="application/json",
             ),
             types.Resource(
-                uri="hermes://bus/stats",
+                uri=AnyUrl("hermes://bus/stats"),
                 name="Bus Statistics",
                 description="Live bus message counts: total, pending, expired, stale",
                 mimeType="application/json",
             ),
             types.Resource(
-                uri="hermes://config/clan",
+                uri=AnyUrl("hermes://config/clan"),
                 name="Clan Configuration",
                 description="Current clan identity and configuration (no secrets)",
                 mimeType="application/json",

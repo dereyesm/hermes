@@ -120,36 +120,70 @@ class ConnectionEntry:
 
 
 class ConnectionTable:
-    """Maps clan_id -> active WebSocket connection (ARC-4601 §15.3)."""
+    """Maps clan_id -> active WebSocket connections (ARC-4601 §15.3).
+
+    Supports multiple connections per clan_id (multi-session, listener + client).
+    """
 
     def __init__(self, max_connections: int = 100):
-        self._connections: dict[str, ConnectionEntry] = {}
+        self._connections: dict[str, list[ConnectionEntry]] = {}
         self.max_connections = max_connections
+        self._total: int = 0
 
     def add(self, clan_id: str, ws: Any) -> ConnectionEntry:
-        if len(self._connections) >= self.max_connections:
+        if self._total >= self.max_connections:
             raise RuntimeError(f"Max connections ({self.max_connections}) reached")
         entry = ConnectionEntry(ws=ws, clan_id=clan_id)
-        self._connections[clan_id] = entry
+        if clan_id not in self._connections:
+            self._connections[clan_id] = []
+        self._connections[clan_id].append(entry)
+        self._total += 1
         return entry
 
-    def remove(self, clan_id: str) -> ConnectionEntry | None:
-        return self._connections.pop(clan_id, None)
+    def remove(self, clan_id: str, ws: Any = None) -> ConnectionEntry | None:
+        entries = self._connections.get(clan_id)
+        if not entries:
+            return None
+        if ws is None:
+            # Remove all for this clan (backward compat)
+            removed = entries.pop(0) if entries else None
+            if not entries:
+                del self._connections[clan_id]
+            if removed:
+                self._total -= 1
+            return removed
+        # Remove specific ws
+        for i, e in enumerate(entries):
+            if e.ws is ws:
+                removed = entries.pop(i)
+                if not entries:
+                    del self._connections[clan_id]
+                self._total -= 1
+                return removed
+        return None
 
     def get(self, clan_id: str) -> ConnectionEntry | None:
-        return self._connections.get(clan_id)
+        entries = self._connections.get(clan_id)
+        return entries[0] if entries else None
+
+    def get_all(self, clan_id: str) -> list[ConnectionEntry]:
+        return list(self._connections.get(clan_id, []))
 
     def is_online(self, clan_id: str) -> bool:
-        return clan_id in self._connections
+        return clan_id in self._connections and len(self._connections[clan_id]) > 0
 
     def all_except(self, exclude: str) -> list[ConnectionEntry]:
-        return [e for cid, e in self._connections.items() if cid != exclude]
+        result: list[ConnectionEntry] = []
+        for cid, entries in self._connections.items():
+            if cid != exclude:
+                result.extend(entries)
+        return result
 
     def connected_clan_ids(self) -> list[str]:
         return list(self._connections.keys())
 
     def __len__(self) -> int:
-        return len(self._connections)
+        return self._total
 
 
 # ---------------------------------------------------------------------------
@@ -430,18 +464,25 @@ class MessageRouter:
             return await self._unicast(payload, dst)
 
     async def _unicast(self, payload: dict, dst: str) -> dict:
-        # 1. Try local delivery
-        entry = self._connections.get(dst)
-        if entry:
-            try:
-                await entry.ws.send(json.dumps({"type": "msg", "payload": payload}))
-                entry.msgs_routed += 1
-                self.total_routed += 1
-                return {"status": "delivered", "dst": dst}
-            except Exception as e:
-                logger.warning("Failed to send to %s: %s", dst, e)
-                self._queue.enqueue(dst, payload, payload.get("ttl", 604800))
-                return {"status": "queued", "dst": dst, "reason": str(e)}
+        # 1. Try local delivery (all connections for this clan)
+        entries = self._connections.get_all(dst)
+        if entries:
+            delivered = 0
+            last_err: str | None = None
+            for entry in entries:
+                try:
+                    await entry.ws.send(json.dumps({"type": "msg", "payload": payload}))
+                    entry.msgs_routed += 1
+                    delivered += 1
+                except Exception as e:
+                    last_err = str(e)
+                    logger.warning("Failed to send to %s: %s", dst, e)
+            if delivered:
+                self.total_routed += delivered
+                return {"status": "delivered", "dst": dst, "connections": delivered}
+            # All connections failed — queue it
+            self._queue.enqueue(dst, payload, payload.get("ttl", 604800))
+            return {"status": "queued", "dst": dst, "reason": last_err}
 
         # 2. Try federation routing (S2S)
         if self._federation:
@@ -757,7 +798,7 @@ class HubServer:
                 if is_hub:
                     self.federation.unregister_link(clan_id)
                 else:
-                    self.connections.remove(clan_id)
+                    self.connections.remove(clan_id, ws)
                     await self._broadcast_presence(clan_id, "offline")
                 self._save_state()
 
