@@ -775,7 +775,7 @@ class HubServer:
         """
         from hermes import __version__
 
-        fail = (None, "", [])
+        fail: tuple[str | None, str, list[str]] = (None, "", [])
 
         # Step 1: Wait for client HELLO (client initiates)
         try:
