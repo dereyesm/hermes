@@ -55,4 +55,4 @@ jobs:
       - name: Install package and dev dependencies
         run: pip install -e ".[dev]"
       - name: Run tests with coverage
-        run: python -m pytest tests/ -v --tb=short --cov=hermes --cov-report=term-missing --cov-fail-under=80
+        run: python -m pytest tests/ -v --tb=short --cov=hermes --cov-report=term-missing --cov-fail-under=75

@@ -839,13 +839,13 @@ def cmd_llm(args: argparse.Namespace) -> int:
     """Manage LLM backends."""
     from .llm import AdapterManager, create_adapter
 
-    clan_dir = _resolve_clan_dir(args)
-    config = load_config(clan_dir)
-
     llm_cmd = getattr(args, "llm_command", None)
     if llm_cmd is None:
         print("Usage: hermes llm <list|status|test|usage>", file=sys.stderr)
         return 1
+
+    clan_dir = _resolve_clan_dir(args)
+    config = load_config(clan_dir)
 
     if llm_cmd == "list":
         if not config.llm_backends:
