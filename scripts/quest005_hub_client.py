@@ -50,11 +50,24 @@ async def hub_session(host: str, port: int, keys: ClanKeyPair, clan_id: str):
     """Connect to hub, authenticate, and run interactive session."""
     import websockets
 
-    uri = f"ws://{host}:{port}/ws"
+    uri = f"ws://{host}:{port}"
     print(f"[HUB] Connecting to {uri} as '{clan_id}'...")
 
     async with websockets.connect(uri) as ws:
-        # Step 1: Receive challenge
+        sign_pub_hex = keys.sign_public.public_bytes_raw().hex()
+
+        # Step 1: Send HELLO (ARC-4601 §15.6 — client initiates)
+        hello = {
+            "type": "hello",
+            "clan_id": clan_id,
+            "sign_pub": sign_pub_hex,
+            "protocol_version": "0.4.2a1",
+            "capabilities": ["e2e_crypto", "store_forward"],
+        }
+        await ws.send(json.dumps(hello))
+        print(f"[HUB] HELLO sent (clan={clan_id}, v0.4.2a1)")
+
+        # Step 2: Receive CHALLENGE
         raw = await asyncio.wait_for(ws.recv(), timeout=10)
         frame = json.loads(raw)
 
@@ -63,22 +76,21 @@ async def hub_session(host: str, port: int, keys: ClanKeyPair, clan_id: str):
             return
 
         nonce_hex = frame["nonce"]
-        print(f"[HUB] Challenge received ({nonce_hex[:16]}...)")
+        server_version = frame.get("server_version", "unknown")
+        server_caps = frame.get("server_capabilities", [])
+        print(f"[HUB] Challenge from server (v{server_version}, caps={server_caps})")
 
-        # Step 2: Sign nonce with Ed25519
+        # Step 3: Sign nonce with Ed25519
         nonce_bytes = bytes.fromhex(nonce_hex)
         signature = keys.sign_private.sign(nonce_bytes)
-        sign_pub_hex = keys.sign_public.public_bytes_raw().hex()
 
         auth_frame = {
             "type": "auth",
-            "clan_id": clan_id,
             "nonce_response": signature.hex(),
-            "sign_pub": sign_pub_hex,
         }
         await ws.send(json.dumps(auth_frame))
 
-        # Step 3: Wait for auth result
+        # Step 4: Wait for auth result
         raw = await asyncio.wait_for(ws.recv(), timeout=10)
         frame = json.loads(raw)
 

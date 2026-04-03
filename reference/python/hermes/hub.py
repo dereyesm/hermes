@@ -510,10 +510,93 @@ class HubServer:
                 self._save_state()
 
     async def _authenticate(self, ws: Any) -> str | None:
-        """Run Ed25519 challenge-response auth. Returns clan_id or None."""
+        """Run HELLO + challenge-response auth (ARC-4601 §15.6).
+
+        Wire sequence (normative):
+          1. Client → Server: HELLO  {type:"hello", clan_id, sign_pub, protocol_version, capabilities:[]}
+          2. Server → Client: CHALLENGE {type:"challenge", nonce, server_version, server_clan_id, server_capabilities:[]}
+          3. Client → Server: AUTH  {type:"auth", nonce_response (Ed25519 signature of nonce)}
+          4. Server → Client: AUTH_OK {type:"auth_ok", clan_id, queue_depth}
+
+        Returns clan_id on success, None on failure.
+        """
+        from hermes import __version__
+
+        # Step 1: Wait for client HELLO (client initiates)
+        try:
+            raw = await asyncio.wait_for(ws.recv(), timeout=self.config.auth_timeout)
+            hello = json.loads(raw)
+        except (TimeoutError, json.JSONDecodeError):
+            await ws.send(json.dumps({"type": "auth_fail", "reason": "timeout waiting for hello"}))
+            await ws.close()
+            return None
+
+        if hello.get("type") != "hello":
+            # Backward compat: if client sends "auth" directly (old protocol),
+            # treat it as a HELLO+AUTH combined (no capability negotiation)
+            if hello.get("type") == "auth":
+                return await self._authenticate_legacy(ws, hello)
+            await ws.send(json.dumps({"type": "auth_fail", "reason": "expected hello"}))
+            await ws.close()
+            return None
+
+        client_clan_id = hello.get("clan_id", "")
+        client_pub = hello.get("sign_pub", "")
+        client_version = hello.get("protocol_version", "unknown")
+        client_caps = hello.get("capabilities", [])
+
+        logger.info("HELLO from %s (v%s, caps=%s)", client_clan_id, client_version, client_caps)
+
+        # Step 2: Send CHALLENGE with server identity
+        nonce = self.auth.generate_challenge()
+        await ws.send(json.dumps({
+            "type": "challenge",
+            "nonce": nonce,
+            "server_version": __version__,
+            "server_clan_id": getattr(self, '_clan_id', 'hub'),
+            "server_capabilities": ["store_forward", "e2e_passthrough", "presence"],
+        }))
+
+        # Step 3: Wait for AUTH (signed nonce)
+        try:
+            raw = await asyncio.wait_for(ws.recv(), timeout=self.config.auth_timeout)
+            auth_frame = json.loads(raw)
+        except (TimeoutError, json.JSONDecodeError):
+            await ws.send(json.dumps({"type": "auth_fail", "reason": "timeout waiting for auth"}))
+            await ws.close()
+            return None
+
+        if auth_frame.get("type") != "auth":
+            await ws.send(json.dumps({"type": "auth_fail", "reason": "expected auth after challenge"}))
+            await ws.close()
+            return None
+
+        sig = auth_frame.get("nonce_response", "")
+
+        if not self.auth.verify_response(client_clan_id, nonce, sig, client_pub):
+            await ws.send(json.dumps({"type": "auth_fail", "reason": "authentication failed"}))
+            await ws.close()
+            return None
+
+        # Step 4: AUTH_OK
+        depth = self.queue.depth(client_clan_id)
+        await ws.send(json.dumps({
+            "type": "auth_ok",
+            "clan_id": client_clan_id,
+            "queue_depth": depth,
+        }))
+        return client_clan_id
+
+    async def _authenticate_legacy(self, ws: Any, auth_frame: dict) -> str | None:
+        """Handle legacy clients that skip HELLO and send auth directly.
+
+        For backward compatibility with pre-§15.6 implementations.
+        """
+        # Generate challenge and send it
         nonce = self.auth.generate_challenge()
         await ws.send(json.dumps({"type": "challenge", "nonce": nonce}))
 
+        # Wait for auth response with signed nonce
         try:
             raw = await asyncio.wait_for(ws.recv(), timeout=self.config.auth_timeout)
             frame = json.loads(raw)
@@ -532,27 +615,12 @@ class HubServer:
         pub = frame.get("sign_pub", "")
 
         if not self.auth.verify_response(clan_id, nonce, sig, pub):
-            await ws.send(
-                json.dumps(
-                    {
-                        "type": "auth_fail",
-                        "reason": "authentication failed",
-                    }
-                )
-            )
+            await ws.send(json.dumps({"type": "auth_fail", "reason": "authentication failed"}))
             await ws.close()
             return None
 
         depth = self.queue.depth(clan_id)
-        await ws.send(
-            json.dumps(
-                {
-                    "type": "auth_ok",
-                    "clan_id": clan_id,
-                    "queue_depth": depth,
-                }
-            )
-        )
+        await ws.send(json.dumps({"type": "auth_ok", "clan_id": clan_id, "queue_depth": depth}))
         return clan_id
 
     async def _drain_queue(self, ws: Any, clan_id: str) -> None:

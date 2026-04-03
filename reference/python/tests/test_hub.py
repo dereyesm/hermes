@@ -570,20 +570,30 @@ class TestHubServer:
 
         ws = _make_ws_mock()
 
-        # Simulate auth exchange
+        # Simulate HELLO → CHALLENGE → AUTH exchange (ARC-4601 §15.6)
+        recv_call_count = 0
+
         async def mock_recv():
-            # Read the challenge that was sent
-            challenge_frame = json.loads(ws.send.call_args[0][0])
-            nonce = challenge_frame["nonce"]
-            sig = privkey.sign(bytes.fromhex(nonce)).hex()
-            return json.dumps(
-                {
-                    "type": "auth",
+            nonlocal recv_call_count
+            recv_call_count += 1
+            if recv_call_count == 1:
+                # Step 1: Client sends HELLO
+                return json.dumps({
+                    "type": "hello",
                     "clan_id": "test_clan",
-                    "nonce_response": sig,
                     "sign_pub": pubkey_hex,
-                }
-            )
+                    "protocol_version": "0.4.2a1",
+                    "capabilities": [],
+                })
+            else:
+                # Step 3: Client sends AUTH (sign the challenge nonce)
+                challenge_frame = json.loads(ws.send.call_args[0][0])
+                nonce = challenge_frame["nonce"]
+                sig = privkey.sign(bytes.fromhex(nonce)).hex()
+                return json.dumps({
+                    "type": "auth",
+                    "nonce_response": sig,
+                })
 
         ws.recv = mock_recv
 
