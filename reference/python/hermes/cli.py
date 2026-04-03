@@ -315,6 +315,141 @@ def cmd_peer_list(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_peer_invite(args: argparse.Namespace) -> int:
+    """Generate a shareable invite for peering."""
+    import base64
+
+    clan_dir = _resolve_clan_dir(args)
+    try:
+        config, _, _ = _load_gateway(clan_dir)
+    except FileNotFoundError:
+        print("Error: No config found.", file=sys.stderr)
+        return 1
+
+    # Load signing public key (try keys/ then .keys/)
+    keys_dir = clan_dir / "keys"
+    if not keys_dir.exists():
+        keys_dir = clan_dir / ".keys"
+    pub_path = keys_dir / f"{config.clan_id}.pub"
+    if not pub_path.exists():
+        for f in keys_dir.glob("*.pub"):
+            if f.name != "peers":
+                pub_path = f
+                break
+
+    if not pub_path.exists():
+        print("Error: No public key found.", file=sys.stderr)
+        return 1
+
+    pub_data = json.loads(pub_path.read_text())
+
+    invite = {
+        "hermes_invite": "1.0",
+        "clan_id": config.clan_id,
+        "display_name": config.display_name,
+        "sign_pub": pub_data.get("ed25519_pub", pub_data.get("sign_public", "")),
+        "dh_pub": pub_data.get("x25519_pub", pub_data.get("dh_public", "")),
+        "protocol_version": config.protocol_version,
+    }
+
+    invite_json = json.dumps(invite, separators=(",", ":"))
+    invite_b64 = base64.urlsafe_b64encode(invite_json.encode()).decode()
+
+    print(f"HERMES Invite for {config.clan_id} ({config.display_name})")
+    print()
+    print("Share this token with your peer:")
+    print(f"  hermes peer accept {invite_b64}")
+    print()
+    print("Or share the JSON:")
+    print(json.dumps(invite, indent=2))
+    return 0
+
+
+def cmd_peer_accept(args: argparse.Namespace) -> int:
+    """Accept a peer invite and add them as a peer."""
+    import base64
+
+    clan_dir = _resolve_clan_dir(args)
+    try:
+        config, _, _ = _load_gateway(clan_dir)
+    except FileNotFoundError:
+        print("Error: No config found.", file=sys.stderr)
+        return 1
+
+    token = args.invite_token
+
+    # Decode invite: try base64 first, then file path, then raw JSON
+    invite = None
+    try:
+        decoded = base64.urlsafe_b64decode(token)
+        invite = json.loads(decoded)
+    except Exception:
+        pass
+
+    if invite is None:
+        token_path = Path(token)
+        if token_path.exists():
+            try:
+                invite = json.loads(token_path.read_text())
+            except Exception:
+                pass
+
+    if invite is None:
+        try:
+            invite = json.loads(token)
+        except Exception:
+            pass
+
+    if not invite or "hermes_invite" not in invite:
+        print("Error: Invalid invite token. Expected base64, file path, or JSON.", file=sys.stderr)
+        return 1
+
+    peer_clan_id = invite["clan_id"]
+    display_name = invite.get("display_name", peer_clan_id)
+    sign_pub = invite.get("sign_pub", "")
+    dh_pub = invite.get("dh_pub", "")
+
+    if not sign_pub or not dh_pub:
+        print("Error: Invite missing public keys.", file=sys.stderr)
+        return 1
+
+    # Save peer public key
+    peers_dir = clan_dir / "keys" / "peers"
+    peers_dir.mkdir(parents=True, exist_ok=True)
+    pub_file = peers_dir / f"{peer_clan_id}.pub"
+    pub_data = {"sign_public": sign_pub, "dh_public": dh_pub}
+    pub_file.write_text(json.dumps(pub_data, indent=2))
+
+    # Add peer to config
+    from hermes.config import PeerConfig
+    new_peer = PeerConfig(
+        clan_id=peer_clan_id,
+        public_key_file=f"keys/peers/{peer_clan_id}.pub",
+        status="active",
+        added=str(date.today()),
+    )
+
+    # Check for duplicate
+    existing = [p for p in config.peers if p.clan_id == peer_clan_id]
+    if existing:
+        print(f"Peer {peer_clan_id} already exists (status: {existing[0].status}). Updating keys.")
+        config.peers = [p for p in config.peers if p.clan_id != peer_clan_id]
+
+    config.peers.append(new_peer)
+
+    from hermes.config import save_config
+    config_path = clan_dir / "config.toml"
+    if not config_path.exists():
+        config_path = clan_dir / "gateway.json"
+    save_config(config, config_path)
+
+    print(f"Peer accepted: {peer_clan_id} ({display_name})")
+    print(f"  Public key saved to: {pub_file}")
+    print(f"  Status: active")
+    print(f"  Protocol: {invite.get('protocol_version', 'unknown')}")
+    return 0
+
+
 def cmd_send(args: argparse.Namespace) -> int:
     """Send a message to a peer clan via Agora inbox."""
     clan_dir = _resolve_clan_dir(args)
@@ -909,6 +1044,11 @@ def build_parser() -> argparse.ArgumentParser:
     _add_dir_arg(p_peer_add)
     p_peer_list = peer_sub.add_parser("list", help="List all peers")
     _add_dir_arg(p_peer_list)
+    p_peer_invite = peer_sub.add_parser("invite", help="Generate a shareable invite for peering")
+    _add_dir_arg(p_peer_invite)
+    p_peer_accept = peer_sub.add_parser("accept", help="Accept a peer invite")
+    p_peer_accept.add_argument("invite_token", help="Base64 invite token or path to invite JSON file")
+    _add_dir_arg(p_peer_accept)
 
     # send
     p_send = sub.add_parser("send", help="Send message to peer")
@@ -1143,6 +1283,8 @@ def main(argv: list[str] | None = None) -> int:
         peer_commands = {
             "add": cmd_peer_add,
             "list": cmd_peer_list,
+            "invite": cmd_peer_invite,
+            "accept": cmd_peer_accept,
         }
         if args.peer_command is None:
             parser.parse_args(["peer", "--help"])
