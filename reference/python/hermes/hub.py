@@ -230,23 +230,45 @@ class AuthHandler:
     def verify_response(
         self, clan_id: str, nonce_hex: str, signature_hex: str, sign_pub_hex: str
     ) -> bool:
-        """Verify Ed25519 signature of nonce against registered peer."""
+        """Verify Ed25519 signature of nonce against registered peer.
+
+        Tolerant lookup: tries exact clan_id, then lowercase, then scans all peers.
+        If sign_pub_hex is empty, uses the registered key for verification.
+        """
+        # Tolerant clan_id lookup
         peer = self._peers.get(clan_id)
         if not peer:
+            peer = self._peers.get(clan_id.lower())
+        if not peer:
+            # Scan all peers for case-insensitive match
+            for pid, p in self._peers.items():
+                if pid.lower() == clan_id.lower():
+                    peer = p
+                    break
+        if not peer:
+            logger.warning("Auth: clan_id '%s' not in peers: %s", clan_id, list(self._peers.keys()))
             return False
 
-        if peer.sign_pub_hex != sign_pub_hex:
-            return False
+        # Use registered key if client didn't send one
+        verify_pub = sign_pub_hex if sign_pub_hex else peer.sign_pub_hex
+
+        # If client sent a key, verify it matches registered (optional strict check)
+        if sign_pub_hex and peer.sign_pub_hex and sign_pub_hex != peer.sign_pub_hex:
+            logger.warning("Auth: key mismatch for %s. sent=%s...  registered=%s...",
+                          clan_id, sign_pub_hex[:16], peer.sign_pub_hex[:16])
+            # Still try with registered key (client may have sent wrong pub)
+            verify_pub = peer.sign_pub_hex
 
         try:
             from cryptography.hazmat.primitives.asymmetric.ed25519 import (
                 Ed25519PublicKey,
             )
 
-            pub_key = Ed25519PublicKey.from_public_bytes(bytes.fromhex(sign_pub_hex))
+            pub_key = Ed25519PublicKey.from_public_bytes(bytes.fromhex(verify_pub))
             pub_key.verify(bytes.fromhex(signature_hex), bytes.fromhex(nonce_hex))
             return True
-        except Exception:
+        except Exception as e:
+            logger.warning("Auth: signature verify failed for %s: %s", clan_id, e)
             return False
 
     def is_registered(self, clan_id: str) -> bool:
