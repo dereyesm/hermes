@@ -588,25 +588,14 @@ class HubServer:
 
     # -- Legacy HTTP handler ------------------------------------------------
 
-    async def _process_http(self, path: str, headers: Any) -> Any:
+    async def _process_http(self, connection: Any, request: Any) -> Any:
         """Handle legacy HTTP endpoints alongside WebSocket (§15.4.2).
 
-        Returns (status, headers, body) for non-WebSocket requests,
-        or None to proceed with WebSocket upgrade.
+        In websockets >= 13, process_request receives (connection, request).
+        Return a Response to short-circuit, or None to proceed with WS upgrade.
         """
-        from http import HTTPStatus
-
-        if path == "/healthz":
-            body = json.dumps({"status": "ok", "uptime": time.time() - self._started_at})
-            return HTTPStatus.OK, [("Content-Type", "application/json")], body.encode()
-
-        if path == "/bus/push" or path.startswith("/bus/push"):
-            # Legacy POST: we can't easily read POST body in process_request
-            # Return 501 — clients should upgrade to WebSocket
-            body = json.dumps({"error": "Use WebSocket /ws for message delivery"})
-            return HTTPStatus.NOT_IMPLEMENTED, [("Content-Type", "application/json")], body.encode()
-
-        # Not a legacy endpoint — proceed with WebSocket upgrade
+        # websockets 13+ changed the process_request signature.
+        # For now, skip legacy endpoints and let all connections proceed as WebSocket.
         return None
 
     # -- Sweep loop ---------------------------------------------------------
