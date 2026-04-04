@@ -608,6 +608,7 @@ def _detect_installed_agents() -> list[str]:
     """
     checks = {
         "claude-code": Path.home() / ".claude",
+        "continue": Path.home() / ".continue",
         "cursor": Path.home() / ".cursor",
         "opencode": Path.home() / ".config" / "opencode",
         "gemini": Path.home() / ".gemini",

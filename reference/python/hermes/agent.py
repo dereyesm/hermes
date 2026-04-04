@@ -108,6 +108,9 @@ class AgentNodeConfig:
     notification_throttle_per_minute: int = 5
     approval_default_timeout_hours: int = 24
     queue_overflow: str = "drop-newest"
+    # Hub inbox bridge (Quest-006: cross-clan dispatch)
+    hub_inbox_path: Path | None = None
+    hub_inbox_poll_interval: float = 5.0
     # LLM triage (extends static evaluator with LLM classification)
     llm_triage_enabled: bool = False
     llm_triage_backend: str = "gemini"
@@ -199,6 +202,10 @@ def load_agent_config(config_path: Path) -> AgentNodeConfig:
         ),
         approval_default_timeout_hours=int(asp_section.get("approval_default_timeout_hours", 24)),
         queue_overflow=str(asp_section.get("queue_overflow", "drop-newest")),
+        hub_inbox_path=Path(section["hub_inbox_path"]).expanduser()
+        if section.get("hub_inbox_path")
+        else (clan_dir / "hub-inbox.jsonl" if (clan_dir / "hub-inbox.jsonl").exists() else None),
+        hub_inbox_poll_interval=float(section.get("hub_inbox_poll_interval", 5.0)),
         llm_triage_enabled=bool(section.get("llm_triage_enabled", False)),
         llm_triage_backend=str(section.get("llm_triage_backend", "gemini")),
         llm_triage_model=str(section.get("llm_triage_model", "gemini-2.5-flash")),
@@ -1359,6 +1366,7 @@ class AgentNode:
                 asyncio.ensure_future(self._heartbeat_loop()),
                 asyncio.ensure_future(self._evaluation_loop()),
                 asyncio.ensure_future(self._sse_loop()),
+                asyncio.ensure_future(self._hub_inbox_loop()),
             ]
             try:
                 await asyncio.gather(*tasks)
@@ -1508,6 +1516,151 @@ class AgentNode:
                     logger.info("SSE → bus: %s", msg.msg[:50])
             except (ValidationError, Exception) as e:
                 logger.debug("SSE event skipped: %s", e)
+
+    # ------------------------------------------------------------------
+    # Hub inbox bridge (Quest-006: Autonomous Cross-Clan Dispatch)
+    # ------------------------------------------------------------------
+
+    _HUB_TYPE_MAP = {
+        "status": "state",
+        "event": "event",
+        "alert": "alert",
+        "dispatch": "dispatch",
+        "state": "state",
+        "data_cross": "data_cross",
+        "dojo_event": "dojo_event",
+    }
+
+    _HUB_SKIP_TYPES = {"presence", "roster", "ping", "pong", "auth_ok", "error"}
+
+    @staticmethod
+    def _convert_hub_to_bus(hub_msg: dict) -> Message | None:
+        """Convert a hub-inbox.jsonl entry to ARC-5322 Message.
+
+        Hub format:  {"ts": ISO-datetime, "from": str, "msg": str, "type": str, "dst": str}
+        Bus format:  Message(ts=date, src=str, dst=str, type=str, msg=str, ttl=int, ack=[])
+        """
+        msg_type = str(hub_msg.get("type", "")).lower()
+        if msg_type in AgentNode._HUB_SKIP_TYPES:
+            return None
+
+        mapped_type = AgentNode._HUB_TYPE_MAP.get(msg_type, "event")
+
+        # Parse timestamp → date
+        raw_ts = hub_msg.get("ts", "")
+        try:
+            ts = datetime.fromisoformat(str(raw_ts)).date()
+        except (ValueError, TypeError):
+            ts = date.today()
+
+        src = str(hub_msg.get("from", "unknown")).lower()
+        # Skip HUB infrastructure messages
+        if src == "hub":
+            return None
+
+        dst = str(hub_msg.get("dst", "*")).lower()
+        msg_text = str(hub_msg.get("msg", ""))
+        if not msg_text:
+            return None
+
+        return Message(
+            ts=ts,
+            src=src,
+            dst=dst,
+            type=mapped_type,
+            msg=msg_text[:120],
+            ttl=7,
+            ack=[],
+        )
+
+    async def _hub_inbox_loop(self) -> None:
+        """Watch hub-inbox.jsonl for cross-clan messages and bridge to bus.
+
+        Uses its own cursor (daemon-scoped) to track position independently
+        from the hub_inject hook cursor.
+        """
+        if not self.config.hub_inbox_path:
+            return
+        if not self.config.hub_inbox_path.exists():
+            logger.info("Hub inbox not found at %s, skipping bridge.", self.config.hub_inbox_path)
+            return
+
+        cursor_path = self.config.hub_inbox_path.parent / "hub-inbox.daemon.cursor"
+        offset = 0
+        if cursor_path.exists():
+            try:
+                offset = int(cursor_path.read_text().strip())
+            except (ValueError, OSError):
+                offset = 0
+
+        logger.info(
+            "Hub inbox bridge started (path=%s, offset=%d)",
+            self.config.hub_inbox_path,
+            offset,
+        )
+
+        while self._running:
+            try:
+                if not self.config.hub_inbox_path.exists():
+                    await asyncio.sleep(self.config.hub_inbox_poll_interval)
+                    continue
+
+                file_size = self.config.hub_inbox_path.stat().st_size
+                if file_size <= offset:
+                    await asyncio.sleep(self.config.hub_inbox_poll_interval)
+                    continue
+
+                with open(self.config.hub_inbox_path, encoding="utf-8") as f:
+                    f.seek(offset)
+                    new_data = f.read()
+                    new_offset = f.tell()
+
+                bridged = 0
+                for line in new_data.strip().splitlines():
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        hub_msg = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+
+                    msg = self._convert_hub_to_bus(hub_msg)
+                    if msg is None:
+                        continue
+
+                    # Dedup against existing bus messages
+                    existing = read_bus(self.config.bus_path)
+                    is_dup = any(
+                        m.src == msg.src and m.ts == msg.ts and m.msg == msg.msg
+                        for m in existing
+                    )
+                    if is_dup:
+                        continue
+
+                    write_message(
+                        self.config.bus_path,
+                        msg,
+                        seq_tracker=self.seq_tracker,
+                        wv_tracker=self.wv_tracker,
+                    )
+                    bridged += 1
+                    logger.info("Hub → bus: [%s] %s: %s", msg.type, msg.src, msg.msg[:50])
+
+                # Persist cursor
+                offset = new_offset
+                try:
+                    cursor_path.write_text(str(offset))
+                except OSError:
+                    pass
+
+                if bridged:
+                    logger.info("Hub inbox bridge: %d messages bridged to bus", bridged)
+
+            except Exception as e:
+                logger.warning("Hub inbox bridge error (non-fatal): %s", e)
+
+            await asyncio.sleep(self.config.hub_inbox_poll_interval)
 
     async def _heartbeat_loop(self) -> None:
         """Send periodic heartbeats to the gateway."""

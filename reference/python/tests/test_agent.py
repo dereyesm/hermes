@@ -804,3 +804,350 @@ class TestPersistASPState:
 
         assert "states" in node.state.agent_states
         assert node.state.agent_states["states"]["worker"] == "active"
+
+
+# ---------------------------------------------------------------------------
+# Hub Inbox Bridge (Quest-006: Cross-Clan Dispatch)
+# ---------------------------------------------------------------------------
+
+
+class TestConvertHubToBus:
+    """Test _convert_hub_to_bus static method."""
+
+    def test_converts_status_message(self):
+        hub_msg = {
+            "ts": "2026-04-04T01:22:53.933258+00:00",
+            "from": "jei",
+            "msg": "JEI-HUB-S2S-002: All blockers resolved.",
+            "type": "status",
+            "dst": "momoshod",
+        }
+        msg = AgentNode._convert_hub_to_bus(hub_msg)
+        assert msg is not None
+        assert msg.src == "jei"
+        assert msg.dst == "momoshod"
+        assert msg.type == "state"  # status → state mapping
+        assert msg.msg == "JEI-HUB-S2S-002: All blockers resolved."
+        assert msg.ttl == 7
+        assert msg.ack == []
+        assert msg.ts == date(2026, 4, 4)
+
+    def test_skips_presence_messages(self):
+        hub_msg = {
+            "ts": "2026-04-04T01:24:45.369270+00:00",
+            "from": "HUB",
+            "msg": "jei: online",
+            "type": "presence",
+        }
+        msg = AgentNode._convert_hub_to_bus(hub_msg)
+        assert msg is None
+
+    def test_skips_roster_messages(self):
+        hub_msg = {
+            "ts": "2026-04-04T15:25:50.079732+00:00",
+            "from": "HUB",
+            "msg": "roster: momoshod (1 online)",
+            "type": "roster",
+        }
+        msg = AgentNode._convert_hub_to_bus(hub_msg)
+        assert msg is None
+
+    def test_skips_hub_source(self):
+        hub_msg = {
+            "ts": "2026-04-04T01:24:48.399707+00:00",
+            "from": "HUB",
+            "msg": "some infrastructure message",
+            "type": "event",
+        }
+        msg = AgentNode._convert_hub_to_bus(hub_msg)
+        assert msg is None
+
+    def test_converts_event_type(self):
+        hub_msg = {
+            "ts": "2026-04-03T16:26:46.393541+00:00",
+            "from": "momoshod",
+            "msg": "DANI-HERMES-031: ACK blockers resolved.",
+            "type": "event",
+            "dst": "jei",
+        }
+        msg = AgentNode._convert_hub_to_bus(hub_msg)
+        assert msg is not None
+        assert msg.type == "event"
+        assert msg.src == "momoshod"
+        assert msg.dst == "jei"
+
+    def test_converts_dispatch_type(self):
+        hub_msg = {
+            "ts": "2026-04-04T10:00:00+00:00",
+            "from": "jei",
+            "msg": "QUEST-006: run bilateral test",
+            "type": "dispatch",
+            "dst": "momoshod",
+        }
+        msg = AgentNode._convert_hub_to_bus(hub_msg)
+        assert msg is not None
+        assert msg.type == "dispatch"
+
+    def test_truncates_long_messages(self):
+        hub_msg = {
+            "ts": "2026-04-04T10:00:00+00:00",
+            "from": "jei",
+            "msg": "A" * 200,
+            "type": "event",
+            "dst": "momoshod",
+        }
+        msg = AgentNode._convert_hub_to_bus(hub_msg)
+        assert msg is not None
+        assert len(msg.msg) == 120
+
+    def test_skips_empty_message(self):
+        hub_msg = {
+            "ts": "2026-04-04T10:00:00+00:00",
+            "from": "jei",
+            "msg": "",
+            "type": "event",
+        }
+        msg = AgentNode._convert_hub_to_bus(hub_msg)
+        assert msg is None
+
+    def test_unknown_type_maps_to_event(self):
+        hub_msg = {
+            "ts": "2026-04-04T10:00:00+00:00",
+            "from": "jei",
+            "msg": "some weird type",
+            "type": "custom_thing",
+            "dst": "*",
+        }
+        msg = AgentNode._convert_hub_to_bus(hub_msg)
+        assert msg is not None
+        assert msg.type == "event"
+
+    def test_defaults_dst_to_wildcard(self):
+        hub_msg = {
+            "ts": "2026-04-04T10:00:00+00:00",
+            "from": "jei",
+            "msg": "broadcast message",
+            "type": "event",
+        }
+        msg = AgentNode._convert_hub_to_bus(hub_msg)
+        assert msg is not None
+        assert msg.dst == "*"
+
+    def test_bad_timestamp_uses_today(self):
+        hub_msg = {
+            "ts": "not-a-date",
+            "from": "jei",
+            "msg": "bad ts",
+            "type": "event",
+        }
+        msg = AgentNode._convert_hub_to_bus(hub_msg)
+        assert msg is not None
+        assert msg.ts == date.today()
+
+
+class TestHubInboxLoop:
+    """Test _hub_inbox_loop integration."""
+
+    @pytest.fixture
+    def hub_inbox_config(self, tmp_clan):
+        """Config with hub_inbox_path set."""
+        inbox = tmp_clan / "hub-inbox.jsonl"
+        inbox.touch()
+        return AgentNodeConfig(
+            bus_path=tmp_clan / "bus.jsonl",
+            gateway_url="",
+            namespace="test-node",
+            clan_dir=tmp_clan,
+            hub_inbox_path=inbox,
+            hub_inbox_poll_interval=0.1,
+            poll_interval=0.1,
+        )
+
+    def test_config_auto_discovers_inbox(self, tmp_clan):
+        """hub_inbox_path auto-discovered when hub-inbox.jsonl exists."""
+        inbox = tmp_clan / "hub-inbox.jsonl"
+        inbox.touch()
+        config_data = {
+            "agent_node": {
+                "enabled": True,
+                "bus_path": "bus.jsonl",
+                "namespace": "test",
+            }
+        }
+        config_file = tmp_clan / "gateway.json"
+        config_file.write_text(json.dumps(config_data))
+        config = load_agent_config(config_file)
+        assert config.hub_inbox_path is not None
+        assert config.hub_inbox_path.name == "hub-inbox.jsonl"
+
+    def test_config_no_inbox(self, tmp_clan):
+        """hub_inbox_path is None when no inbox file exists."""
+        config_data = {
+            "agent_node": {
+                "enabled": True,
+                "bus_path": "bus.jsonl",
+                "namespace": "test",
+            }
+        }
+        config_file = tmp_clan / "gateway.json"
+        config_file.write_text(json.dumps(config_data))
+        config = load_agent_config(config_file)
+        assert config.hub_inbox_path is None
+
+    def test_bridges_messages_to_bus(self, hub_inbox_config):
+        """Messages from hub-inbox.jsonl are bridged to bus.jsonl."""
+        inbox = hub_inbox_config.hub_inbox_path
+        bus = hub_inbox_config.bus_path
+
+        hub_msg = {
+            "ts": "2026-04-04T01:22:53+00:00",
+            "from": "jei",
+            "msg": "JEI-HERMES-027: Quest ready.",
+            "type": "status",
+            "dst": "momoshod",
+        }
+        inbox.write_text(json.dumps(hub_msg) + "\n")
+
+        node = AgentNode(hub_inbox_config)
+        node.state = NodeState(pid=1, started_at="now")
+
+        async def run_once():
+            node._running = True
+            # Run one iteration
+            task = asyncio.ensure_future(node._hub_inbox_loop())
+            await asyncio.sleep(0.3)
+            node._running = False
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+        asyncio.run(run_once())
+
+        # Verify message was bridged
+        from hermes.bus import read_bus
+        messages = read_bus(bus)
+        assert len(messages) >= 1
+        bridged = [m for m in messages if m.src == "jei"]
+        assert len(bridged) == 1
+        assert bridged[0].type == "state"
+        assert "JEI-HERMES-027" in bridged[0].msg
+
+    def test_skips_presence_and_roster(self, hub_inbox_config):
+        """Presence and roster messages are not bridged."""
+        inbox = hub_inbox_config.hub_inbox_path
+        bus = hub_inbox_config.bus_path
+
+        lines = [
+            json.dumps({"ts": "2026-04-04T01:00:00+00:00", "from": "HUB", "msg": "jei: online", "type": "presence"}),
+            json.dumps({"ts": "2026-04-04T01:00:01+00:00", "from": "HUB", "msg": "roster: 1", "type": "roster"}),
+        ]
+        inbox.write_text("\n".join(lines) + "\n")
+
+        node = AgentNode(hub_inbox_config)
+        node.state = NodeState(pid=1, started_at="now")
+
+        async def run_once():
+            node._running = True
+            task = asyncio.ensure_future(node._hub_inbox_loop())
+            await asyncio.sleep(0.3)
+            node._running = False
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+        asyncio.run(run_once())
+
+        from hermes.bus import read_bus
+        messages = read_bus(bus)
+        assert len(messages) == 0
+
+    def test_persists_cursor(self, hub_inbox_config):
+        """Daemon cursor is persisted after reading."""
+        inbox = hub_inbox_config.hub_inbox_path
+        cursor_path = inbox.parent / "hub-inbox.daemon.cursor"
+
+        hub_msg = json.dumps({
+            "ts": "2026-04-04T01:00:00+00:00",
+            "from": "jei",
+            "msg": "test cursor",
+            "type": "event",
+            "dst": "momoshod",
+        }) + "\n"
+        inbox.write_text(hub_msg)
+
+        node = AgentNode(hub_inbox_config)
+        node.state = NodeState(pid=1, started_at="now")
+
+        async def run_once():
+            node._running = True
+            task = asyncio.ensure_future(node._hub_inbox_loop())
+            await asyncio.sleep(0.3)
+            node._running = False
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+        asyncio.run(run_once())
+
+        assert cursor_path.exists()
+        cursor_val = int(cursor_path.read_text().strip())
+        assert cursor_val > 0
+
+    def test_dedup_prevents_double_bridge(self, hub_inbox_config):
+        """Same message is not bridged twice."""
+        inbox = hub_inbox_config.hub_inbox_path
+        bus = hub_inbox_config.bus_path
+
+        hub_msg = json.dumps({
+            "ts": "2026-04-04T01:00:00+00:00",
+            "from": "jei",
+            "msg": "unique-message-abc",
+            "type": "event",
+            "dst": "momoshod",
+        }) + "\n"
+        # Write same message twice
+        inbox.write_text(hub_msg + hub_msg)
+
+        node = AgentNode(hub_inbox_config)
+        node.state = NodeState(pid=1, started_at="now")
+
+        async def run_once():
+            node._running = True
+            task = asyncio.ensure_future(node._hub_inbox_loop())
+            await asyncio.sleep(0.3)
+            node._running = False
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+        asyncio.run(run_once())
+
+        from hermes.bus import read_bus
+        messages = read_bus(bus)
+        jei_msgs = [m for m in messages if m.src == "jei"]
+        assert len(jei_msgs) == 1
+
+    def test_no_inbox_noop(self, tmp_clan):
+        """Loop exits immediately when hub_inbox_path is None."""
+        config = AgentNodeConfig(
+            bus_path=tmp_clan / "bus.jsonl",
+            gateway_url="",
+            namespace="test",
+            clan_dir=tmp_clan,
+            hub_inbox_path=None,
+        )
+        node = AgentNode(config)
+
+        async def run_once():
+            node._running = True
+            await node._hub_inbox_loop()
+
+        asyncio.run(run_once())
