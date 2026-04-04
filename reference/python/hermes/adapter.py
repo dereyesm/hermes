@@ -1052,6 +1052,189 @@ class GeminiCLIAdapter(AdapterBase):
 
 
 # ---------------------------------------------------------------------------
+# Continue.dev Adapter
+# ---------------------------------------------------------------------------
+
+
+class ContinueAdapter(AdapterBase):
+    """Generates CONTINUE.md + MCP config from ~/.hermes/ for Continue.dev.
+
+    Continue.dev (https://continue.dev) is an open-source AI code assistant
+    for VS Code and JetBrains IDEs (Apache 2.0, 32k+ stars). It supports
+    MCP servers natively and uses markdown rules for context injection.
+
+    Reads:
+        ~/.hermes/config.toml     -> clan identity, peers
+        ~/.hermes/dimensions/     -> skills, rules per dimension
+        ~/.hermes/bus/active.jsonl -> bus messages (optional link)
+
+    Writes:
+        ~/.continue/CONTINUE.md             -> compiled markdown (HERMES markers)
+        ~/.continue/mcpServers/hermes.yaml  -> MCP server config for hermes-bus
+        ~/.continue/rules/                  -> symlinks to dimension skills
+        ~/.continue/bus.jsonl               -> symlink to HERMES bus
+
+    Contract (per installable-model.md):
+        - Idempotent (safe to re-run)
+        - Never modifies HERMES state
+        - Never bypasses firewall rules
+        - Never hardcodes dimension names
+    """
+
+    name = "continue"
+
+    HEADER_MARKER = "<!-- HERMES:BEGIN -->"
+    FOOTER_MARKER = "<!-- HERMES:END -->"
+
+    def __init__(
+        self,
+        hermes_dir: Path | None = None,
+        target_dir: Path | None = None,
+    ) -> None:
+        if hermes_dir is None:
+            hermes_dir = Path.home() / ".hermes"
+        if target_dir is None:
+            target_dir = Path.home() / ".continue"
+        super().__init__(hermes_dir, target_dir)
+
+    def adapt(self) -> AdaptResult:
+        """Run full Continue.dev adaptation."""
+        result = AdaptResult(success=True, adapter_name=self.name)
+
+        try:
+            self.load_config()
+            result.steps.append(f"Config loaded from {self.hermes_dir}")
+        except (FileNotFoundError, ValueError) as e:
+            result.success = False
+            result.errors.append(f"Config error: {e}")
+            return result
+
+        try:
+            written = self._generate_continue_md()
+            if written:
+                result.steps.append("CONTINUE.md generated")
+                result.files_written.append(str(self.target_dir / "CONTINUE.md"))
+            else:
+                result.steps.append("CONTINUE.md unchanged")
+        except Exception as e:
+            result.errors.append(f"CONTINUE.md generation failed: {e}")
+
+        try:
+            written = self._generate_mcp_config()
+            if written:
+                result.steps.append("MCP server config generated")
+                result.files_written.append(
+                    str(self.target_dir / "mcpServers" / "hermes.yaml")
+                )
+            else:
+                result.steps.append("MCP config unchanged")
+        except Exception as e:
+            result.errors.append(f"MCP config generation failed: {e}")
+
+        try:
+            rule_links = self._link_rules()
+            if rule_links:
+                result.steps.append(f"Rules linked ({len(rule_links)} rules)")
+                result.symlinks_created.extend(rule_links)
+            else:
+                result.steps.append("No dimension skills found")
+        except Exception as e:
+            result.errors.append(f"Rules link failed: {e}")
+
+        try:
+            linked = self._link_bus()
+            if linked:
+                result.steps.append("Bus symlinked")
+                result.symlinks_created.append(str(self.target_dir / "bus.jsonl"))
+            else:
+                result.steps.append("Bus symlink unchanged")
+        except Exception as e:
+            result.errors.append(f"Bus link failed: {e}")
+
+        if result.errors:
+            result.success = False
+
+        return result
+
+    def _generate_continue_md(self) -> bool:
+        """Generate CONTINUE.md with HERMES markers preserving user content."""
+        body = self._generate_compiled_md("hermes adapt continue")
+        content = self.HEADER_MARKER + "\n" + body + "\n" + self.FOOTER_MARKER + "\n"
+        target = self.target_dir / "CONTINUE.md"
+
+        if target.exists():
+            existing = target.read_text(encoding="utf-8")
+            if self.HEADER_MARKER in existing and self.FOOTER_MARKER in existing:
+                before = existing[: existing.index(self.HEADER_MARKER)]
+                after = existing[
+                    existing.index(self.FOOTER_MARKER) + len(self.FOOTER_MARKER) :
+                ]
+                new_content = before + content + after.lstrip("\n")
+                return _write_file_if_changed(target, new_content)
+
+        return _write_file_if_changed(target, content)
+
+    def _generate_mcp_config(self) -> bool:
+        """Generate MCP server config YAML for hermes-bus.
+
+        Continue.dev loads MCP servers from .continue/mcpServers/*.yaml.
+        """
+        assert self.config is not None
+
+        config_content = (
+            "# HERMES Bus MCP Server — auto-generated by hermes adapt continue\n"
+            "# Provides: bus read/write, session lifecycle, crypto, hub send\n"
+            "# Docs: https://github.com/dereyesm/hermes\n"
+            "name: hermes-bus\n"
+            "command: python\n"
+            "args:\n"
+            "  - -m\n"
+            "  - hermes.mcp_server\n"
+            "env:\n"
+            f'  HERMES_DIR: "{self.hermes_dir}"\n'
+        )
+
+        target = self.target_dir / "mcpServers" / "hermes.yaml"
+        return _write_file_if_changed(target, config_content)
+
+    def _link_rules(self) -> list[str]:
+        """Symlink dimension skills into rules/<dim>/<name>/ directory.
+
+        Continue.dev uses rules/ for context injection — HERMES skills
+        map naturally to this concept.
+        """
+        dims_dir = self.hermes_dir / "dimensions"
+        if not dims_dir.is_dir():
+            return []
+
+        created = []
+        rules_target = self.target_dir / "rules"
+
+        for dim_dir in sorted(dims_dir.iterdir()):
+            if not dim_dir.is_dir():
+                continue
+            skills_src = dim_dir / "skills"
+            if not skills_src.is_dir():
+                continue
+            for skill_dir in sorted(skills_src.iterdir()):
+                if not skill_dir.is_dir():
+                    continue
+                link = rules_target / dim_dir.name / skill_dir.name
+                if _safe_symlink(link, skill_dir):
+                    created.append(str(link))
+
+        return created
+
+    def _link_bus(self) -> bool:
+        """Symlink bus.jsonl into the Continue config directory."""
+        bus_source = self._find_bus_source()
+        if bus_source is None:
+            return False
+        link_path = self.target_dir / "bus.jsonl"
+        return _safe_symlink(link_path, bus_source)
+
+
+# ---------------------------------------------------------------------------
 # Registry of available adapters
 # ---------------------------------------------------------------------------
 
@@ -1060,6 +1243,7 @@ ADAPTERS: dict[str, type[AdapterBase]] = {
     "cursor": CursorAdapter,
     "opencode": OpenCodeAdapter,
     "gemini": GeminiCLIAdapter,
+    "continue": ContinueAdapter,
 }
 
 

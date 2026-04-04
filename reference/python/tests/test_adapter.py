@@ -1524,7 +1524,7 @@ class TestAdapterRegistryGemini:
         assert result.success is True
         assert result.adapter_name == "gemini"
 
-    def test_four_adapters_registered(self):
+    def test_five_adapters_registered(self):
         adapters = list_adapters()
-        assert len(adapters) == 4
-        assert set(adapters) == {"claude-code", "cursor", "gemini", "opencode"}
+        assert len(adapters) == 5
+        assert set(adapters) == {"claude-code", "continue", "cursor", "gemini", "opencode"}
