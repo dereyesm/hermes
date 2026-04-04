@@ -108,6 +108,10 @@ class AgentNodeConfig:
     notification_throttle_per_minute: int = 5
     approval_default_timeout_hours: int = 24
     queue_overflow: str = "drop-newest"
+    # LLM triage (extends static evaluator with LLM classification)
+    llm_triage_enabled: bool = False
+    llm_triage_backend: str = "gemini"
+    llm_triage_model: str = "gemini-2.5-flash"
 
 
 def load_agent_config(config_path: Path) -> AgentNodeConfig:
@@ -195,6 +199,9 @@ def load_agent_config(config_path: Path) -> AgentNodeConfig:
         ),
         approval_default_timeout_hours=int(asp_section.get("approval_default_timeout_hours", 24)),
         queue_overflow=str(asp_section.get("queue_overflow", "drop-newest")),
+        llm_triage_enabled=bool(section.get("llm_triage_enabled", False)),
+        llm_triage_backend=str(section.get("llm_triage_backend", "gemini")),
+        llm_triage_model=str(section.get("llm_triage_model", "gemini-2.5-flash")),
     )
 
 
@@ -805,6 +812,88 @@ class MessageEvaluator:
 
 
 # ---------------------------------------------------------------------------
+# LLM Triage Evaluator
+# ---------------------------------------------------------------------------
+
+_TRIAGE_PROMPT = """You are a HERMES message triage agent. Classify the incoming bus message.
+
+Respond with EXACTLY one word:
+- DISPATCH — actionable task, should be executed autonomously
+- ESCALATE — requires human attention or approval
+- FORWARD — informational, pass along to gateway
+- IGNORE — noise, duplicate, or not relevant
+
+Consider: dispatch type = auto-execute, alert = likely escalate, event = usually forward, state = usually ignore."""
+
+
+class LLMTriageEvaluator(MessageEvaluator):
+    """Extends MessageEvaluator with LLM-based classification.
+
+    When static rules return IGNORE for a broadcast message (*),
+    falls back to LLM triage using the configured adapter.
+    Writes classification decisions to bus as dojo_event for auditability.
+    """
+
+    def __init__(self, config: AgentNodeConfig, adapter_manager: object, bus_path: Path):
+        super().__init__(config)
+        self._adapter = adapter_manager
+        self._bus_path = bus_path
+
+    def evaluate(self, message: Message) -> Action:
+        """Evaluate message: static rules first, LLM fallback for broadcasts."""
+        action = super().evaluate(message)
+
+        # Only use LLM for broadcast messages that static rules would ignore
+        if action == Action.IGNORE and message.dst == "*" and message.type not in (
+            "state", "dojo_event"
+        ):
+            llm_action = self._llm_triage(message)
+            if llm_action is not None:
+                action = llm_action
+
+        return action
+
+    def _llm_triage(self, message: Message) -> Action | None:
+        """Classify a message using LLM. Returns None on failure."""
+        try:
+            response = self._adapter.complete(
+                system_prompt=_TRIAGE_PROMPT,
+                user_message=f"[{message.type}] from {message.src}: {message.msg}",
+                max_tokens=20,
+            )
+            action = self._parse_action(response.text.strip())
+
+            # Audit trail
+            try:
+                audit_msg = create_message(
+                    src=self.config.namespace,
+                    dst="*",
+                    type="dojo_event",
+                    msg=f"LLM_TRIAGE:{message.type}:{action.value}:{message.msg[:60]}",
+                )
+                write_message(str(self._bus_path), audit_msg)
+            except Exception:
+                pass  # Never fail on audit
+
+            return action
+        except Exception as e:
+            logger.debug("LLM triage failed (non-fatal): %s", e)
+            return None
+
+    @staticmethod
+    def _parse_action(text: str) -> Action:
+        """Parse LLM response text to Action enum."""
+        text_upper = text.upper().split()[0] if text.split() else ""
+        mapping = {
+            "DISPATCH": Action.DISPATCH,
+            "ESCALATE": Action.ESCALATE,
+            "FORWARD": Action.FORWARD,
+            "IGNORE": Action.IGNORE,
+        }
+        return mapping.get(text_upper, Action.IGNORE)
+
+
+# ---------------------------------------------------------------------------
 # Dispatcher
 # ---------------------------------------------------------------------------
 
@@ -931,7 +1020,7 @@ class AgentNode:
             poll_interval=config.poll_interval,
         )
         self.gateway = GatewayLink(config)
-        self.evaluator = MessageEvaluator(config)
+        self.evaluator = self._create_evaluator(config)
         self.dispatcher = Dispatcher(config)
         self.state: NodeState | None = None
         self._running = False
@@ -952,6 +1041,34 @@ class AgentNode:
         self.ownership = None
         self.wv_tracker = None  # F3: Write vector tracking
         self.conflict_log = None  # F4: Conflict forensic log
+
+    @staticmethod
+    def _create_evaluator(config: AgentNodeConfig) -> MessageEvaluator:
+        """Create the appropriate evaluator based on config.
+
+        Uses LLMTriageEvaluator when llm_triage_enabled=True and the
+        required LLM backend is available. Falls back to static evaluator.
+        """
+        if not config.llm_triage_enabled:
+            return MessageEvaluator(config)
+
+        try:
+            from .llm.adapters import AdapterManager, create_adapter
+
+            adapter = create_adapter(
+                config.llm_triage_backend,
+                model=config.llm_triage_model,
+            )
+            manager = AdapterManager([adapter])
+            logger.info(
+                "LLM triage enabled (backend=%s, model=%s)",
+                config.llm_triage_backend,
+                config.llm_triage_model,
+            )
+            return LLMTriageEvaluator(config, manager, config.bus_path)
+        except Exception as e:
+            logger.warning("LLM triage init failed, using static evaluator: %s", e)
+            return MessageEvaluator(config)
 
     def _init_asp(self, state: NodeState) -> None:
         """Initialize ARC-0369 F3+F4+F5 components."""
