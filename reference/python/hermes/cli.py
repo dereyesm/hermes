@@ -1219,6 +1219,12 @@ def build_parser() -> argparse.ArgumentParser:
     p_hub_listen.add_argument("--daemon", action="store_true", help="Run as background daemon")
     _add_dir_arg(p_hub_listen)
 
+    p_hub_install = hub_sub.add_parser("install", help="Install hub + listener as persistent OS services")
+    _add_dir_arg(p_hub_install)
+
+    p_hub_uninstall = hub_sub.add_parser("uninstall", help="Remove hub OS services")
+    _add_dir_arg(p_hub_uninstall)
+
     # llm (Multi-LLM adapters)
     p_llm = sub.add_parser("llm", help="Manage LLM backends")
     llm_sub = p_llm.add_subparsers(dest="llm_command")
@@ -1340,6 +1346,19 @@ def main(argv: list[str] | None = None) -> int:
         )
 
         hub_dir = _resolve_clan_dir(args)
+
+        def _hub_install() -> int:
+            from .installer import install_hub_service
+            ok, msg = install_hub_service(hub_dir)
+            print(msg)
+            return 0 if ok else 1
+
+        def _hub_uninstall() -> int:
+            from .installer import uninstall_hub_service
+            ok, msg = uninstall_hub_service()
+            print(msg)
+            return 0 if ok else 1
+
         hub_commands = {
             "init": lambda: cmd_hub_init(hub_dir, force=getattr(args, "force", False)),
             "start": lambda: cmd_hub_start(hub_dir, foreground=getattr(args, "foreground", True)),
@@ -1347,6 +1366,8 @@ def main(argv: list[str] | None = None) -> int:
             "status": lambda: cmd_hub_status(hub_dir),
             "peers": lambda: cmd_hub_peers(hub_dir),
             "listen": lambda: cmd_hub_listen(hub_dir, daemon=getattr(args, "daemon", False)),
+            "install": _hub_install,
+            "uninstall": _hub_uninstall,
         }
         if args.hub_command is None:
             parser.parse_args(["hub", "--help"])

@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- HERMES Hub Listener — Real-time message delivery -->
+    <!-- Connects to hub, writes incoming messages to hub-inbox.jsonl -->
+    <!-- Docs: https://github.com/dereyesm/hermes/blob/main/docs/hub-operations.md -->
+
+    <key>Label</key>
+    <string>com.hermes.hub-listen</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <!-- Replace with your Python path and clan directory -->
+        <string>/path/to/python</string>
+        <string>-m</string>
+        <string>hermes.cli</string>
+        <string>hub</string>
+        <string>listen</string>
+        <string>--dir</string>
+        <string>/path/to/clan</string>
+    </array>
+
+    <!-- Auto-start on login -->
+    <key>RunAtLoad</key>
+    <true/>
+
+    <!-- Restart on crash -->
+    <key>KeepAlive</key>
+    <true/>
+
+    <!-- Wait 10s before restart to avoid rapid cycling -->
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+
+    <!-- Low priority background process -->
+    <key>ProcessType</key>
+    <string>Background</string>
+
+    <!-- Logging -->
+    <key>StandardOutPath</key>
+    <string>/path/to/clan/hub-listen.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/path/to/clan/hub-listen.err</string>
+</dict>
+</plist>

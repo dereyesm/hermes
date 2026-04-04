@@ -180,6 +180,8 @@ def add_agent_node_section(clan_dir: Path) -> tuple[bool, str]:
 # ---------------------------------------------------------------------------
 
 _LAUNCHAGENT_LABEL = "com.hermes.agent-node"
+_HUB_LABEL = "com.hermes.hub"
+_HUB_LISTEN_LABEL = "com.hermes.hub-listen"
 
 
 def generate_launchagent(clan_dir: str | Path) -> tuple[Path, str]:
@@ -271,6 +273,190 @@ cd /d "{clan_dir}"
 """
     bat_path = Path(clan_dir) / "hermes-agent.bat"
     return bat_path, bat
+
+
+# ---------------------------------------------------------------------------
+# Hub service generators (macOS / Linux / Windows)
+# ---------------------------------------------------------------------------
+
+
+def _generate_hub_plist(label: str, clan_dir: str, subcommand: list[str],
+                        log_prefix: str) -> tuple[Path, str]:
+    """Generate a macOS LaunchAgent plist for a hub service."""
+    hermes_exe = hermes_executable_path()
+    parts = hermes_exe.split()
+    program_args = "".join(f"    <string>{p}</string>\n" for p in parts)
+    for arg in subcommand:
+        program_args += f"    <string>{arg}</string>\n"
+    program_args += "    <string>--dir</string>\n"
+    program_args += f"    <string>{clan_dir}</string>\n"
+
+    plist = f"""<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>{label}</string>
+  <key>ProgramArguments</key>
+  <array>
+{program_args.rstrip()}
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+  <key>ProcessType</key>
+  <string>Background</string>
+  <key>StandardOutPath</key>
+  <string>{clan_dir}/{log_prefix}.log</string>
+  <key>StandardErrorPath</key>
+  <string>{clan_dir}/{log_prefix}.err</string>
+</dict>
+</plist>
+"""
+    target = Path.home() / "Library" / "LaunchAgents" / f"{label}.plist"
+    return target, plist
+
+
+def _generate_hub_systemd(name: str, description: str, clan_dir: str,
+                          subcommand: list[str]) -> tuple[Path, str]:
+    """Generate a systemd user unit for a hub service."""
+    hermes_exe = hermes_executable_path()
+    cmd = f"{hermes_exe} {' '.join(subcommand)} --dir {clan_dir}"
+    unit = f"""[Unit]
+Description={description}
+After=network.target
+
+[Service]
+Type=simple
+ExecStart={cmd}
+Restart=on-failure
+RestartSec=10
+WorkingDirectory={clan_dir}
+
+[Install]
+WantedBy=default.target
+"""
+    config_dir = Path.home() / ".config" / "systemd" / "user"
+    target = config_dir / f"{name}.service"
+    return target, unit
+
+
+def generate_hub_service(clan_dir: str | Path) -> list[tuple[Path, str]]:
+    """Generate OS service files for hub server + listener.
+
+    Returns list of (target_path, content) tuples for both services.
+    """
+    clan_dir = str(Path(clan_dir).resolve())
+    plat = detect_platform()
+    results: list[tuple[Path, str]] = []
+
+    if plat == Platform.MACOS:
+        results.append(_generate_hub_plist(
+            _HUB_LABEL, clan_dir,
+            ["hub", "start", "--foreground"],
+            "hub",
+        ))
+        results.append(_generate_hub_plist(
+            _HUB_LISTEN_LABEL, clan_dir,
+            ["hub", "listen"],
+            "hub-listen",
+        ))
+    elif plat == Platform.LINUX:
+        results.append(_generate_hub_systemd(
+            "hermes-hub", "HERMES Hub Server (ARC-4601)", clan_dir,
+            ["hub", "start", "--foreground"],
+        ))
+        results.append(_generate_hub_systemd(
+            "hermes-hub-listen", "HERMES Hub Listener", clan_dir,
+            ["hub", "listen"],
+        ))
+
+    return results
+
+
+def install_hub_service(clan_dir: Path) -> tuple[bool, str]:
+    """Install and start hub + listener as OS services.
+
+    Returns (success, message).
+    """
+    plat = detect_platform()
+    services = generate_hub_service(clan_dir)
+
+    if not services:
+        return False, f"Hub service not supported on {plat.value}"
+
+    installed: list[str] = []
+    try:
+        for target, content in services:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(content)
+
+            if plat == Platform.MACOS:
+                subprocess.run(
+                    ["launchctl", "load", "-w", str(target)],
+                    capture_output=True, check=True,
+                )
+            elif plat == Platform.LINUX:
+                subprocess.run(
+                    ["systemctl", "--user", "daemon-reload"],
+                    capture_output=True, check=True,
+                )
+                unit_name = target.stem
+                subprocess.run(
+                    ["systemctl", "--user", "enable", "--now", unit_name],
+                    capture_output=True, check=True,
+                )
+            installed.append(target.name)
+
+        return True, f"Hub services installed: {', '.join(installed)}"
+
+    except subprocess.CalledProcessError as e:
+        return False, f"Hub service install failed: {e}"
+    except Exception as e:
+        return False, f"Hub service install error: {e}"
+
+
+def uninstall_hub_service() -> tuple[bool, str]:
+    """Stop and remove hub + listener OS services.
+
+    Returns (success, message).
+    """
+    plat = detect_platform()
+    removed: list[str] = []
+
+    try:
+        if plat == Platform.MACOS:
+            for label in [_HUB_LABEL, _HUB_LISTEN_LABEL]:
+                target = Path.home() / "Library" / "LaunchAgents" / f"{label}.plist"
+                if target.exists():
+                    subprocess.run(
+                        ["launchctl", "unload", str(target)],
+                        capture_output=True,
+                    )
+                    target.unlink()
+                    removed.append(label)
+
+        elif plat == Platform.LINUX:
+            for name in ["hermes-hub", "hermes-hub-listen"]:
+                target = Path.home() / ".config" / "systemd" / "user" / f"{name}.service"
+                if target.exists():
+                    subprocess.run(
+                        ["systemctl", "--user", "disable", "--now", name],
+                        capture_output=True,
+                    )
+                    target.unlink()
+                    removed.append(name)
+
+        if removed:
+            return True, f"Hub services removed: {', '.join(removed)}"
+        return True, "No hub services found to remove"
+
+    except Exception as e:
+        return False, f"Hub service uninstall error: {e}"
 
 
 # ---------------------------------------------------------------------------

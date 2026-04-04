@@ -10,6 +10,8 @@ from unittest.mock import MagicMock
 import pytest
 
 from hermes.installer import (
+    _HUB_LABEL,
+    _HUB_LISTEN_LABEL,
     _LAUNCHAGENT_LABEL,
     Platform,
     _atomic_json_write,
@@ -17,15 +19,18 @@ from hermes.installer import (
     add_agent_node_section,
     default_clan_dir,
     detect_platform,
+    generate_hub_service,
     generate_keypair,
     generate_launchagent,
     generate_systemd_unit,
     generate_windows_task,
     init_clan_if_needed,
     install_hooks,
+    install_hub_service,
     run_install,
     run_uninstall,
     send_notification,
+    uninstall_hub_service,
     uninstall_hooks,
 )
 
@@ -204,6 +209,119 @@ class TestServiceGeneration:
     def test_systemd_user_scope(self, tmp_path):
         target, _ = generate_systemd_unit(tmp_path)
         assert ".config/systemd/user" in str(target)
+
+
+# ---------------------------------------------------------------------------
+# Hub Service Generation
+# ---------------------------------------------------------------------------
+
+
+class TestHubServiceGeneration:
+    """Test hub + listener OS service file generation."""
+
+    def test_generate_hub_service_macos(self, tmp_path, monkeypatch):
+        monkeypatch.setattr("hermes.installer.detect_platform", lambda: Platform.MACOS)
+        services = generate_hub_service(tmp_path)
+        assert len(services) == 2
+
+        # Hub server plist
+        hub_target, hub_content = services[0]
+        assert _HUB_LABEL in hub_content
+        assert "hub" in hub_content
+        assert "start" in hub_content
+        assert "--foreground" in hub_content
+        assert "RunAtLoad" in hub_content
+        assert "KeepAlive" in hub_content
+        assert "hub.log" in hub_content
+        assert str(tmp_path.resolve()) in hub_content
+        assert hub_target.name == f"{_HUB_LABEL}.plist"
+
+        # Listener plist
+        listen_target, listen_content = services[1]
+        assert _HUB_LISTEN_LABEL in listen_content
+        assert "listen" in listen_content
+        assert "hub-listen.log" in listen_content
+        assert listen_target.name == f"{_HUB_LISTEN_LABEL}.plist"
+
+    def test_generate_hub_service_linux(self, tmp_path, monkeypatch):
+        monkeypatch.setattr("hermes.installer.detect_platform", lambda: Platform.LINUX)
+        services = generate_hub_service(tmp_path)
+        assert len(services) == 2
+
+        hub_target, hub_content = services[0]
+        assert "[Unit]" in hub_content
+        assert "[Service]" in hub_content
+        assert "hub start --foreground" in hub_content
+        assert hub_target.name == "hermes-hub.service"
+
+        listen_target, listen_content = services[1]
+        assert "hub listen" in listen_content
+        assert listen_target.name == "hermes-hub-listen.service"
+
+    def test_generate_hub_service_windows_empty(self, tmp_path, monkeypatch):
+        monkeypatch.setattr("hermes.installer.detect_platform", lambda: Platform.WINDOWS)
+        services = generate_hub_service(tmp_path)
+        assert len(services) == 0
+
+    def test_install_hub_service_writes_plists(self, tmp_path, monkeypatch):
+        monkeypatch.setattr("hermes.installer.detect_platform", lambda: Platform.MACOS)
+        launch_dir = tmp_path / "Library" / "LaunchAgents"
+        launch_dir.mkdir(parents=True)
+
+        # Mock Path.home() to use tmp_path
+        monkeypatch.setattr("hermes.installer.Path.home", lambda: tmp_path)
+
+        # Mock subprocess to avoid actually loading services
+        calls = []
+        def mock_run(cmd, **kwargs):
+            calls.append(cmd)
+            return MagicMock(returncode=0)
+        monkeypatch.setattr("hermes.installer.subprocess.run", mock_run)
+
+        ok, msg = install_hub_service(tmp_path)
+        assert ok is True
+        assert "installed" in msg
+
+        # Verify plists were written
+        hub_plist = launch_dir / f"{_HUB_LABEL}.plist"
+        listen_plist = launch_dir / f"{_HUB_LISTEN_LABEL}.plist"
+        assert hub_plist.exists()
+        assert listen_plist.exists()
+
+        # Verify launchctl was called for both
+        assert len(calls) == 2
+        assert "load" in calls[0]
+        assert "load" in calls[1]
+
+    def test_uninstall_hub_service_removes_plists(self, tmp_path, monkeypatch):
+        monkeypatch.setattr("hermes.installer.detect_platform", lambda: Platform.MACOS)
+        monkeypatch.setattr("hermes.installer.Path.home", lambda: tmp_path)
+
+        # Create fake plists
+        launch_dir = tmp_path / "Library" / "LaunchAgents"
+        launch_dir.mkdir(parents=True)
+        (launch_dir / f"{_HUB_LABEL}.plist").write_text("<plist/>")
+        (launch_dir / f"{_HUB_LISTEN_LABEL}.plist").write_text("<plist/>")
+
+        calls = []
+        def mock_run(cmd, **kwargs):
+            calls.append(cmd)
+            return MagicMock(returncode=0)
+        monkeypatch.setattr("hermes.installer.subprocess.run", mock_run)
+
+        ok, msg = uninstall_hub_service()
+        assert ok is True
+        assert "removed" in msg.lower()
+        assert not (launch_dir / f"{_HUB_LABEL}.plist").exists()
+        assert not (launch_dir / f"{_HUB_LISTEN_LABEL}.plist").exists()
+
+    def test_uninstall_hub_service_no_plists(self, tmp_path, monkeypatch):
+        monkeypatch.setattr("hermes.installer.detect_platform", lambda: Platform.MACOS)
+        monkeypatch.setattr("hermes.installer.Path.home", lambda: tmp_path)
+
+        ok, msg = uninstall_hub_service()
+        assert ok is True
+        assert "no hub services" in msg.lower()
 
 
 # ---------------------------------------------------------------------------

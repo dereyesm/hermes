@@ -323,6 +323,20 @@ Modules:
 
 See [reference/python/](reference/python/) for details.
 
+### Hub Mode (Real-Time P2P)
+
+Run a local hub for real-time message routing between clans:
+
+```bash
+hermes hub init                  # generate hub-peers.json from peer registry
+hermes hub install               # install as persistent OS service (macOS/Linux)
+hermes hub status                # check hub health
+hermes hub peers                 # list connected peers
+hermes hub uninstall             # stop and remove services
+```
+
+The hub provides WebSocket-based routing (port 8443), store-and-forward for offline peers, Ed25519 challenge-response auth, and S2S federation between hubs. See the [Hub Operations Guide](docs/hub-operations.md).
+
 ---
 
 ## Standards References

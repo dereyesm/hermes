@@ -228,6 +228,23 @@ HERMES_HOME=/path/to/shared/dir bash scripts/init_hermes.sh
 
 This creates the directory structure, bus files, routing table template, and namespace configs. Safe to re-run. Does not install OS services or Claude Code hooks.
 
+### Step 4 — Install Hub (optional, for real-time P2P messaging)
+
+If you want to receive messages from other clans in real-time:
+
+```bash
+# Initialize hub peers from your peer registry
+hermes hub init
+
+# Install hub + listener as persistent services (survives reboot)
+hermes hub install
+
+# Verify
+hermes hub status
+```
+
+The hub runs a WebSocket server on port 8443 and the listener delivers incoming messages to your AI agent via the `hub_inject` hook. See the [Hub Operations Guide](hub-operations.md) for details.
+
 ## What's Next?
 
 - Read the [Architecture Guide](ARCHITECTURE.md) for the full picture
