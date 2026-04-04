@@ -4,7 +4,7 @@
 > This is the golden path: two laptops, one LAN, zero cloud.
 
 **Status**: Living document. Canonical reference for ARC-4601 §15 Hub Mode.
-**Version**: 0.1.0 (2026-04-03)
+**Version**: 0.2.0 (2026-04-04)
 
 ## Overview
 
@@ -314,7 +314,98 @@ For a minimal client that can participate in HERMES hub bilateral:
 - [ ] Send `{"type": "ping"}` every 30-60s
 - [ ] Auto-reconnect with exponential backoff on disconnect
 
-## 9. Conformance Levels (ARC-1122)
+## 9. S2S Federation Wire Format (ARC-4601 §17)
+
+When two hubs connect via S2S, the HELLO frame includes `"role": "hub"` and a `peers` array
+listing the clans reachable through that hub. After authentication, message routing works
+identically to client connections — but common pitfalls apply.
+
+### 9.1 S2S HELLO (Hub-to-Hub)
+
+```json
+{
+  "type": "hello",
+  "clan_id": "jei-hub",
+  "sign_pub": "b05d85e59a6dee74...",
+  "protocol_version": "0.4.2a1",
+  "capabilities": ["e2e_crypto", "s2s"],
+  "role": "hub",
+  "peers": ["jei"]
+}
+```
+
+The `peers` array tells the receiving hub which clans are reachable via this S2S link.
+The receiving hub adds these to its federation routing table.
+
+### 9.2 S2S Message Routing
+
+Messages sent via S2S MUST use the same `{"type":"msg","payload":{...}}` wrapper as
+client messages. The hub does not distinguish between locally-originated and S2S-originated
+messages at the routing layer.
+
+```json
+{"type": "msg", "payload": {"src": "jei", "dst": "momoshod", "type": "event", "msg": "Hello from JEI via S2S", "ts": "2026-04-04", "ttl": 7}}
+```
+
+**Common mistake**: Sending the payload without the `{"type":"msg","payload":{...}}` wrapper.
+The hub message loop only processes frames with `type == "msg"` — all other frame types
+are silently ignored (except `ping` and `s2s_presence`).
+
+### 9.3 S2S Key Format (HERMES Native)
+
+The S2S hub authenticates using the same Ed25519 challenge-response as clients.
+Key files MUST be in HERMES native JSON format (not PEM):
+
+```json
+{
+  "sign_private": "<64-char hex>",
+  "sign_public": "<64-char hex>",
+  "dh_private": "<64-char hex>",
+  "dh_public": "<64-char hex>",
+  "clan_id": "jei"
+}
+```
+
+**Common mistake**: Using PEM-exported keys with field names `private`/`public` instead of
+`sign_private`/`sign_public`. The hub expects the HERMES native format with `sign_private` key.
+
+If your keys are in PEM format, convert them:
+
+```python
+from cryptography.hazmat.primitives.serialization import load_pem_private_key, Encoding, PublicFormat, PrivateFormat, NoEncryption
+
+with open("key.pem", "rb") as f:
+    key = load_pem_private_key(f.read(), password=b"your-passphrase")
+
+sign_private = key.private_bytes(Encoding.Raw, PrivateFormat.Raw, NoEncryption()).hex()
+sign_public = key.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw).hex()
+```
+
+### 9.4 S2S Troubleshooting
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| `sign_private` KeyError | Key file uses PEM field names | Re-export with `sign_private`/`sign_public` fields |
+| Auth OK but 0 messages routed | Missing `{"type":"msg","payload":{...}}` wrapper | Wrap payload in msg frame (§3.1) |
+| `queue_depth: 0` after send | `dst` field missing from payload | Add `"dst": "target_clan_id"` to payload (§3.2) |
+| Connection drops after HELLO | `role: "hub"` not in HELLO | Add `"role": "hub"` to HELLO frame |
+| S2S connects but no routing | `peers` array empty in HELLO | Include reachable clan IDs in `peers` |
+
+### 9.5 ConnectionTable: Multiple Sessions
+
+The hub supports multiple simultaneous connections per `clan_id`. A clan can have both
+a listener (for receiving) and a client (for sending) connected at the same time.
+Messages to that clan are delivered to ALL active connections.
+
+This means:
+- A `hermes hub listen` daemon and an interactive client can coexist
+- Store-and-forward drain happens on the first connection; subsequent connections
+  receive only new messages
+- Disconnecting one session does not affect others for the same clan
+
+---
+
+## 10. Conformance Levels (ARC-1122)
 
 | Level | Name | Auth | Messages | Presence | Store-Forward |
 |-------|------|------|----------|----------|---------------|
@@ -324,7 +415,7 @@ For a minimal client that can participate in HERMES hub bilateral:
 
 Hub bilateral requires **L3 Network-Ready** conformance.
 
-## References
+## 11. References
 
 - [ARC-4601](../spec/ARC-4601.md) — Agent Node Protocol (§15 Hub Mode)
 - [ARC-5322](../spec/ARC-5322.md) — Message Format
