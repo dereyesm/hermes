@@ -1,34 +1,109 @@
-# HERMES
+# HERMES — Local-first messaging for AI agents
 
 [![Tests](https://github.com/dereyesm/hermes/actions/workflows/ci.yml/badge.svg)](https://github.com/dereyesm/hermes/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/badge/pypi-hermes--protocol-blue.svg)](https://pypi.org/project/hermes-protocol/)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Specs: 21](https://img.shields.io/badge/specs-21%20IMPL%20%2B%201%20DRAFT-orange.svg)](spec/INDEX.md)
-[![Tests: 1475](https://img.shields.io/badge/tests-1475%20passing-brightgreen.svg)](reference/python/tests/)
-[![Adapters: 4](https://img.shields.io/badge/adapters-4%20(Claude%20Code%20%2B%20Cursor%20%2B%20OpenCode%20%2B%20Gemini%20CLI)-blue.svg)](docs/architecture/installable-model.md)
-[![Clans: 3](https://img.shields.io/badge/clans-3%20connected-teal.svg)](CLANS.md)
 
-<p align="center">
-  <a href="#architecture">
-    <img src="docs/diagrams/excalidraw/hero-clan-topology.svg" alt="HERMES Protocol — Clan topology with sovereign agents, encrypted relay, and cross-clan quest dispatch" width="800"/>
-  </a>
-</p>
+Your AI agents can't talk to each other. HERMES fixes that -- no servers, no cloud, no API keys. Just a local message bus that works offline.
 
-**Sovereign, encrypted communication between AI agents. No cloud required.**
+## Quick Start
 
-End-to-end encrypted bilateral messaging with Ed25519 + ECDHE, persistent audit trails you can `grep`, and zero infrastructure to get started. Inspired by TCP/IP and telecom standards.
+```bash
+pip install hermes-protocol        # 1. Install
+hermes init --clan-id my-team      # 2. Initialize (creates ~/.hermes/)
+hermes adapt claude-code           # 3. Connect your AI agent
+```
+
+That's it. Your agent can now read and write messages through the HERMES bus.
+
+### Send your first message
+
+From Claude Code (or any MCP-enabled agent):
+
+```
+"Send a HERMES message to cursor: Backend API ready at /api/todos"
+```
+
+Or from the command line:
+
+```bash
+echo '{"ts":"2026-04-03","src":"backend","dst":"frontend","type":"dispatch","msg":"API ready: GET/POST /api/todos","ttl":7,"ack":[]}' >> ~/.hermes/bus.jsonl
+```
+
+Or from Python:
+
+```python
+from hermes.bus import write_message
+from hermes.message import create_message
+
+write_message("~/.hermes/bus.jsonl", create_message(
+    src="backend", dst="frontend", type="dispatch",
+    msg="API ready: GET/POST /api/todos",
+))
+```
+
+### Connect multiple agents
+
+```bash
+hermes adapt claude-code           # Claude Code (MCP tools + hooks)
+hermes adapt cursor                # Cursor (.cursorrules + bus symlink)
+hermes adapt gemini                # Gemini CLI (GEMINI.md + settings)
+hermes adapt opencode              # OpenCode (AGENTS.md + config)
+hermes adapt --all                 # All detected agents at once
+```
+
+Every agent reads the same `~/.hermes/bus.jsonl`. Messages are just JSON lines -- `cat`, `grep`, and `jq` all work.
 
 ---
 
-HERMES (**Heterogeneous Event Routing for Multi-agent Ephemeral Sessions**) is an open protocol for AI agent coordination that requires zero infrastructure. Where other protocols assume HTTP endpoints, cloud services, or container runtimes, HERMES works with nothing more than a shared filesystem and `cat >> bus.jsonl`. It brings telecom engineering rigor -- layered architecture, formal specifications, Shannon constraints, CUPS separation -- to a problem space dominated by ad-hoc solutions.
+## Why HERMES?
 
-HERMES is designed to complement existing protocols like MCP and A2A, not replace them. It fills the gaps they were not designed for: sovereign agent communication without infrastructure, managed coordination through hosted hubs, enforcing privacy inside organizational boundaries, and bridging heterogeneous protocols through a gateway-as-NAT pattern.
+- **Zero infrastructure** -- no servers, no Docker, no cloud. Works offline with `cat >> bus.jsonl`.
+- **E2E encrypted** -- Ed25519 + AES-256-GCM per message. Even the relay can't read your data.
+- **Agent-agnostic** -- works with Claude Code, Cursor, Gemini CLI, OpenCode, or any tool that reads files.
 
 ---
 
-## Where HERMES Fits
+## How It Works
 
-The agent communication landscape in 2026 has multiple protocols optimized for different scenarios. HERMES occupies the space that none of them cover:
+```
+  Claude Code                    Cursor
+      │                            │
+      │ hermes_bus_write()         │ reads .cursor/bus.jsonl
+      │                            │
+      └──────► ~/.hermes/bus.jsonl ◄──────┘
+                    │
+              Just a file.
+         grep it. git it. own it.
+```
+
+HERMES messages have 7 fields. That's the whole protocol:
+
+```json
+{"ts":"2026-04-03","src":"backend","dst":"frontend","type":"dispatch","msg":"API ready","ttl":7,"ack":[]}
+```
+
+---
+
+## What else can it do?
+
+| Feature | Command | What it does |
+|---------|---------|-------------|
+| **Real-time P2P** | `hermes hub install` | WebSocket hub for live messaging between machines |
+| **Peer encryption** | `hermes peer invite` | One-command bilateral key exchange |
+| **Hub federation** | Built-in (S2S) | Your hub talks to other hubs (BGP-style routing) |
+| **Token telemetry** | `hermes llm usage` | Track AI token costs across backends |
+| **Full setup** | `hermes install` | OS service + hooks + keys in one command |
+
+---
+
+## Deep Dive
+
+Everything below is for the curious. You don't need any of it to use HERMES.
+
+<details>
+<summary><strong>Where HERMES Fits (vs MCP, A2A, NLIP)</strong></summary>
 
 | Protocol | Scope | Transport | Infrastructure Required |
 |----------|-------|-----------|------------------------|
@@ -39,145 +114,44 @@ The agent communication landscape in 2026 has multiple protocols optimized for d
 | **ANP** | Discovery + DIDs | HTTP, JSON-LD | HTTP + DID resolver |
 | **HERMES** | Sovereign + Hosted dual-mode | **File system / HTTPS** | **None** (Sovereign) or **Hub** (Hosted) |
 
-**HERMES complements, does not replace, existing protocols.** Use MCP for tool binding. Use A2A for real-time agent-to-agent RPC. Use HERMES for the coordination layer that works without infrastructure (Sovereign mode), scales with managed services (Hosted mode), respects organizational boundaries, and bridges to everything else through its gateway.
-
-```
-         MCP                    A2A                   HERMES
-    Model ↔ Tools         Agent ↔ Agent          Agent ↔ Agent
-         │                      │                      │
-    Requires runtime      Requires HTTP         Requires filesystem
-    or HTTP server        endpoints + cloud      Sovereign: filesystem
-         │                      │                      │
-    Vertical              Horizontal              Sovereign + Hosted
-    integration           orchestration           + Bridge to both
-```
+**HERMES complements, does not replace, existing protocols.** Use MCP for tool binding. Use A2A for real-time agent-to-agent RPC. Use HERMES for the coordination layer that works without infrastructure.
 
 See [docs/POSITIONING.md](docs/POSITIONING.md) for the full technical positioning paper.
 
----
+</details>
 
-## Key Features
+<details>
+<summary><strong>Key Features (full list)</strong></summary>
 
 - **Zero infrastructure** -- works with `cat >> bus.jsonl`. No servers, no Docker, no cloud, no internet required.
-- **End-to-end encrypted** -- Ed25519 signing + X25519 ECDHE key agreement + AES-256-GCM per message. Even the hub cannot read your messages. Forward secrecy by default.
-- **76.9% wire efficient** -- compact mode ([ARC-5322 §14](spec/ARC-5322.md)) is 4.9x less overhead than gRPC. Still valid JSON, readable with `cat` and `jq`. See [ATR-G.711](spec/ATR-G711.md).
+- **End-to-end encrypted** -- Ed25519 signing + X25519 ECDHE key agreement + AES-256-GCM per message. Forward secrecy by default.
+- **76.9% wire efficient** -- compact mode is 4.9x less overhead than gRPC. Still valid JSON. See [ATR-G.711](spec/ATR-G711.md).
 - **File-based = auditable** -- every message is a line of JSON. Git-versionable, grep-searchable, human-inspectable.
-- **Telecom engineering rigor** -- three-track standards system (ARC/ATR/AES) modeled after IETF, ITU-T, and IEEE. Shannon-constrained payloads. Triple-plane CUPS architecture (ARC-2314): Control Plane (Messengers), Orchestration Plane (Dojos), User Plane (Skills).
-- **Privacy-first** -- ARC-1918 firewalls enforce namespace isolation. The gateway (ARC-3022) acts as NAT: internal identity is never exposed to external networks.
-- **Dual trust metrics** -- Bounty (internal reputation, visible only inside your clan) + Resonance (external reputation, earned through cross-clan attestations). Never conflated.
-- **Sovereignty without isolation** -- clans connect via the Agora public directory without surrendering control over their internal topology, agents, or data.
+- **Telecom engineering rigor** -- 21 formal specs modeled after IETF, ITU-T, and IEEE.
+- **Privacy-first** -- firewalls enforce namespace isolation. The gateway acts as NAT: internal identity is never exposed externally.
 - **Backward compatible** -- Phase 0 (JSONL on a filesystem) always works. Every extension is optional.
 
----
+</details>
 
-## Quick Start
+<details>
+<summary><strong>Wire Format Details</strong></summary>
 
-### Install
-
-```bash
-cd reference/python
-pip install -e .
-```
-
-### One-command setup (recommended)
-
-```bash
-hermes install --clan-id my-clan --display-name "My Clan"
-```
-
-This single command initializes `~/.hermes/` with clan config, generates Ed25519 + X25519 keypairs, installs an OS service (macOS LaunchAgent / Linux systemd / Windows schtasks), registers Claude Code hooks, and starts the agent-node daemon. To reverse: `hermes uninstall [--purge]`. See [docs/QUICKSTART.md](docs/QUICKSTART.md) for details.
-
-### Connect to your AI agent
-
-```bash
-hermes adapt --list              # see available adapters (auto-detects installed agents)
-hermes adapt claude-code         # generates ~/.claude/ config + bus symlinks
-hermes adapt gemini              # generates ~/.gemini/GEMINI.md + settings.json
-hermes adapt cursor              # generates .cursorrules with HERMES context
-hermes adapt opencode            # generates ~/.config/opencode/ config
-hermes adapt --all               # adapt all detected agents at once
-```
-
-HERMES works with **any AI coding agent** — Claude Code, Gemini CLI, Cursor, OpenCode, and any tool that reads markdown context files. The adapter layer translates your `~/.hermes/` config into each agent's native format.
-
-### Write a message to the bus
-
-```python
-from hermes.message import create_message
-from hermes.bus import write_message, read_bus
-
-# Create a message from the "engineering" namespace to "ops"
-msg = create_message(
-    src="engineering",
-    dst="ops",
-    type="state",
-    msg="Build pipeline green. 214 tests passing.",
-)
-
-# Append to the bus
-write_message("bus.jsonl", msg)
-```
-
-### Read messages for a namespace
-
-```python
-from hermes.bus import read_bus, filter_for_namespace
-
-# Read all messages, filter for what "ops" needs to see
-messages = read_bus("bus.jsonl")
-pending = filter_for_namespace(messages, "ops")
-
-for m in pending:
-    print(f"[{m.ts}] {m.src} -> {m.dst}: {m.msg}")
-```
-
-### Or just use the command line
-
-```bash
-# Write a raw message (the protocol is just JSONL)
-echo '{"ts":"2026-03-03","src":"engineering","dst":"ops","type":"event","msg":"Deployment complete.","ttl":3,"ack":[]}' >> bus.jsonl
-
-# Validate messages
-cat bus.jsonl | python -m hermes.message
-
-# Read what's there
-cat bus.jsonl | python -c "
-import sys, json
-for line in sys.stdin:
-    m = json.loads(line)
-    print(f'[{m[\"ts\"]}] {m[\"src\"]} -> {m[\"dst\"]}: {m[\"msg\"]}')
-"
-```
-
-A complete HERMES message has exactly 7 fields per [ARC-5322](spec/ARC-5322.md). Two wire formats are supported, auto-detected by the first character (`{` or `[`):
+Two wire formats are supported, auto-detected by the first character (`{` or `[`):
 
 ```json
 {"ts":"2026-03-03","src":"engineering","dst":"ops","type":"state","msg":"Build pipeline green.","ttl":7,"ack":[]}
 [9559,"engineering","ops",0,"Build pipeline green.",7,[]]
 ```
 
-The **verbose** format (object) is human-first. The **compact** format ([§14](spec/ARC-5322.md)) uses positional arrays, epoch-day timestamps, and integer type enums -- reducing wrapper from 105B to 36B while remaining valid JSON:
-
 | Metric | Verbose | Compact |
 |--------|---------|---------|
 | Wrapper overhead | 105 B | **36 B** |
 | Efficiency @120B | 53.1% | **76.9%** |
 | vs gRPC | 1.7x | **4.9x** less overhead |
-| vs MQTT | 1.3x | **3.6x** less overhead |
 
-| Field | Verbose Key | Compact Index | Description |
-|-------|-------------|---------------|-------------|
-| Timestamp | `ts` | `[0]` | ISO date or epoch-day (days since 2000-01-01) |
-| Source | `src` | `[1]` | Source namespace |
-| Destination | `dst` | `[2]` | Destination namespace (`*` for broadcast) |
-| Type | `type` | `[3]` | Message type (string or integer 0-6) |
-| Payload | `msg` | `[4]` | Payload (max 120 chars -- Shannon constraint) |
-| TTL | `ttl` | `[5]` | Time-to-live in days |
-| Acks | `ack` | `[6]` | Array of namespaces that acknowledged |
+See [ARC-5322](spec/ARC-5322.md) for the full message format specification.
 
-**New to HERMES?** Start here: **[Getting Started Guide](docs/GETTING-STARTED.md)** -- step-by-step setup, call flows explained visually, and how to connect your clan to the network.
-
-Deploy your own HERMES instance: **[Quickstart Guide](docs/QUICKSTART.md)**
+</details>
 
 ---
 
