@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "hermes-bus": {
+      "command": "hermes",
+      "args": ["mcp", "serve"],
+      "env": {}
+    }
+  }
+}
