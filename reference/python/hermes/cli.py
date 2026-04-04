@@ -226,8 +226,10 @@ def cmd_status(args: argparse.Namespace) -> int:
         except (ProcessLookupError, PermissionError, OSError):
             pass
 
-    # Peer presence from hub-inbox.jsonl (latest presence per peer)
+    # Peer presence from hub-inbox.jsonl (latest presence + roster per peer)
     peer_presence: dict[str, str] = {}
+    # Build alias map: known_peer_ids + hub-peers.json variants → canonical peer_id
+    known_peer_ids = {p.clan_id for p in config.peers}
     inbox_file = clan_dir / "hub-inbox.jsonl"
     if inbox_file.exists():
         try:
@@ -235,14 +237,42 @@ def cmd_status(args: argparse.Namespace) -> int:
                 if not line.strip():
                     continue
                 msg = _json.loads(line)
-                if msg.get("type") == "presence" and msg.get("from") == "HUB":
-                    text = msg.get("msg", "")
-                    # Format: "jei: online" or "JEI: offline"
+                msg_from = msg.get("from", "")
+                msg_type = msg.get("type", "")
+                text = msg.get("msg", "")
+
+                if msg_type == "presence" and msg_from == "HUB":
+                    # Format: "jei: online" or "JEI: offline" or "jei: online | domains=..."
                     if ": " in text:
                         peer_id, state = text.split(": ", 1)
-                        peer_presence[peer_id.lower()] = state.strip()
+                        # Strip extra presence metadata after |
+                        state = state.split("|")[0].strip()
+                        peer_presence[peer_id.lower()] = state
+
+                elif msg_type == "roster" and msg_from == "HUB":
+                    # Format: "roster: momoshod, jei-hub (2 online)"
+                    if text.startswith("roster: "):
+                        roster_part = text[len("roster: "):]
+                        if "(" in roster_part:
+                            roster_part = roster_part[:roster_part.rfind("(")].strip()
+                        for name in roster_part.split(","):
+                            name = name.strip().lower()
+                            if name:
+                                peer_presence[name] = "online"
         except (ValueError, OSError):
             pass
+
+    # Resolve aliases: map jei-hub → jei if jei-hub is not a known peer but jei is
+    resolved_presence: dict[str, str] = {}
+    for pid, state in peer_presence.items():
+        if pid in known_peer_ids:
+            resolved_presence[pid] = state
+        else:
+            # Try stripping -hub suffix
+            base = pid.removesuffix("-hub")
+            if base != pid and base in known_peer_ids:
+                resolved_presence[base] = state
+    peer_presence = resolved_presence
 
     # Bus stats
     bus_messages = 0
