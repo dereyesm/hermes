@@ -109,14 +109,36 @@ def load_peers(peers_path: Path) -> dict[str, PeerInfo]:
 # ---------------------------------------------------------------------------
 
 
+VALID_READINESS = frozenset({"online", "ready", "in_quest", "busy", "cooldown"})
+
+
 @dataclass
 class ConnectionEntry:
-    """An active WebSocket connection."""
+    """An active WebSocket connection with presence metadata."""
 
     ws: Any  # websockets.WebSocketServerProtocol
     clan_id: str
     connected_at: float = field(default_factory=time.time)
     msgs_routed: int = 0
+    readiness: str = "online"
+    domains: list[str] = field(default_factory=list)
+    quest_slots_available: int = 1
+    quest_slots_max: int = 1
+    active_quests: list[str] = field(default_factory=list)
+    status_message: str = ""
+
+    def presence_dict(self) -> dict:
+        """Return presence info for roster/broadcast."""
+        return {
+            "clan_id": self.clan_id,
+            "status": "online",
+            "readiness": self.readiness,
+            "quest_slots": {"available": self.quest_slots_available, "max": self.quest_slots_max},
+            "domains": self.domains,
+            "active_quests": self.active_quests,
+            "message": self.status_message,
+            "since": datetime.fromtimestamp(self.connected_at, tz=UTC).isoformat(),
+        }
 
 
 class ConnectionTable:
@@ -340,7 +362,7 @@ class FederationTable:
 
     def active_links(self) -> list[FederationLink]:
         """Return all connected S2S links."""
-        return [l for l in self._links.values() if l.connected and l.ws]
+        return [link for link in self._links.values() if link.connected and link.ws]
 
     def update_remote_peers(self, hub_id: str, peers: list[str]) -> None:
         """Update the peer list for a remote hub (e.g. from s2s_presence)."""
@@ -753,16 +775,20 @@ class HubServer:
             else:
                 # Regular peer connection
                 # Step 2: Register connection
-                self.connections.add(clan_id, ws)
+                conn_entry = self.connections.add(clan_id, ws)
                 logger.info("Peer connected: %s", clan_id)
 
                 # Step 3: Notify other peers + S2S links
-                await self._broadcast_presence(clan_id, "online")
+                await self._broadcast_presence(clan_id, "online", conn_entry)
 
-                # Step 4: Drain queued messages
+                # Step 4: Send roster (who else is online)
+                roster = self._build_roster()
+                await ws.send(json.dumps({"type": "roster", "clans": roster}))
+
+                # Step 5: Drain queued messages
                 await self._drain_queue(ws, clan_id)
 
-                # Step 5: Message loop
+                # Step 6: Message loop
                 async for raw in ws:
                     try:
                         frame = json.loads(raw)
@@ -776,6 +802,29 @@ class HubServer:
                         if not isinstance(payload, dict) or "dst" not in payload:
                             continue
                         await self.router.route(payload, clan_id)
+
+                    elif frame_type == "set_status":
+                        # Client updates their readiness/presence
+                        readiness = frame.get("readiness", "")
+                        if readiness and readiness in VALID_READINESS:
+                            conn_entry.readiness = readiness
+                        if "domains" in frame:
+                            conn_entry.domains = frame["domains"][:20]
+                        if "quest_slots" in frame:
+                            qs = frame["quest_slots"]
+                            conn_entry.quest_slots_available = qs.get("available", conn_entry.quest_slots_available)
+                            conn_entry.quest_slots_max = qs.get("max", conn_entry.quest_slots_max)
+                        if "active_quests" in frame:
+                            conn_entry.active_quests = frame["active_quests"][:10]
+                        if "message" in frame:
+                            conn_entry.status_message = frame["message"][:120]
+                        # Broadcast the update
+                        await self._broadcast_presence(clan_id, "online", conn_entry)
+                        await ws.send(json.dumps({"type": "status_ok", "readiness": conn_entry.readiness}))
+
+                    elif frame_type == "roster_request":
+                        roster = self._build_roster()
+                        await ws.send(json.dumps({"type": "roster", "clans": roster}))
 
                     elif frame_type == "ping":
                         depth = self.queue.depth(clan_id)
@@ -975,33 +1024,67 @@ class HubServer:
                 )
             )
 
-    async def _broadcast_presence(self, clan_id: str, status: str) -> None:
+    async def _broadcast_presence(self, clan_id: str, status: str,
+                                   entry: ConnectionEntry | None = None) -> None:
         """Notify connected peers of presence change (§15.5.1)."""
-        frame = json.dumps(
-            {
-                "type": "presence",
-                "clan_id": clan_id,
-                "status": status,
-            }
-        )
-        for entry in self.connections.all_except(clan_id):
+        payload: dict = {
+            "type": "presence",
+            "clan_id": clan_id,
+            "status": status,
+        }
+        if entry:
+            payload.update({
+                "readiness": entry.readiness,
+                "quest_slots": {"available": entry.quest_slots_available, "max": entry.quest_slots_max},
+                "domains": entry.domains,
+                "active_quests": entry.active_quests,
+                "message": entry.status_message,
+            })
+        frame = json.dumps(payload)
+        for peer in self.connections.all_except(clan_id):
             try:
-                await entry.ws.send(frame)
+                await peer.ws.send(frame)
             except Exception:
                 pass
 
         # S2S: Notify federated hubs of local peer status change (§17)
-        s2s_frame = json.dumps({
+        s2s_payload: dict = {
             "type": "s2s_presence",
             "clan_id": clan_id,
             "status": status,
             "hub_id": self._hub_id,
-        })
+        }
+        if entry:
+            s2s_payload["readiness"] = entry.readiness
+            s2s_payload["domains"] = entry.domains
+        s2s_frame = json.dumps(s2s_payload)
         for link in self.federation.active_links():
             try:
                 await link.ws.send(s2s_frame)
             except Exception:
                 pass
+
+    def _build_roster(self) -> list[dict]:
+        """Build roster of all connected clans with presence metadata."""
+        roster: list[dict] = []
+        for clan_id in self.connections.connected_clan_ids():
+            entries = self.connections.get_all(clan_id)
+            if entries:
+                roster.append(entries[0].presence_dict())
+        # Include remote federation peers
+        for link in self.federation.active_links():
+            roster.append({
+                "clan_id": link.hub_id,
+                "status": "online",
+                "readiness": "online",
+                "quest_slots": {"available": 0, "max": 0},
+                "domains": [],
+                "active_quests": [],
+                "message": f"S2S hub ({len(link.remote_peers)} peers)",
+                "since": "",
+                "remote_peers": link.remote_peers,
+            })
+        return roster
 
     # -- S2S Outbound (§17) ------------------------------------------------
 
@@ -1483,12 +1566,38 @@ def cmd_hub_listen(hub_dir: Path, daemon: bool = False) -> int:
                                 print(f"  [{entry['from']}] {entry['msg'][:80]}")
                             continue
                         elif ftype == "presence":
+                            cid = frame.get("clan_id", "?")
+                            st = frame.get("status", "?")
+                            readiness = frame.get("readiness", "")
+                            domains = frame.get("domains", [])
+                            msg_parts = [f"{cid}: {st}"]
+                            if readiness and readiness != st:
+                                msg_parts.append(f"readiness={readiness}")
+                            if domains:
+                                msg_parts.append(f"domains={','.join(domains[:5])}")
+                            pmsg = frame.get("message", "")
+                            if pmsg:
+                                msg_parts.append(pmsg[:60])
                             entry = {
                                 "ts": datetime.now(UTC).isoformat(),
                                 "from": "HUB",
-                                "msg": f"{frame.get('clan_id','?')}: {frame.get('status','?')}",
+                                "msg": " | ".join(msg_parts),
                                 "type": "presence",
                             }
+                        elif ftype == "roster":
+                            # Log roster on connect (informational)
+                            clans = frame.get("clans", [])
+                            if clans:
+                                names = [c.get("clan_id", "?") for c in clans]
+                                entry = {
+                                    "ts": datetime.now(UTC).isoformat(),
+                                    "from": "HUB",
+                                    "msg": f"roster: {', '.join(names)} ({len(clans)} online)",
+                                    "type": "roster",
+                                }
+                                print(f"  Roster: {', '.join(names)}")
+                            else:
+                                continue
                         elif ftype == "pong":
                             continue
 

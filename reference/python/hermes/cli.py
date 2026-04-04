@@ -1225,6 +1225,19 @@ def build_parser() -> argparse.ArgumentParser:
     p_hub_uninstall = hub_sub.add_parser("uninstall", help="Remove hub OS services")
     _add_dir_arg(p_hub_uninstall)
 
+    p_hub_roster = hub_sub.add_parser("roster", help="Show connected clans and their readiness")
+    _add_dir_arg(p_hub_roster)
+
+    p_hub_ready = hub_sub.add_parser("ready", help="Announce readiness for quests")
+    p_hub_ready.add_argument("--domains", type=str, default="", help="Comma-separated capability domains")
+    p_hub_ready.add_argument("--message", type=str, default="", help="Status message (max 120 chars)")
+    p_hub_ready.add_argument("--slots", type=int, default=1, help="Available quest slots")
+    _add_dir_arg(p_hub_ready)
+
+    p_hub_busy = hub_sub.add_parser("busy", help="Set status to busy (not available for quests)")
+    p_hub_busy.add_argument("--message", type=str, default="", help="Status message")
+    _add_dir_arg(p_hub_busy)
+
     # llm (Multi-LLM adapters)
     p_llm = sub.add_parser("llm", help="Manage LLM backends")
     llm_sub = p_llm.add_subparsers(dest="llm_command")
@@ -1359,6 +1372,135 @@ def main(argv: list[str] | None = None) -> int:
             print(msg)
             return 0 if ok else 1
 
+        def _hub_presence_cmd(readiness: str) -> int:
+            """Send set_status to local hub via WebSocket."""
+            import asyncio
+
+            from .config import load_config
+            from .hub import load_hub_config
+
+            config_path = hub_dir / "gateway.json"
+            if not config_path.exists():
+                config_path = hub_dir / "config.toml"
+            hub_config = load_hub_config(config_path)
+
+            gw = load_config(config_path)
+            key_path = hub_dir / gw.keys_private
+            key_data = json.loads(key_path.read_text())
+            from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+            priv = Ed25519PrivateKey.from_private_bytes(bytes.fromhex(key_data["sign_private"]))
+            pub_hex = key_data.get("sign_public", "")
+
+            domains_raw = getattr(args, "domains", "")
+            domains = [d.strip() for d in domains_raw.split(",") if d.strip()] if domains_raw else []
+            message = getattr(args, "message", "") or ""
+            slots = getattr(args, "slots", 1)
+
+            async def _set() -> int:
+                import websockets
+                uri = f"ws://127.0.0.1:{hub_config.listen_port}"
+                async with websockets.connect(uri) as ws:
+                    await ws.send(json.dumps({"type": "hello", "clan_id": gw.clan_id,
+                                              "sign_pub": pub_hex, "protocol_version": "0.4.2a1", "capabilities": []}))
+                    ch = json.loads(await asyncio.wait_for(ws.recv(), 10))
+                    if ch.get("type") != "challenge":
+                        print(f"Unexpected: {ch.get('type')}")
+                        return 1
+                    sig = priv.sign(bytes.fromhex(ch["nonce"]))
+                    await ws.send(json.dumps({"type": "auth", "nonce_response": sig.hex()}))
+                    auth_resp = json.loads(await asyncio.wait_for(ws.recv(), 10))
+                    if auth_resp.get("type") != "auth_ok":
+                        print(f"Auth failed: {auth_resp}")
+                        return 1
+
+                    # Skip roster frame
+                    await asyncio.wait_for(ws.recv(), 5)
+
+                    frame: dict = {"type": "set_status", "readiness": readiness}
+                    if domains:
+                        frame["domains"] = domains
+                    if message:
+                        frame["message"] = message[:120]
+                    if readiness == "ready":
+                        frame["quest_slots"] = {"available": slots, "max": slots}
+
+                    await ws.send(json.dumps(frame))
+                    resp = json.loads(await asyncio.wait_for(ws.recv(), 5))
+                    print(f"Status set: {resp.get('readiness', readiness)}")
+                    if domains:
+                        print(f"  Domains: {', '.join(domains)}")
+                    if message:
+                        print(f"  Message: {message}")
+                    return 0
+
+            return asyncio.run(_set())
+
+        def _hub_roster() -> int:
+            """Query roster from local hub."""
+            import asyncio
+
+            from .config import load_config
+            from .hub import load_hub_config
+
+            config_path = hub_dir / "gateway.json"
+            if not config_path.exists():
+                config_path = hub_dir / "config.toml"
+            hub_config = load_hub_config(config_path)
+
+            gw = load_config(config_path)
+            key_path = hub_dir / gw.keys_private
+            key_data = json.loads(key_path.read_text())
+            from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+            priv = Ed25519PrivateKey.from_private_bytes(bytes.fromhex(key_data["sign_private"]))
+            pub_hex = key_data.get("sign_public", "")
+
+            async def _query() -> int:
+                import websockets
+                uri = f"ws://127.0.0.1:{hub_config.listen_port}"
+                async with websockets.connect(uri) as ws:
+                    await ws.send(json.dumps({"type": "hello", "clan_id": gw.clan_id,
+                                              "sign_pub": pub_hex, "protocol_version": "0.4.2a1", "capabilities": []}))
+                    ch = json.loads(await asyncio.wait_for(ws.recv(), 10))
+                    if ch.get("type") != "challenge":
+                        print(f"Unexpected: {ch.get('type')}")
+                        return 1
+                    sig = priv.sign(bytes.fromhex(ch["nonce"]))
+                    await ws.send(json.dumps({"type": "auth", "nonce_response": sig.hex()}))
+                    auth_resp = json.loads(await asyncio.wait_for(ws.recv(), 10))
+                    if auth_resp.get("type") != "auth_ok":
+                        print(f"Auth failed: {auth_resp}")
+                        return 1
+
+                    # The roster is auto-sent after auth_ok
+                    roster_frame = json.loads(await asyncio.wait_for(ws.recv(), 5))
+                    if roster_frame.get("type") != "roster":
+                        print(f"Unexpected: {roster_frame.get('type')}")
+                        return 1
+
+                    clans = roster_frame.get("clans", [])
+                    if not clans:
+                        print("No clans online.")
+                        return 0
+
+                    print(f"Online clans ({len(clans)}):")
+                    for c in clans:
+                        readiness = c.get("readiness", "online")
+                        qs = c.get("quest_slots", {})
+                        slots_str = f"{qs.get('available', 0)}/{qs.get('max', 0)}" if qs else ""
+                        domains = c.get("domains", [])
+                        msg = c.get("message", "")
+                        parts = [f"  {c['clan_id']}: {readiness}"]
+                        if slots_str and slots_str != "0/0":
+                            parts.append(f"[{slots_str} slots]")
+                        if domains:
+                            parts.append(f"domains={','.join(domains[:3])}")
+                        if msg:
+                            parts.append(f'"{msg[:60]}"')
+                        print(" ".join(parts))
+                    return 0
+
+            return asyncio.run(_query())
+
         hub_commands = {
             "init": lambda: cmd_hub_init(hub_dir, force=getattr(args, "force", False)),
             "start": lambda: cmd_hub_start(hub_dir, foreground=getattr(args, "foreground", True)),
@@ -1368,6 +1510,9 @@ def main(argv: list[str] | None = None) -> int:
             "listen": lambda: cmd_hub_listen(hub_dir, daemon=getattr(args, "daemon", False)),
             "install": _hub_install,
             "uninstall": _hub_uninstall,
+            "roster": _hub_roster,
+            "ready": lambda: _hub_presence_cmd("ready"),
+            "busy": lambda: _hub_presence_cmd("busy"),
         }
         if args.hub_command is None:
             parser.parse_args(["hub", "--help"])
