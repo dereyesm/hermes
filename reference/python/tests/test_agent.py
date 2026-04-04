@@ -1292,6 +1292,47 @@ class TestAutoPeerDiscovery:
         assert peers[0]["clan_id"] == "unknown-clan"
         assert peers[0]["status"] == "pending_ack"
 
+    def test_roster_registers_multiple_peers(self, peer_config):
+        """Roster message on connect registers all unknown peers."""
+        node = AgentNode(peer_config)
+        hub_msg = {
+            "ts": "2026-04-05T10:00:00+00:00",
+            "from": "HUB",
+            "msg": "roster: momoshod, jei, nymyka (3 online)",
+            "type": "roster",
+        }
+        # Add nymyka to hub-peers.json
+        hub_peers = json.loads((peer_config.clan_dir / "hub-peers.json").read_text())
+        hub_peers["peers"]["nymyka"] = {
+            "sign_pub": "2e77ed0000000000000000000000000000000000",
+            "display_name": "Nymyka",
+        }
+        (peer_config.clan_dir / "hub-peers.json").write_text(json.dumps(hub_peers))
+
+        node._auto_peer_from_presence(hub_msg)
+
+        gw = json.loads((peer_config.clan_dir / "gateway.json").read_text())
+        peers = gw.get("peers", [])
+        peer_ids = [p["clan_id"] for p in peers]
+        assert "jei" in peer_ids
+        assert "nymyka" in peer_ids
+        assert "momoshod" not in peer_ids  # self excluded
+        assert len(peers) == 2
+
+    def test_roster_skips_self_in_roster(self, peer_config):
+        """Self is filtered from roster peer list."""
+        node = AgentNode(peer_config)
+        hub_msg = {
+            "ts": "2026-04-05T10:00:00+00:00",
+            "from": "HUB",
+            "msg": "roster: momoshod (1 online)",
+            "type": "roster",
+        }
+        node._auto_peer_from_presence(hub_msg)
+
+        gw = json.loads((peer_config.clan_dir / "gateway.json").read_text())
+        assert len(gw.get("peers", [])) == 0
+
     def test_integrated_with_inbox_loop(self, peer_config):
         """Auto-peer runs during _hub_inbox_loop processing."""
         inbox = peer_config.hub_inbox_path
