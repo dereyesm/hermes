@@ -144,6 +144,9 @@ def cmd_init(args: argparse.Namespace) -> int:
 
 def cmd_status(args: argparse.Namespace) -> int:
     """Show gateway status — full dashboard."""
+    import json as _json
+    import os
+
     from .terminal import print_clan_status
 
     clan_dir = _resolve_clan_dir(args)
@@ -152,6 +155,11 @@ def cmd_status(args: argparse.Namespace) -> int:
     except FileNotFoundError:
         print("Error: No config found. Run 'hermes init' first.", file=sys.stderr)
         return 1
+
+    try:
+        from hermes import __version__
+    except (ImportError, AttributeError):
+        __version__ = "0.4.2a1"
 
     profile = gateway.build_public_profile()
 
@@ -170,18 +178,70 @@ def cmd_status(args: argparse.Namespace) -> int:
                 pass
             break
 
-    # Daemon status
+    # Daemon status — check pid file, then state file as fallback
     daemon_pid = None
     daemon_alive = False
+    daemon_agents: dict[str, str] = {}
     pid_file = clan_dir / ".agent-node.pid"
+    state_file = clan_dir / "agent-node.state.json"
     if pid_file.exists():
         try:
             daemon_pid = int(pid_file.read_text().strip())
-            import os
-
+        except (ValueError, OSError):
+            pass
+    if daemon_pid is None and state_file.exists():
+        try:
+            state_data = _json.loads(state_file.read_text())
+            daemon_pid = state_data.get("pid")
+            agent_states = state_data.get("agent_states", {})
+            if isinstance(agent_states, dict):
+                daemon_agents = agent_states.get("states", {})
+        except (ValueError, OSError, KeyError):
+            pass
+    if daemon_pid is not None:
+        try:
             os.kill(daemon_pid, 0)
             daemon_alive = True
-        except (ValueError, ProcessLookupError, PermissionError):
+        except (ProcessLookupError, PermissionError, OSError):
+            pass
+
+    # Hub status
+    hub_pid = None
+    hub_alive = False
+    hub_uptime = 0
+    hub_msgs_routed = 0
+    hub_state_file = clan_dir / "hub-state.json"
+    if hub_state_file.exists():
+        try:
+            hub_data = _json.loads(hub_state_file.read_text())
+            hub_pid = hub_data.get("pid")
+            hub_uptime = int(hub_data.get("uptime_seconds", 0))
+            hub_msgs_routed = hub_data.get("total_msgs_routed", 0)
+        except (ValueError, OSError):
+            pass
+    if hub_pid is not None:
+        try:
+            os.kill(hub_pid, 0)
+            hub_alive = True
+        except (ProcessLookupError, PermissionError, OSError):
+            pass
+
+    # Peer presence from hub-inbox.jsonl (latest presence per peer)
+    peer_presence: dict[str, str] = {}
+    inbox_file = clan_dir / "hub-inbox.jsonl"
+    if inbox_file.exists():
+        try:
+            for line in inbox_file.read_text().splitlines():
+                if not line.strip():
+                    continue
+                msg = _json.loads(line)
+                if msg.get("type") == "presence" and msg.get("from") == "HUB":
+                    text = msg.get("msg", "")
+                    # Format: "jei: online" or "JEI: offline"
+                    if ": " in text:
+                        peer_id, state = text.split(": ", 1)
+                        peer_presence[peer_id.lower()] = state.strip()
+        except (ValueError, OSError):
             pass
 
     # Bus stats
@@ -202,13 +262,19 @@ def cmd_status(args: argparse.Namespace) -> int:
     print_clan_status(
         clan_id=config.clan_id,
         display_name=config.display_name,
-        protocol_version=config.protocol_version,
+        protocol_version=__version__,
         heraldo_alias=config.heraldo_alias,
         agents=profile.get("agents", []),
         peers=config.peers,
         fingerprint=fingerprint,
         daemon_pid=daemon_pid,
         daemon_alive=daemon_alive,
+        daemon_agents=daemon_agents,
+        hub_pid=hub_pid,
+        hub_alive=hub_alive,
+        hub_uptime=hub_uptime,
+        hub_msgs_routed=hub_msgs_routed,
+        peer_presence=peer_presence,
         bus_messages=bus_messages,
         bus_pending=bus_pending,
         clan_dir=str(clan_dir),
@@ -1011,7 +1077,11 @@ def _add_dir_arg(parser: argparse.ArgumentParser) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     """Build the CLI argument parser."""
-    from hermes import __version__
+    try:
+        from hermes import __version__
+    except (ImportError, AttributeError):
+        # Fallback when ~/hermes/ namespace shadows the installed package
+        __version__ = "0.4.2a1"
 
     parser = argparse.ArgumentParser(
         prog="hermes",
