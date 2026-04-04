@@ -1,0 +1,21 @@
+{
+  "$schema": "https://glama.ai/mcp/schemas/server.json",
+  "name": "hermes-bus",
+  "description": "Inter-agent communication protocol — bus messaging, crypto, federation, session lifecycle. HERMES protocol.",
+  "version": "0.4.2",
+  "tools": [
+    "hermes_bus_read", "hermes_bus_write", "hermes_bus_ack",
+    "hermes_syn", "hermes_fin",
+    "hermes_status", "hermes_peers",
+    "hermes_seal", "hermes_open",
+    "hermes_integrity_check", "hermes_hub_send"
+  ],
+  "resources": [
+    "hermes://protocol/version",
+    "hermes://bus/stats",
+    "hermes://config/clan"
+  ],
+  "transport": ["stdio"],
+  "maintainers": [{"github": "dereyesm"}],
+  "repository": "https://github.com/dereyesm/hermes"
+}
