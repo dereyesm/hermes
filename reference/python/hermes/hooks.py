@@ -23,6 +23,42 @@ def _default_clan_dir() -> Path:
     return Path.home() / ".hermes"
 
 
+def _get_clan_id(clan_dir: Path) -> str:
+    """Resolve clan_id from config."""
+    try:
+        gw = clan_dir / "gateway.json"
+        if gw.exists():
+            return json.loads(gw.read_text()).get("clan_id", "")
+        toml = clan_dir / "config.toml"
+        if toml.exists():
+            import tomllib
+            with open(toml, "rb") as f:
+                return tomllib.load(f).get("clan", {}).get("id", "")
+    except Exception:
+        pass
+    return ""
+
+
+def _write_dojo_event(clan_dir: Path, namespace: str, msg: str) -> None:
+    """Write a dojo_event to the bus (best-effort, never blocks)."""
+    try:
+        from datetime import date
+        bus_path = clan_dir / "bus.jsonl"
+        event = {
+            "ts": str(date.today()),
+            "src": namespace,
+            "dst": "*",
+            "type": "dojo_event",
+            "msg": msg[:120],
+            "ttl": 1,
+            "ack": [namespace],  # Self-ACK: dojo_events don't need human attention
+        }
+        with open(bus_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(event) + "\n")
+    except Exception:
+        pass
+
+
 def _read_bus_pending(clan_dir: Path) -> list[dict]:
     """Read pending bus messages for this clan."""
     bus_path = clan_dir / "bus.jsonl"
@@ -108,6 +144,30 @@ def cmd_hook_pull_on_start() -> None:
     json.dump(output, sys.stdout)
     sys.stdout.write("\n")
     sys.stdout.flush()
+
+
+def cmd_hook_dojo_register() -> None:
+    """SessionStart hook: register Claude Code as active Dojo skill.
+
+    Writes SKILL_ONLINE dojo_event to bus so the daemon knows this
+    session is available for quest dispatch.
+    """
+    try:
+        json.load(sys.stdin)
+    except (json.JSONDecodeError, ValueError):
+        pass
+
+    clan_dir = _default_clan_dir()
+    namespace = _get_clan_id(clan_dir)
+    if namespace:
+        import os
+        cwd = os.environ.get("HERMES_CWD", os.getcwd())
+        dim = Path(cwd).name if cwd else "unknown"
+        _write_dojo_event(
+            clan_dir,
+            namespace,
+            f"SKILL_ONLINE:claude-code:dim={dim}:caps=eng.software,creative.writing",
+        )
 
 
 def cmd_hook_pull_on_prompt() -> None:
@@ -214,7 +274,7 @@ def cmd_hook_hub_inject() -> None:
 
 
 def cmd_hook_exit_reminder() -> None:
-    """Stop hook: count unacked messages, remind user.
+    """Stop hook: count unacked messages, remind user. Write SKILL_OFFLINE.
 
     Best-effort — never blocks session exit.
     """
@@ -224,6 +284,12 @@ def cmd_hook_exit_reminder() -> None:
         pass
 
     clan_dir = _default_clan_dir()
+
+    # Dojo: mark session offline
+    namespace = _get_clan_id(clan_dir)
+    if namespace:
+        _write_dojo_event(clan_dir, namespace, "SKILL_OFFLINE:claude-code")
+
     pending = _read_bus_pending(clan_dir)
 
     if pending:
@@ -252,6 +318,7 @@ def main() -> None:
         "pull_on_prompt": cmd_hook_pull_on_prompt,
         "hub_inject": cmd_hook_hub_inject,
         "exit_reminder": cmd_hook_exit_reminder,
+        "dojo_register": cmd_hook_dojo_register,
     }
 
     cmd = sys.argv[1]
