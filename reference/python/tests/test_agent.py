@@ -1151,3 +1151,177 @@ class TestHubInboxLoop:
             await node._hub_inbox_loop()
 
         asyncio.run(run_once())
+
+
+class TestAutoPeerDiscovery:
+    """Test auto-peer registration from hub presence events."""
+
+    @pytest.fixture
+    def peer_config(self, tmp_clan):
+        """Config with gateway.json and hub-peers.json set up."""
+        gw = {
+            "clan_id": "momoshod",
+            "display_name": "Clan MomoshoD",
+            "protocol_version": "0.4.2a1",
+            "keys": {"private": ".keys/momoshod.key", "public": ".keys/momoshod.pub"},
+            "peers": [],
+            "outbound": {},
+        }
+        (tmp_clan / "gateway.json").write_text(json.dumps(gw))
+
+        hub_peers = {
+            "peers": {
+                "jei": {
+                    "sign_pub": "b05d85e59a6dee74aaded152d49b19e971e79bb9",
+                    "display_name": "Clan JEI",
+                    "registered_at": "2026-03-18",
+                }
+            }
+        }
+        (tmp_clan / "hub-peers.json").write_text(json.dumps(hub_peers))
+
+        inbox = tmp_clan / "hub-inbox.jsonl"
+        inbox.touch()
+
+        return AgentNodeConfig(
+            bus_path=tmp_clan / "bus.jsonl",
+            gateway_url="",
+            namespace="momoshod",
+            clan_dir=tmp_clan,
+            hub_inbox_path=inbox,
+            hub_inbox_poll_interval=0.1,
+            poll_interval=0.1,
+            auto_peer_enabled=True,
+        )
+
+    def test_auto_registers_peer_from_presence(self, peer_config):
+        """Presence event for unknown peer triggers auto-registration."""
+        node = AgentNode(peer_config)
+        hub_msg = {
+            "ts": "2026-04-05T10:00:00+00:00",
+            "from": "HUB",
+            "msg": "jei: online",
+            "type": "presence",
+        }
+        node._auto_peer_from_presence(hub_msg)
+
+        gw = json.loads((peer_config.clan_dir / "gateway.json").read_text())
+        peers = gw.get("peers", [])
+        assert len(peers) == 1
+        assert peers[0]["clan_id"] == "jei"
+        assert peers[0]["status"] == "active"
+
+        pub_file = peer_config.clan_dir / ".keys" / "peers" / "jei.pub"
+        assert pub_file.exists()
+        assert "b05d85" in pub_file.read_text()
+
+    def test_skips_already_known_peer(self, peer_config):
+        """Does not duplicate a peer that's already registered."""
+        node = AgentNode(peer_config)
+        hub_msg = {
+            "ts": "2026-04-05T10:00:00+00:00",
+            "from": "HUB",
+            "msg": "jei: online",
+            "type": "presence",
+        }
+        node._auto_peer_from_presence(hub_msg)
+        node._auto_peer_from_presence(hub_msg)
+
+        gw = json.loads((peer_config.clan_dir / "gateway.json").read_text())
+        assert len(gw.get("peers", [])) == 1
+
+    def test_skips_self_presence(self, peer_config):
+        """Does not register own clan as peer."""
+        node = AgentNode(peer_config)
+        hub_msg = {
+            "ts": "2026-04-05T10:00:00+00:00",
+            "from": "HUB",
+            "msg": "momoshod: online",
+            "type": "presence",
+        }
+        node._auto_peer_from_presence(hub_msg)
+
+        gw = json.loads((peer_config.clan_dir / "gateway.json").read_text())
+        assert len(gw.get("peers", [])) == 0
+
+    def test_disabled_auto_peer(self, peer_config):
+        """No registration when auto_peer_enabled=False."""
+        peer_config.auto_peer_enabled = False
+        node = AgentNode(peer_config)
+        hub_msg = {
+            "ts": "2026-04-05T10:00:00+00:00",
+            "from": "HUB",
+            "msg": "jei: online",
+            "type": "presence",
+        }
+        node._auto_peer_from_presence(hub_msg)
+
+        gw = json.loads((peer_config.clan_dir / "gateway.json").read_text())
+        assert len(gw.get("peers", [])) == 0
+
+    def test_peer_from_direct_message(self, peer_config):
+        """Unknown peer sending a direct message also triggers auto-register."""
+        node = AgentNode(peer_config)
+        hub_msg = {
+            "ts": "2026-04-05T10:00:00+00:00",
+            "from": "jei",
+            "msg": "JEI-HERMES-030: ACK received.",
+            "type": "event",
+            "dst": "momoshod",
+        }
+        node._auto_peer_from_presence(hub_msg)
+
+        gw = json.loads((peer_config.clan_dir / "gateway.json").read_text())
+        assert len(gw.get("peers", [])) == 1
+        assert gw["peers"][0]["clan_id"] == "jei"
+
+    def test_unknown_peer_no_hub_key(self, peer_config):
+        """Peer registered as pending_ack when hub-peers.json lacks their key."""
+        node = AgentNode(peer_config)
+        hub_msg = {
+            "ts": "2026-04-05T10:00:00+00:00",
+            "from": "HUB",
+            "msg": "unknown-clan: online",
+            "type": "presence",
+        }
+        node._auto_peer_from_presence(hub_msg)
+
+        gw = json.loads((peer_config.clan_dir / "gateway.json").read_text())
+        peers = gw.get("peers", [])
+        assert len(peers) == 1
+        assert peers[0]["clan_id"] == "unknown-clan"
+        assert peers[0]["status"] == "pending_ack"
+
+    def test_integrated_with_inbox_loop(self, peer_config):
+        """Auto-peer runs during _hub_inbox_loop processing."""
+        inbox = peer_config.hub_inbox_path
+        bus = peer_config.bus_path
+
+        msgs = [
+            json.dumps({"ts": "2026-04-05T10:00:00+00:00", "from": "HUB", "msg": "jei: online", "type": "presence"}),
+            json.dumps({"ts": "2026-04-05T10:00:01+00:00", "from": "jei", "msg": "Hello from JEI", "type": "event", "dst": "momoshod"}),
+        ]
+        inbox.write_text("\n".join(msgs) + "\n")
+
+        node = AgentNode(peer_config)
+
+        async def run_auto_peer_test():
+            node._running = True
+            task = asyncio.ensure_future(node._hub_inbox_loop())
+            await asyncio.sleep(0.3)
+            node._running = False
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+        asyncio.run(run_auto_peer_test())
+
+        gw = json.loads((peer_config.clan_dir / "gateway.json").read_text())
+        assert any(p["clan_id"] == "jei" for p in gw.get("peers", []))
+
+        from hermes.bus import read_bus
+
+        messages = read_bus(bus)
+        assert any(m.src == "jei" for m in messages)
