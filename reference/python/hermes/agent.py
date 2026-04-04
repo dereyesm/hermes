@@ -1538,10 +1538,13 @@ class AgentNode:
     def _auto_peer_from_presence(self, hub_msg: dict) -> None:
         """Auto-register unknown peers discovered via hub presence (TOFU).
 
-        When the hub broadcasts a presence event for a clan not in our
-        gateway config, we look up the clan's sign_pub in hub-peers.json
-        and auto-register it. Trust-on-first-use — the hub vouches for
-        the peer's key.
+        Handles three message types:
+        - presence: "jei: online" → register jei
+        - roster: "roster: momoshod, jei (2 online)" → register all unknown
+        - direct message from unknown peer → register sender
+
+        Trust-on-first-use — the hub vouches for the peer's key via
+        hub-peers.json. See ARC-0370 for the formal specification.
         """
         if not self.config.auto_peer_enabled:
             return
@@ -1550,23 +1553,44 @@ class AgentNode:
         src = str(hub_msg.get("from", "")).lower()
         msg_text = str(hub_msg.get("msg", ""))
 
-        # Extract clan_id from presence messages
-        # Format: {"from": "HUB", "msg": "jei: online", "type": "presence"}
-        peer_id = ""
+        # Extract peer_ids to register
+        peer_ids: list[str] = []
+
         if msg_type == "presence" and src == "hub":
+            # Format: "jei: online" or "jei: online | readiness=ready"
             if ": online" in msg_text.lower():
                 peer_id = msg_text.split(":")[0].strip().lower()
-        # Also detect from direct messages by unknown peers
-        elif msg_type not in self._HUB_SKIP_TYPES and src not in ("hub", "unknown", ""):
-            peer_id = src
+                if peer_id:
+                    peer_ids.append(peer_id)
 
-        if not peer_id or peer_id == self.config.namespace:
+        elif msg_type == "roster" and src == "hub":
+            # Format: "roster: momoshod, jei-hub (2 online)"
+            if msg_text.startswith("roster: "):
+                roster_part = msg_text[len("roster: "):]
+                # Strip the "(N online)" suffix
+                if "(" in roster_part:
+                    roster_part = roster_part[:roster_part.rfind("(")].strip()
+                for name in roster_part.split(","):
+                    name = name.strip().lower()
+                    if name:
+                        peer_ids.append(name)
+
+        elif msg_type not in self._HUB_SKIP_TYPES and src not in ("hub", "unknown", ""):
+            # Direct message from unknown peer
+            peer_ids.append(src)
+
+        # Filter out self and empty
+        peer_ids = [p for p in peer_ids if p and p != self.config.namespace]
+        if not peer_ids:
             return
 
-        # Check if already known
+        for peer_id in peer_ids:
+            self._register_peer(peer_id)
+
+    def _register_peer(self, peer_id: str) -> None:
+        """Register a single peer in gateway config if not already known."""
         try:
             from .config import (
-                GatewayConfig,
                 PeerConfig,
                 load_config,
                 resolve_config_path,
