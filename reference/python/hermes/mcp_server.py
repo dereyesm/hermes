@@ -313,6 +313,114 @@ def tool_open(sealed_json: dict, sender_clan_id: str, envelope_meta: dict | None
     return {"plaintext": plaintext, "sender": sender_clan_id, "verified": True}
 
 
+async def tool_hub_send(dst: str, msg_type: str, msg: str, ttl: int = 14) -> dict:
+    """Send a message to a peer via the local HERMES hub (WebSocket).
+
+    Completes the outbound path: Claude Code -> MCP -> Hub -> Peer.
+    Authenticates as local clan via Ed25519 challenge-response (ARC-4601 section 15.6).
+    """
+    import asyncio
+
+    hub_state_path = _HERMES_DIR / "hub-state.json"
+    if not hub_state_path.exists():
+        return {"error": "Hub not running. Start with: hermes hub start"}
+
+    hub_state = json.loads(hub_state_path.read_text())
+    port = hub_state.get("port", 8443)
+    host = "localhost"
+
+    # Load clan keys
+    key_path = _HERMES_DIR / "keys" / "momoshod.key"
+    if not key_path.exists():
+        # Try to discover key file from gateway.json
+        gw_path = _HERMES_DIR / "gateway.json"
+        if gw_path.exists():
+            gw = json.loads(gw_path.read_text())
+            key_file = gw.get("keys", {}).get("private", "keys/momoshod.key")
+            key_path = _HERMES_DIR / key_file
+        if not key_path.exists():
+            return {"error": "Clan private key not found"}
+
+    try:
+        from hermes.crypto import ClanKeyPair
+
+        key_data = json.loads(key_path.read_text())
+        keys = ClanKeyPair.from_private_hex(key_data["sign_private"], key_data["dh_private"])
+    except Exception as e:
+        return {"error": f"Failed to load keys: {e}"}
+
+    # Determine clan_id from gateway.json
+    clan_id = "momoshod"
+    gw_path = _HERMES_DIR / "gateway.json"
+    if gw_path.exists():
+        try:
+            clan_id = json.loads(gw_path.read_text()).get("clan_id", "momoshod")
+        except Exception:
+            pass
+
+    try:
+        import websockets
+    except ImportError:
+        return {"error": "websockets package required: pip install websockets"}
+
+    from datetime import UTC, datetime
+
+    uri = f"ws://{host}:{port}"
+    try:
+        async with websockets.connect(uri) as ws:
+            # HELLO
+            hello = {
+                "type": "hello",
+                "clan_id": clan_id,
+                "sign_pub": keys.sign_public.public_bytes_raw().hex(),
+                "protocol_version": "0.4.2a1",
+                "capabilities": ["e2e_crypto", "store_forward"],
+            }
+            await ws.send(json.dumps(hello))
+
+            # CHALLENGE
+            raw = await asyncio.wait_for(ws.recv(), timeout=10)
+            frame = json.loads(raw)
+            if frame.get("type") != "challenge":
+                return {"error": f"Expected challenge, got: {frame.get('type')}"}
+
+            # AUTH (sign raw nonce bytes, NOT utf-8 string)
+            nonce_bytes = bytes.fromhex(frame["nonce"])
+            signature = keys.sign_private.sign(nonce_bytes)
+            await ws.send(json.dumps({"type": "auth", "nonce_response": signature.hex()}))
+
+            # AUTH_OK
+            raw = await asyncio.wait_for(ws.recv(), timeout=10)
+            frame = json.loads(raw)
+            if frame.get("type") != "auth_ok":
+                return {"error": f"Auth failed: {frame.get('reason', 'unknown')}"}
+
+            # SEND MESSAGE
+            payload = {
+                "type": "msg",
+                "payload": {
+                    "ts": datetime.now(UTC).isoformat(),
+                    "src": clan_id,
+                    "dst": dst,
+                    "type": msg_type,
+                    "msg": msg,
+                    "ttl": ttl,
+                    "ack": [],
+                },
+            }
+            await ws.send(json.dumps(payload))
+            return {
+                "sent": True,
+                "dst": dst,
+                "type": msg_type,
+                "msg": msg[:120],
+                "via": f"hub@{host}:{port}",
+            }
+
+    except Exception as e:
+        return {"error": f"Hub send failed: {e}"}
+
+
 def tool_integrity_check() -> dict:
     """Run bus integrity checks (ARC-9001): sequence gaps, ownership, conflicts."""
     from hermes.integrity import (
@@ -482,6 +590,20 @@ def create_server():
                 description="Run bus integrity checks (ARC-9001): sequence gaps, ownership violations, MVCC conflicts.",
                 inputSchema={"type": "object", "properties": {}},
             ),
+            types.Tool(
+                name="hermes_hub_send",
+                description="Send a message to a peer via the HERMES hub (WebSocket). Completes the outbound path: Claude Code -> Hub -> Peer. Requires hub to be running.",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "dst": {"type": "string", "description": "Destination clan ID (* for broadcast)"},
+                        "type": {"type": "string", "enum": ["state", "event", "alert", "dispatch", "data_cross", "dojo_event"], "description": "Message type"},
+                        "msg": {"type": "string", "description": "Message payload"},
+                        "ttl": {"type": "integer", "description": "Time-to-live in days", "default": 14},
+                    },
+                    "required": ["dst", "type", "msg"],
+                },
+            ),
         ]
 
     @server.call_tool()
@@ -516,6 +638,19 @@ def create_server():
             ),
             "hermes_integrity_check": lambda _: tool_integrity_check(),
         }
+
+        # Async tools (hub_send uses WebSocket)
+        if name == "hermes_hub_send":
+            try:
+                result = await tool_hub_send(
+                    dst=arguments["dst"],
+                    msg_type=arguments["type"],
+                    msg=arguments["msg"],
+                    ttl=arguments.get("ttl", 14),
+                )
+                return [types.TextContent(type="text", text=json.dumps(result, indent=2, default=str))]
+            except Exception as e:
+                return [types.TextContent(type="text", text=json.dumps({"error": str(e)}))]
 
         handler = handlers.get(name)
         if not handler:
