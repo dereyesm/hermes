@@ -48,8 +48,9 @@ write_message("~/.hermes/bus.jsonl", create_message(
 ```bash
 hermes adapt claude-code           # Claude Code (MCP tools + hooks)
 hermes adapt cursor                # Cursor (.cursorrules + bus symlink)
-hermes adapt gemini                # Gemini CLI (GEMINI.md + settings)
+hermes adapt gemini-cli            # Gemini CLI (GEMINI.md + settings)
 hermes adapt opencode              # OpenCode (AGENTS.md + config)
+hermes adapt continue              # Continue.dev (.continuerc.json + rules)
 hermes adapt --all                 # All detected agents at once
 ```
 
@@ -127,7 +128,7 @@ See [docs/POSITIONING.md](docs/POSITIONING.md) for the full technical positionin
 - **End-to-end encrypted** -- Ed25519 signing + X25519 ECDHE key agreement + AES-256-GCM per message. Forward secrecy by default.
 - **76.9% wire efficient** -- compact mode is 4.9x less overhead than gRPC. Still valid JSON. See [ATR-G.711](spec/ATR-G711.md).
 - **File-based = auditable** -- every message is a line of JSON. Git-versionable, grep-searchable, human-inspectable.
-- **Telecom engineering rigor** -- 21 formal specs modeled after IETF, ITU-T, and IEEE.
+- **Telecom engineering rigor** -- 20 formal specs modeled after IETF, ITU-T, and IEEE.
 - **Privacy-first** -- firewalls enforce namespace isolation. The gateway acts as NAT: internal identity is never exposed externally.
 - **Backward compatible** -- Phase 0 (JSONL on a filesystem) always works. Every extension is optional.
 
@@ -164,6 +165,8 @@ HERMES is agent-agnostic. The `hermes adapt` command generates the configuration
 | [Claude Code](https://claude.ai/code) | `hermes adapt claude-code` | `~/.claude/` (CLAUDE.md + symlinks) | SKILL.md (native) |
 | [Cursor](https://cursor.com) | `hermes adapt cursor` | `.cursorrules` (compiled markdown) | Compiled into rules |
 | [OpenCode](https://opencode.ai) | `hermes adapt opencode` | `~/.config/opencode/` (AGENTS.md + JSON) | SKILL.md (symlinks) |
+| [Gemini CLI](https://github.com/google-gemini/gemini-cli) | `hermes adapt gemini-cli` | `GEMINI.md` + settings | Compiled into markdown |
+| [Continue.dev](https://continue.dev) | `hermes adapt continue` | `.continuerc.json` + rules | SKILL.md (symlinks) |
 
 Skills follow the [Agent Skills Open Standard](https://agentskills.io), making them portable across Claude Code, Gemini CLI, Cursor, OpenCode, and 30+ tools without modification. See [installable-model.md](docs/architecture/installable-model.md) for architecture details.
 
@@ -266,7 +269,7 @@ Full index with 30 planned standards: **[spec/INDEX.md](spec/INDEX.md)**
 
 ## Reference Implementation
 
-A Python reference implementation is included for validation and experimentation (**1197 tests passing**):
+A Python reference implementation is included for validation and experimentation (**1500+ tests passing**):
 
 ```bash
 cd reference/python
@@ -291,9 +294,10 @@ Modules:
 - `asp.py` -- Agent Service Platform: bus convergence + agent registration per ARC-0369
 - `cli.py` -- command-line interface for clan operations
 - `installer.py` -- cross-platform one-command setup
-- `hooks.py` -- Claude Code hook handlers
+- `hooks.py` -- Claude Code hook handlers (SYN/FIN, hub_inject, dojo lifecycle)
 - `terminal.py` -- brand-aware CLI output (rich/plain-text dual mode) per AES-2040
-- `llm/` -- multi-LLM adapter layer: Gemini + Claude backends, SkillLoader, AdapterManager
+- `mcp_server.py` -- MCP server (11 tools: bus read/write, seal/open, peers, status, hub_send)
+- `llm/` -- multi-LLM adapter layer: Gemini + Claude backends, SkillLoader, token telemetry
 
 See [reference/python/](reference/python/) for details.
 
@@ -368,10 +372,13 @@ hermes/
 │   ├── ARC-2606.md    #   Agent Profile & Discovery
 │   ├── ARC-3022.md    #   Agent Gateway Protocol
 │   ├── ARC-5322.md    #   Message Format
-│   ├── ATR-Q700.md    #   Out-of-Band Signaling
-│   ├── ARC-4601.md    #   Agent Node Protocol
+│   ├── ARC-0368.md    #   Agent Profile Format
+│   ├── ARC-0369.md    #   Agent Service Platform
+│   ├── ARC-1122.md    #   Conformance Testing
+│   ├── ARC-4601.md    #   Agent Node Protocol (Hub + S2S Federation)
 │   ├── ARC-7231.md    #   Agent Semantics — Bridge Protocol
 │   ├── ARC-8446.md    #   Encrypted Bus Protocol
+│   ├── ARC-9001.md    #   Bus Integrity & Sequencing
 │   ├── AES-2040.md    #   Agent Visualization Standard (DRAFT)
 │   ├── ATR-G711.md    #   Payload Encoding & Wire Efficiency
 │   ├── ATR-Q700.md    #   Out-of-Band Signaling
@@ -384,7 +391,7 @@ hermes/
 │   ├── POSITIONING.md
 │   ├── USE-CASES.md
 │   └── diagrams/      #   Visual documentation (11 Mermaid + 16 D2)
-├── reference/python/  # Reference implementation (1197 tests)
+├── reference/python/  # Reference implementation (1500+ tests)
 ├── examples/          # Sample bus, routes, configs
 ├── CHANGELOG.md
 ├── CONTRIBUTING.md

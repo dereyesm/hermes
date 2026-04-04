@@ -58,6 +58,22 @@ def get_console() -> Any:
 # ---------------------------------------------------------------------------
 
 
+def _format_uptime(seconds: int) -> str:
+    """Format seconds into human-readable uptime string."""
+    if seconds < 60:
+        return f"{seconds}s"
+    minutes = seconds // 60
+    if minutes < 60:
+        return f"{minutes}m"
+    hours = minutes // 60
+    remaining_min = minutes % 60
+    if hours < 24:
+        return f"{hours}h {remaining_min}m"
+    days = hours // 24
+    remaining_hrs = hours % 24
+    return f"{days}d {remaining_hrs}h"
+
+
 def print_clan_status(
     clan_id: str,
     display_name: str,
@@ -68,19 +84,40 @@ def print_clan_status(
     fingerprint: str = "",
     daemon_pid: int | None = None,
     daemon_alive: bool = False,
+    daemon_agents: dict[str, str] | None = None,
+    hub_pid: int | None = None,
+    hub_alive: bool = False,
+    hub_uptime: int = 0,
+    hub_msgs_routed: int = 0,
+    peer_presence: dict[str, str] | None = None,
     bus_messages: int = 0,
     bus_pending: int = 0,
     clan_dir: str = "",
 ) -> None:
     """Print clan status with brand styling — full dashboard view."""
+    if daemon_agents is None:
+        daemon_agents = {}
+    if peer_presence is None:
+        peer_presence = {}
+
     if not HAS_RICH:
         print(f"Clan: {clan_id} ({display_name})")
         print(f"Protocol: {protocol_version}")
         if fingerprint:
             print(f"Fingerprint: {fingerprint}")
+        if hub_pid:
+            hub_status = "running" if hub_alive else "stale"
+            print(f"Hub: {hub_status} (PID {hub_pid}, {_format_uptime(hub_uptime)}, {hub_msgs_routed} routed)")
+        else:
+            print("Hub: not running")
         if daemon_pid:
             status = "running" if daemon_alive else "stale"
-            print(f"Daemon: {status} (PID {daemon_pid})")
+            print(f"Agent Node: {status} (PID {daemon_pid})")
+            if daemon_agents:
+                for name, state in daemon_agents.items():
+                    print(f"  {name}: {state}")
+        else:
+            print("Agent Node: not running")
         print(f"Bus: {bus_messages} messages ({bus_pending} pending)")
         print()
         if agents:
@@ -95,7 +132,9 @@ def print_clan_status(
         if peers:
             print(f"Peers ({len(peers)}):")
             for p in peers:
-                print(f"  {p.clan_id:24s} status:{p.status}  added:{p.added}")
+                presence = peer_presence.get(p.clan_id, "")
+                pres_str = f"  [{presence}]" if presence else ""
+                print(f"  {p.clan_id:24s} status:{p.status}  added:{p.added}{pres_str}")
         else:
             print("No peers. Run 'hermes peer add <clan-id>'.")
         return
@@ -109,9 +148,9 @@ def print_clan_status(
     title.append(f"{clan_id}", style=f"bold {TEAL}")
     title.append(f"  ({display_name})", style=SLATE)
 
-    console.print(Panel(title, subtitle=f"protocol {protocol_version}", border_style=TEAL))
+    console.print(Panel(title, subtitle=f"v{protocol_version}", border_style=TEAL))
 
-    # Info grid — fingerprint, daemon, bus stats
+    # Info grid — fingerprint, hub, daemon, bus stats
     info = Table(show_header=False, box=None, padding=(0, 2))
     info.add_column("Key", style=f"bold {SLATE}", min_width=14)
     info.add_column("Value", min_width=40)
@@ -123,12 +162,32 @@ def print_clan_status(
     if clan_dir:
         info.add_row("Clan dir", Text(clan_dir, style="dim"))
 
+    # Hub status
+    if hub_pid:
+        hub_text = Text()
+        if hub_alive:
+            hub_text.append("● ", style=f"bold {TEAL}")
+            hub_text.append(f"running", style=TEAL)
+            hub_text.append(f" (PID {hub_pid}, up {_format_uptime(hub_uptime)}, {hub_msgs_routed} routed)", style=SLATE)
+        else:
+            hub_text.append("○ ", style=f"bold {CRIMSON}")
+            hub_text.append(f"stale (PID {hub_pid})", style=CRIMSON)
+        info.add_row("Hub", hub_text)
+    else:
+        info.add_row("Hub", Text("not running", style="dim"))
+
     # Daemon status
     if daemon_pid:
         daemon_text = Text()
         if daemon_alive:
             daemon_text.append("● ", style=f"bold {TEAL}")
-            daemon_text.append(f"running (PID {daemon_pid})", style=TEAL)
+            daemon_text.append(f"running", style=TEAL)
+            daemon_text.append(f" (PID {daemon_pid})", style=SLATE)
+            if daemon_agents:
+                agent_names = ", ".join(
+                    f"{n}:{s}" for n, s in daemon_agents.items()
+                )
+                daemon_text.append(f"  [{agent_names}]", style=AMBER)
         else:
             daemon_text.append("○ ", style=f"bold {CRIMSON}")
             daemon_text.append(f"stale (PID {daemon_pid})", style=CRIMSON)
@@ -147,7 +206,7 @@ def print_clan_status(
     console.print(info)
     console.print()
 
-    # Agents table
+    # Agents table (from profile — published agents with resonance)
     if agents:
         t = Table(title=f"Agents ({len(agents)})", border_style=SLATE, title_style="bold white")
         t.add_column("Namespace", style=f"bold {TEAL}", min_width=20)
@@ -158,18 +217,24 @@ def print_clan_status(
             caps = ", ".join(a.get("capabilities", []))
             t.add_row(a["alias"], f"{res:.2f}", caps)
         console.print(t)
-    else:
-        console.print("  [dim]No published agents. Add agents to your config file.[/dim]")
 
-    # Peers table
+    # Peers table with online presence
     if peers:
         t = Table(title=f"Peers ({len(peers)})", border_style=SLATE, title_style=f"bold {EMERALD}")
         t.add_column("Clan", style=f"bold {EMERALD}", min_width=20)
         t.add_column("Status", justify="center")
+        t.add_column("Presence", justify="center")
         t.add_column("Added", style=SLATE)
         for p in peers:
             status_style = TEAL if p.status == "active" else AMBER
-            t.add_row(p.clan_id, Text(p.status, style=status_style), p.added)
+            presence = peer_presence.get(p.clan_id, "")
+            if presence == "online":
+                pres_text = Text("● online", style=f"bold {TEAL}")
+            elif presence == "offline":
+                pres_text = Text("○ offline", style="dim")
+            else:
+                pres_text = Text("—", style="dim")
+            t.add_row(p.clan_id, Text(p.status, style=status_style), pres_text, p.added)
         console.print(t)
     else:
         console.print("  [dim]No peers. Run 'hermes peer add <clan-id>'.[/dim]")
