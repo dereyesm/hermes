@@ -111,6 +111,8 @@ class AgentNodeConfig:
     # Hub inbox bridge (Quest-006: cross-clan dispatch)
     hub_inbox_path: Path | None = None
     hub_inbox_poll_interval: float = 5.0
+    # Auto-peer discovery: register unknown peers seen via hub presence (TOFU)
+    auto_peer_enabled: bool = True
     # LLM triage (extends static evaluator with LLM classification)
     llm_triage_enabled: bool = False
     llm_triage_backend: str = "gemini"
@@ -1533,6 +1535,85 @@ class AgentNode:
 
     _HUB_SKIP_TYPES = {"presence", "roster", "ping", "pong", "auth_ok", "error"}
 
+    def _auto_peer_from_presence(self, hub_msg: dict) -> None:
+        """Auto-register unknown peers discovered via hub presence (TOFU).
+
+        When the hub broadcasts a presence event for a clan not in our
+        gateway config, we look up the clan's sign_pub in hub-peers.json
+        and auto-register it. Trust-on-first-use — the hub vouches for
+        the peer's key.
+        """
+        if not self.config.auto_peer_enabled:
+            return
+
+        msg_type = str(hub_msg.get("type", "")).lower()
+        src = str(hub_msg.get("from", "")).lower()
+        msg_text = str(hub_msg.get("msg", ""))
+
+        # Extract clan_id from presence messages
+        # Format: {"from": "HUB", "msg": "jei: online", "type": "presence"}
+        peer_id = ""
+        if msg_type == "presence" and src == "hub":
+            if ": online" in msg_text.lower():
+                peer_id = msg_text.split(":")[0].strip().lower()
+        # Also detect from direct messages by unknown peers
+        elif msg_type not in self._HUB_SKIP_TYPES and src not in ("hub", "unknown", ""):
+            peer_id = src
+
+        if not peer_id or peer_id == self.config.namespace:
+            return
+
+        # Check if already known
+        try:
+            from .config import (
+                GatewayConfig,
+                PeerConfig,
+                load_config,
+                resolve_config_path,
+                save_config,
+            )
+
+            config_path = resolve_config_path(self.config.clan_dir)
+            config = load_config(config_path)
+        except (FileNotFoundError, Exception):
+            return
+
+        if any(p.clan_id == peer_id for p in config.peers):
+            return
+
+        # Look up sign_pub in hub-peers.json
+        hub_peers_path = self.config.clan_dir / "hub-peers.json"
+        sign_pub = ""
+        if hub_peers_path.exists():
+            try:
+                hub_peers = json.loads(hub_peers_path.read_text())
+                peer_data = hub_peers.get("peers", {}).get(peer_id, {})
+                sign_pub = peer_data.get("sign_pub", "")
+            except (json.JSONDecodeError, OSError):
+                pass
+
+        # Store pub key if available
+        if sign_pub:
+            keys_dir = self.config.clan_dir / ".keys" / "peers"
+            keys_dir.mkdir(parents=True, exist_ok=True)
+            pub_file = keys_dir / f"{peer_id}.pub"
+            if not pub_file.exists():
+                pub_file.write_text(sign_pub)
+                logger.info("Auto-peer: stored pub key for %s", peer_id)
+
+        # Register peer in gateway config
+        peer = PeerConfig(
+            clan_id=peer_id,
+            public_key_file=f".keys/peers/{peer_id}.pub",
+            status="active" if sign_pub else "pending_ack",
+            added=date.today().isoformat(),
+        )
+        config.peers.append(peer)
+        save_config(config, config_path)
+
+        status = "active (key from hub)" if sign_pub else "pending_ack (TOFU, no key)"
+        logger.info("Auto-peer: registered %s as %s", peer_id, status)
+
     @staticmethod
     def _convert_hub_to_bus(hub_msg: dict) -> Message | None:
         """Convert a hub-inbox.jsonl entry to ARC-5322 Message.
@@ -1624,6 +1705,12 @@ class AgentNode:
                         hub_msg = json.loads(line)
                     except json.JSONDecodeError:
                         continue
+
+                    # Auto-peer: detect unknown peers from presence/messages
+                    try:
+                        self._auto_peer_from_presence(hub_msg)
+                    except Exception as e:
+                        logger.debug("Auto-peer check failed (non-fatal): %s", e)
 
                     msg = self._convert_hub_to_bus(hub_msg)
                     if msg is None:
