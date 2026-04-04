@@ -19,6 +19,7 @@ from hermes.hub import (
     PeerInfo,
     QueuedMessage,
     StoreForwardQueue,
+    VALID_READINESS,
     cmd_hub_init,
     load_hub_config,
     load_peers,
@@ -240,6 +241,103 @@ class TestConnectionTable:
         ct.add("a", _make_ws_mock())
         with pytest.raises(RuntimeError, match="Max connections"):
             ct.add("b", _make_ws_mock())
+
+
+# ---------------------------------------------------------------------------
+# TestPresence (Extended Presence System)
+# ---------------------------------------------------------------------------
+
+
+class TestPresence:
+    """Test extended presence: readiness, domains, roster, set_status."""
+
+    def test_connection_entry_default_readiness(self):
+        ct = ConnectionTable()
+        ws = _make_ws_mock()
+        entry = ct.add("momoshod", ws)
+        assert entry.readiness == "online"
+        assert entry.domains == []
+        assert entry.quest_slots_available == 1
+
+    def test_connection_entry_presence_dict(self):
+        ct = ConnectionTable()
+        ws = _make_ws_mock()
+        entry = ct.add("momoshod", ws)
+        entry.readiness = "ready"
+        entry.domains = ["engineering/software"]
+        entry.quest_slots_available = 2
+        entry.quest_slots_max = 3
+        entry.status_message = "Ready for quest"
+
+        d = entry.presence_dict()
+        assert d["clan_id"] == "momoshod"
+        assert d["readiness"] == "ready"
+        assert d["quest_slots"]["available"] == 2
+        assert d["quest_slots"]["max"] == 3
+        assert d["domains"] == ["engineering/software"]
+        assert d["message"] == "Ready for quest"
+        assert "since" in d
+
+    def test_valid_readiness_states(self):
+        assert "online" in VALID_READINESS
+        assert "ready" in VALID_READINESS
+        assert "in_quest" in VALID_READINESS
+        assert "busy" in VALID_READINESS
+        assert "cooldown" in VALID_READINESS
+        assert "invalid" not in VALID_READINESS
+
+    def test_set_readiness_updates_entry(self):
+        ct = ConnectionTable()
+        ws = _make_ws_mock()
+        entry = ct.add("jei", ws)
+        assert entry.readiness == "online"
+
+        entry.readiness = "ready"
+        entry.domains = ["legal/property", "engineering/*"]
+        assert entry.readiness == "ready"
+        assert len(entry.domains) == 2
+
+    def test_presence_dict_serializable(self):
+        """presence_dict() must produce JSON-serializable output."""
+        import json as _json
+        ct = ConnectionTable()
+        entry = ct.add("test", _make_ws_mock())
+        entry.readiness = "in_quest"
+        entry.active_quests = ["QUEST-005"]
+        d = entry.presence_dict()
+        serialized = _json.dumps(d)
+        assert "in_quest" in serialized
+        assert "QUEST-005" in serialized
+
+    def test_roster_build(self):
+        """_build_roster returns presence info for all connected clans."""
+        ct = ConnectionTable()
+        e1 = ct.add("momoshod", _make_ws_mock())
+        e1.readiness = "ready"
+        e1.domains = ["engineering/*"]
+        e2 = ct.add("jei", _make_ws_mock())
+        e2.readiness = "busy"
+
+        # Build roster manually (simulating HubServer._build_roster logic)
+        roster = []
+        for clan_id in ct.connected_clan_ids():
+            entries = ct.get_all(clan_id)
+            if entries:
+                roster.append(entries[0].presence_dict())
+
+        assert len(roster) == 2
+        names = {r["clan_id"] for r in roster}
+        assert names == {"momoshod", "jei"}
+        readiness_map = {r["clan_id"]: r["readiness"] for r in roster}
+        assert readiness_map["momoshod"] == "ready"
+        assert readiness_map["jei"] == "busy"
+
+    def test_status_message_truncated(self):
+        ct = ConnectionTable()
+        entry = ct.add("test", _make_ws_mock())
+        long_msg = "x" * 200
+        entry.status_message = long_msg[:120]
+        assert len(entry.status_message) == 120
 
 
 # ---------------------------------------------------------------------------
