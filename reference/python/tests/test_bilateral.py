@@ -395,3 +395,235 @@ class TestPeerStatusUpgrade:
         })
         mtime_after = (clan_dir / "gateway.json").stat().st_mtime
         assert mtime_before == mtime_after
+
+
+# ---------------------------------------------------------------------------
+# Tier 2: Hub + Agent Node (dispatch pipeline)
+# ---------------------------------------------------------------------------
+
+
+class TestHubInboxBridge:
+    """Test hub-inbox.jsonl → bus.jsonl bridge via AgentNode._hub_inbox_loop."""
+
+    def _make_node(self, tmp_path, namespace="alice"):
+        """Create a minimal AgentNode for bridge testing."""
+        from hermes.agent import AgentNode, AgentNodeConfig
+
+        clan_dir = tmp_path / f"clan-{namespace}"
+        clan_dir.mkdir(exist_ok=True)
+        (clan_dir / "bus.jsonl").touch()
+        inbox = clan_dir / "hub-inbox.jsonl"
+        inbox.touch()
+        (clan_dir / "gateway.json").write_text(json.dumps({
+            "clan_id": namespace, "display_name": f"Test {namespace}",
+            "namespace": namespace,
+            "agent_node": {"hub": {"listen_port": 9999}},
+            "peers": [],
+        }))
+        (clan_dir / "hub-peers.json").write_text(json.dumps({"peers": {}}))
+        (clan_dir / "federation-peers.json").write_text(json.dumps({
+            "hubs": {}, "self": {"hub_id": "test"},
+        }))
+
+        config = AgentNodeConfig(
+            namespace=namespace, clan_dir=clan_dir,
+            bus_path=clan_dir / "bus.jsonl", gateway_url="",
+            hub_inbox_path=inbox, hub_inbox_poll_interval=0.1,
+        )
+        node = AgentNode(config)
+        node._running = True  # Enable the loop (normally set by run())
+        return node, clan_dir, inbox
+
+    def test_message_bridged_to_bus(self, tmp_path):
+        """A hub message gets written to bus.jsonl by the bridge loop."""
+        from hermes.bus import read_bus
+
+        node, clan_dir, inbox = self._make_node(tmp_path)
+
+        # Write a message to hub-inbox
+        hub_msg = {
+            "ts": "2026-04-05T12:00:00Z", "from": "bob",
+            "msg": "QUEST-TEST: bridge test", "type": "dispatch", "dst": "alice",
+        }
+        inbox.write_text(json.dumps(hub_msg) + "\n")
+
+        # Run bridge loop for one cycle
+        async def _test():
+            task = asyncio.create_task(node._hub_inbox_loop())
+            await asyncio.sleep(0.3)
+            node._running = False
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+        _run(_test())
+
+        # Verify message in bus
+        msgs = read_bus(clan_dir / "bus.jsonl")
+        quest_msgs = [m for m in msgs if "QUEST-TEST" in m.msg]
+        assert len(quest_msgs) == 1
+        assert quest_msgs[0].src == "bob"
+        assert quest_msgs[0].type == "dispatch"
+
+    def test_cursor_persistence(self, tmp_path):
+        """Cursor file tracks position so messages aren't re-processed."""
+        from hermes.bus import read_bus
+
+        node, clan_dir, inbox = self._make_node(tmp_path)
+        cursor_path = clan_dir / "hub-inbox.daemon.cursor"
+
+        # Write 2 messages
+        msgs = [
+            {"ts": "2026-04-05T12:00:00Z", "from": "bob", "msg": "msg-1", "type": "event", "dst": "alice"},
+            {"ts": "2026-04-05T12:01:00Z", "from": "bob", "msg": "msg-2", "type": "event", "dst": "alice"},
+        ]
+        inbox.write_text("\n".join(json.dumps(m) for m in msgs) + "\n")
+
+        # Run bridge once
+        async def _cycle():
+            task = asyncio.create_task(node._hub_inbox_loop())
+            await asyncio.sleep(0.3)
+            node._running = False
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+        _run(_cycle())
+
+        # Cursor should be at end of file
+        assert cursor_path.exists()
+        cursor_val = int(cursor_path.read_text().strip())
+        file_size = inbox.stat().st_size
+        assert cursor_val == file_size
+
+        # Bus should have 2 messages
+        bus_msgs = read_bus(clan_dir / "bus.jsonl")
+        assert len([m for m in bus_msgs if m.src == "bob"]) == 2
+
+    def test_cursor_reset_on_truncation(self, tmp_path):
+        """When inbox is truncated, cursor resets and re-reads from start."""
+        from hermes.bus import read_bus
+
+        node, clan_dir, inbox = self._make_node(tmp_path)
+        cursor_path = clan_dir / "hub-inbox.daemon.cursor"
+
+        # Set cursor to a large value (simulating old inbox)
+        cursor_path.write_text("999999")
+
+        # Write a fresh message (smaller than old cursor)
+        hub_msg = {"ts": "2026-04-05T12:00:00Z", "from": "carol",
+                   "msg": "after-truncation", "type": "event", "dst": "alice"}
+        inbox.write_text(json.dumps(hub_msg) + "\n")
+
+        async def _cycle():
+            task = asyncio.create_task(node._hub_inbox_loop())
+            await asyncio.sleep(0.3)
+            node._running = False
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+        _run(_cycle())
+
+        # Message should be bridged despite old cursor
+        bus_msgs = read_bus(clan_dir / "bus.jsonl")
+        carol_msgs = [m for m in bus_msgs if m.src == "carol"]
+        assert len(carol_msgs) == 1
+        assert carol_msgs[0].msg == "after-truncation"
+
+    def test_skip_types_not_bridged(self, tmp_path):
+        """Presence, roster, ping, pong messages are NOT bridged to bus."""
+        from hermes.bus import read_bus
+
+        node, clan_dir, inbox = self._make_node(tmp_path)
+
+        skip_msgs = [
+            {"ts": "2026-04-05T12:00:00Z", "from": "hub", "msg": "bob: online", "type": "presence"},
+            {"ts": "2026-04-05T12:00:01Z", "from": "hub", "msg": "roster: alice, bob (2)", "type": "roster"},
+            {"ts": "2026-04-05T12:00:02Z", "from": "hub", "msg": "", "type": "ping"},
+            {"ts": "2026-04-05T12:00:03Z", "from": "bob", "msg": "real-message", "type": "event", "dst": "alice"},
+        ]
+        inbox.write_text("\n".join(json.dumps(m) for m in skip_msgs) + "\n")
+
+        async def _cycle():
+            task = asyncio.create_task(node._hub_inbox_loop())
+            await asyncio.sleep(0.3)
+            node._running = False
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+        _run(_cycle())
+
+        bus_msgs = read_bus(clan_dir / "bus.jsonl")
+        # Only the real event should be bridged (not presence/roster/ping)
+        assert len(bus_msgs) == 1
+        assert bus_msgs[0].msg == "real-message"
+
+    def test_dedup_prevents_double_bridge(self, tmp_path):
+        """Duplicate messages in inbox are not written twice to bus."""
+        from hermes.bus import read_bus
+
+        node, clan_dir, inbox = self._make_node(tmp_path)
+
+        # Same message twice (like QUEST-006-FINAL appeared twice)
+        dup_msg = {"ts": "2026-04-05T12:00:00Z", "from": "bob",
+                   "msg": "QUEST-DUP: same message", "type": "dispatch", "dst": "alice"}
+        inbox.write_text(json.dumps(dup_msg) + "\n" + json.dumps(dup_msg) + "\n")
+
+        async def _cycle():
+            task = asyncio.create_task(node._hub_inbox_loop())
+            await asyncio.sleep(0.3)
+            node._running = False
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+        _run(_cycle())
+
+        bus_msgs = read_bus(clan_dir / "bus.jsonl")
+        quest_msgs = [m for m in bus_msgs if "QUEST-DUP" in m.msg]
+        assert len(quest_msgs) == 1, f"Expected 1 message, got {len(quest_msgs)}"
+
+    def test_per_message_error_doesnt_block_batch(self, tmp_path):
+        """A bad message doesn't prevent subsequent good messages from bridging."""
+        from hermes.bus import read_bus
+
+        node, clan_dir, inbox = self._make_node(tmp_path)
+
+        # First: valid message. Second: corrupted JSON. Third: valid message.
+        lines = [
+            json.dumps({"ts": "2026-04-05T12:00:00Z", "from": "bob",
+                        "msg": "good-1", "type": "event", "dst": "alice"}),
+            "THIS IS NOT VALID JSON {{{",
+            json.dumps({"ts": "2026-04-05T12:00:02Z", "from": "carol",
+                        "msg": "good-2", "type": "event", "dst": "alice"}),
+        ]
+        inbox.write_text("\n".join(lines) + "\n")
+
+        async def _cycle():
+            task = asyncio.create_task(node._hub_inbox_loop())
+            await asyncio.sleep(0.3)
+            node._running = False
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+        _run(_cycle())
+
+        bus_msgs = read_bus(clan_dir / "bus.jsonl")
+        assert len(bus_msgs) == 2
+        assert bus_msgs[0].msg == "good-1"
+        assert bus_msgs[1].msg == "good-2"
