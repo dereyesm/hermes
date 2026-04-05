@@ -225,6 +225,9 @@ def cmd_hook_hub_inject() -> None:
     # Read new lines from cursor
     try:
         file_size = inbox_path.stat().st_size
+        if file_size < cursor:
+            # File was truncated/cleaned — reset cursor
+            cursor = 0
         if file_size <= cursor:
             return  # No new data
 

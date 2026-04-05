@@ -1732,6 +1732,10 @@ class AgentNode:
                     continue
 
                 file_size = self.config.hub_inbox_path.stat().st_size
+                if file_size < offset:
+                    # File was truncated/cleaned — reset cursor to read from start
+                    logger.info("Hub inbox truncated (%d < %d), resetting cursor", file_size, offset)
+                    offset = 0
                 if file_size <= offset:
                     await asyncio.sleep(self.config.hub_inbox_poll_interval)
                     continue
