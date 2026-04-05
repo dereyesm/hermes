@@ -167,6 +167,75 @@ This outline maps to two planned specs in INDEX.md:
 
 **Recommendation**: ATR-Q.931 as standalone spec (session lifecycle, message types, failure isolation). ARC-4601 amendment for wire protocol changes (channel field, HELLO extension).
 
+## 8. Addressing Modes (IP Analogy)
+
+Current HERMES only supports unicast (`dst: "jei"`) and broadcast (`dst: "*"`).
+Multi-clan quests require multicast — a message to a defined group.
+
+| Mode | IP Analogy | HERMES Wire Format | Use Case |
+|------|-----------|-------------------|----------|
+| **Unicast** | dst = single IP | `"dst": "jei"` | Direct peer message |
+| **Broadcast** | dst = 255.255.255.255 | `"dst": "*"` | State announcements, alerts |
+| **Multicast** | dst = 224.x.x.x (group) | `"dst": "group:quest-007-team"` | Multi-clan quest dispatch |
+| **Anycast** | dst = nearest replica | `"dst": "any:cross-clan-dispatcher"` | Load-balanced agent dispatch |
+
+### Multicast groups
+
+```json
+// Signaling: JOIN group (SIP SUBSCRIBE analog)
+{"channel": "sig", "type": "JOIN", "group": "quest-007-team", "clan_id": "jei"}
+
+// Signaling: LEAVE group
+{"channel": "sig", "type": "LEAVE", "group": "quest-007-team", "clan_id": "jei"}
+
+// Data: message to group (all members receive)
+{"channel": "data", "dst": "group:quest-007-team", "payload": {...}}
+```
+
+Hub maintains group membership table. Fan-out is hub responsibility (like IGMP snooping in switches).
+
+### Anycast
+
+For dispatching to "whoever has capacity" — useful when multiple clans have the same agent type:
+```json
+{"dst": "any:cross-clan-dispatcher", "payload": {...}}
+```
+Hub routes to the peer with lowest queue depth (or round-robin). Modeled after DNS anycast / SRV records.
+
+## 9. Header Privacy (IPsec Tunnel Mode Analogy)
+
+Current wire format exposes `src`, `dst`, `type` in plaintext. The hub needs `dst` to route,
+but peer-to-peer messages don't need the hub to see `src` or `type`.
+
+### Transport Mode (current — ARC-8446)
+
+```
+┌──────────────────────────────────────────────┐
+│ PLAINTEXT HEADER          │ ENCRYPTED PAYLOAD │
+│ src: "dani"               │ AES-256-GCM(msg)  │
+│ dst: "jei"                │                   │
+│ type: "dispatch"          │                   │
+└──────────────────────────────────────────────┘
+Hub sees: who talks to whom, message type, frequency
+```
+
+### Tunnel Mode (proposed — ARC-8446 extension)
+
+```
+┌────────────────────────────────────────────────────────────┐
+│ OUTER HEADER (hub sees)   │ ENCRYPTED INNER (peer decrypts)          │
+│ dst: "jei"                │ AES-256-GCM(src + type + msg + metadata) │
+│ session_id: "uuid"        │                                          │
+└────────────────────────────────────────────────────────────┘
+Hub sees: only destination + session. Cannot see source, type, or content.
+```
+
+**Trade-off**: Tunnel mode prevents hub from doing type-based routing or rate limiting by message type.
+Solution: signaling channel stays in transport mode (hub needs to route), data channel uses tunnel mode
+(hub is just a relay — consistent with E2E passthrough design).
+
+**Reference**: IPsec (RFC 4301) Transport vs Tunnel mode. WireGuard uses only tunnel mode.
+
 ## Open Questions
 
 1. **Muxing vs separate WebSockets?** Muxing is simpler (one connection, `channel` field) but doesn't give true failure isolation. Separate WSs give real isolation but double connection overhead. Telecom precedent: separate bearers (SS7 link sets vs voice trunks). **Recommendation**: Start with muxing (Phase 1), migrate to separate (Phase 2).
@@ -176,3 +245,7 @@ This outline maps to two planned specs in INDEX.md:
 3. **Rate limiting scope?** Per-peer? Per-session? Per-channel? **Recommendation**: Per-channel per-peer. Signaling: 60/min. Data: configurable (default 600/min).
 
 4. **Hub routing in multi-channel mode?** Hub currently routes all messages the same way. With channels, does the hub inspect `channel` to route differently? **Recommendation**: Hub routes signaling messages, forwards data messages opaquely (E2E passthrough, consistent with current design).
+
+5. **Multicast group persistence?** Groups could be ephemeral (exist only while members are connected) or persistent (survive reconnections). **Recommendation**: Ephemeral for v0.5, persistent for v0.6 (requires group state in hub).
+
+6. **Tunnel mode for signaling?** Signaling needs hub routing (transport mode). But should signaling metadata (which quests are active, who subscribes to what) be visible to hub? **Recommendation**: Signaling stays transport mode. Privacy-sensitive signaling (capability negotiation) can use per-message encryption within transport mode.
