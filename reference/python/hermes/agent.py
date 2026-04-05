@@ -1776,15 +1776,21 @@ class AgentNode:
                     if msg_key in dedup_keys:
                         continue
 
-                    write_message(
-                        self.config.bus_path,
-                        msg,
-                        seq_tracker=self.seq_tracker,
-                        wv_tracker=self.wv_tracker,
-                    )
-                    dedup_keys.add(msg_key)
-                    bridged += 1
-                    logger.info("Hub → bus: [%s] %s: %s", msg.type, msg.src, msg.msg[:50])
+                    try:
+                        write_message(
+                            self.config.bus_path,
+                            msg,
+                            seq_tracker=self.seq_tracker,
+                            wv_tracker=self.wv_tracker,
+                        )
+                        dedup_keys.add(msg_key)
+                        bridged += 1
+                        logger.info("Hub -> bus: [%s] %s: %s", msg.type, msg.src, msg.msg[:50])
+                    except Exception as we:
+                        logger.warning(
+                            "Hub bridge write failed (src=%s, msg=%s): %s",
+                            msg.src, msg.msg[:40], we, exc_info=True,
+                        )
 
                 # Persist cursor
                 offset = new_offset
@@ -1797,7 +1803,7 @@ class AgentNode:
                     logger.info("Hub inbox bridge: %d messages bridged to bus", bridged)
 
             except Exception as e:
-                logger.warning("Hub inbox bridge error (non-fatal): %s", e)
+                logger.warning("Hub inbox bridge error (non-fatal): %s", e, exc_info=True)
 
             await asyncio.sleep(self.config.hub_inbox_poll_interval)
 

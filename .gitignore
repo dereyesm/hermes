@@ -40,3 +40,4 @@ CLAUDE.md
 .pytest_cache/
 .coverage
 htmlcov/
+TestPyPI-Recovery-Codes-*.txt
