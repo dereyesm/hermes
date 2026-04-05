@@ -236,6 +236,134 @@ Solution: signaling channel stays in transport mode (hub needs to route), data c
 
 **Reference**: IPsec (RFC 4301) Transport vs Tunnel mode. WireGuard uses only tunnel mode.
 
+## 10. Delivery Reports & Read Receipts (SMS/WhatsApp Analogy)
+
+Messages today are fire-and-forget. The sender has no confirmation that the message
+was delivered, read, or processed. This section adds protocol-level delivery reports
+modeled after SMS delivery reports (3GPP TS 23.040) and WhatsApp's check marks.
+
+### Three-stage confirmation
+
+```
+Sender              Hub                 Receiver
+  │                  │                    │
+  │── msg ──────────►│                    │
+  │◄── SENT ─────────│                    │   ✓  (hub accepted)
+  │                  │── msg ────────────►│
+  │                  │◄── DELIVERED ──────│   ✓✓ (arrived at inbox)
+  │◄── DELIVERED ────│                    │
+  │                  │                    │── agent processes
+  │                  │◄── READ ──────────│   ✓✓ (bridged to bus)
+  │◄── READ ─────────│                    │
+  │                  │                    │── agent dispatches
+  │                  │◄── PROCESSED ─────│   ✓✓ (action taken)
+  │◄── PROCESSED ────│                    │
+```
+
+### Wire format (signaling channel)
+
+```json
+// Stage 1: SENT — hub confirms acceptance (immediate, same connection)
+{"channel": "sig", "type": "SENT", "ref": "DANI-067", "ts": "2026-04-05T12:00:01Z"}
+
+// Stage 2: DELIVERED — peer's hub listener received and wrote to inbox
+{"channel": "sig", "type": "DELIVERED", "ref": "DANI-067", "peer": "jei", "ts": "2026-04-05T12:00:03Z"}
+
+// Stage 3: READ — peer's AgentNode bridged to bus (hub_inbox_loop processed it)
+{"channel": "sig", "type": "READ", "ref": "DANI-067", "peer": "jei", "ts": "2026-04-05T12:00:05Z"}
+
+// Stage 4: PROCESSED — peer's agent executed the dispatch (optional, dispatch-only)
+{"channel": "sig", "type": "PROCESSED", "ref": "DANI-067", "peer": "jei",
+ "result": "OK", "agent": "cross-clan-dispatcher", "ts": "2026-04-05T12:00:35Z"}
+```
+
+### Telecom lineage
+
+| HERMES Stage | SMS (3GPP TS 23.040) | WhatsApp | SIP (RFC 3261) | XMPP (XEP-0184) |
+|-------------|---------------------|----------|----------------|------------------|
+| SENT | RP-ACK (relay accepted) | Single gray check | 100 Trying | — |
+| DELIVERED | Status-Report (delivered) | Double gray check | 200 OK | `<received/>` stanza |
+| READ | — (no SMS equivalent) | Double blue check | — | `<displayed/>` (XEP-0333) |
+| PROCESSED | — | — | — | — (HERMES-specific) |
+
+### Message reference (`ref` field)
+
+Each message needs a unique ID for receipt correlation. Options:
+
+| Approach | Format | Pros | Cons |
+|----------|--------|------|------|
+| Sender-assigned | `DANI-067` | Human-readable, already in use | Not globally unique |
+| UUID | `550e8400-e29b-41d4-a716-446655440000` | Globally unique | Not human-readable |
+| Hash-based | SHA-256(src+ts+msg)[:12] | Deterministic, dedup-friendly | Collision risk at scale |
+
+**Recommendation**: Sender-assigned ID (current CLAN-HERMES-SEQ pattern) as `ref`. Add optional
+`msg_id` (UUID) to wire format for programmatic correlation. Both travel in the message envelope.
+
+### Implementation in current architecture
+
+| Stage | Where it happens | Code location | Effort |
+|-------|-----------------|---------------|--------|
+| SENT | Hub sends ack frame after routing | hub.py `_handle_connection` after `router.route()` | Low |
+| DELIVERED | Hub listener writes to inbox, sends receipt | hub.py listener + new receipt frame | Medium |
+| READ | `_hub_inbox_loop` sends receipt after bridge | agent.py L1840 after `write_message` | Medium |
+| PROCESSED | `_execute_decision` sends receipt after dispatch | agent.py L1235 after `_forward_to_hub` | Low |
+
+### Opt-in behavior
+
+Not all messages need receipts. Add `receipt` field to message envelope:
+
+```json
+// Request all receipts
+{"type": "msg", "payload": {...}, "receipt": ["DELIVERED", "READ", "PROCESSED"]}
+
+// Request only delivery confirmation
+{"type": "msg", "payload": {...}, "receipt": ["DELIVERED"]}
+
+// No receipts (fire-and-forget, current default)
+{"type": "msg", "payload": {...}}
+```
+
+Hub only generates receipts when `receipt` array is present. Backward compatible:
+old clients don't send `receipt` field → no receipts generated.
+
+### Delivery report (aggregated)
+
+For broadcast/multicast messages, sender can request a delivery report — a summary
+of all receipts for a given message:
+
+```json
+// Sender requests report
+{"channel": "sig", "type": "REPORT_REQUEST", "ref": "QUEST-CROSS-002"}
+
+// Hub responds with aggregated status
+{"channel": "sig", "type": "DELIVERY_REPORT", "ref": "QUEST-CROSS-002",
+ "report": [
+   {"peer": "momoshod", "sent": true, "delivered": true, "read": true, "processed": true},
+   {"peer": "jei", "sent": true, "delivered": true, "read": false, "processed": false}
+ ],
+ "ts": "2026-04-05T12:01:00Z"
+}
+```
+
+Hub maintains receipt state per message (TTL-bounded, same as message TTL).
+After TTL expires, receipt state is garbage-collected.
+
+### Reference: 3GPP SMS Status Report (TS 23.040 §9.2.3.15)
+
+The SMS delivery report contains:
+- TP-MR (Message Reference): correlates with original message
+- TP-RA (Recipient Address): who received it
+- TP-SCTS (Service Centre Time Stamp): when SC received it
+- TP-DT (Discharge Time): when delivered to recipient
+- TP-ST (Status): delivered / failed / pending / temporary error
+
+HERMES maps these directly:
+- `ref` = TP-MR
+- `peer` = TP-RA
+- `ts` (SENT) = TP-SCTS
+- `ts` (DELIVERED) = TP-DT
+- `type` (DELIVERED/READ/PROCESSED) = TP-ST
+
 ## Open Questions
 
 1. **Muxing vs separate WebSockets?** Muxing is simpler (one connection, `channel` field) but doesn't give true failure isolation. Separate WSs give real isolation but double connection overhead. Telecom precedent: separate bearers (SS7 link sets vs voice trunks). **Recommendation**: Start with muxing (Phase 1), migrate to separate (Phase 2).
