@@ -1620,16 +1620,61 @@ class AgentNode:
 
         known = {p.clan_id for p in config.peers}
         added = 0
+        upgraded = 0
 
         for peer_id in peer_ids:
             if peer_id in known:
+                # Upgrade pending_ack → active if we receive a direct message
+                upgraded += self._upgrade_peer_status(
+                    peer_id, config, hub_peers, msg_type,
+                )
                 continue
             self._register_peer(peer_id, config, hub_peers)
             known.add(peer_id)
             added += 1
 
-        if added:
+        if added or upgraded:
             save_config(config, config_path)
+
+    def _upgrade_peer_status(
+        self, peer_id: str, config: Any, hub_peers: dict, msg_type: str,
+    ) -> int:
+        """Upgrade a peer from pending_ack to active when bilateral is confirmed.
+
+        Triggers on:
+        - Direct message received from peer (not presence/roster)
+        - Hub-peers.json has their public key (TOFU verified)
+
+        Returns 1 if upgraded, 0 if no change needed.
+        """
+        from .config import save_config
+
+        peer = next((p for p in config.peers if p.clan_id == peer_id), None)
+        if not peer or peer.status == "active":
+            return 0
+
+        # Upgrade if we received a direct message (bilateral proven)
+        is_direct_msg = msg_type not in self._HUB_SKIP_TYPES
+        sign_pub = hub_peers.get(peer_id, {}).get("sign_pub", "")
+
+        if is_direct_msg or sign_pub:
+            old_status = peer.status
+            peer.status = "active"
+
+            # Store key if we have it and didn't before
+            if sign_pub:
+                keys_dir = self.config.clan_dir / ".keys" / "peers"
+                keys_dir.mkdir(parents=True, exist_ok=True)
+                pub_file = keys_dir / f"{peer_id}.pub"
+                if not pub_file.exists():
+                    pub_file.write_text(sign_pub)
+
+            logger.info(
+                "Auto-peer: upgraded %s: %s -> active (trigger: %s)",
+                peer_id, old_status, "direct_msg" if is_direct_msg else "key_found",
+            )
+            return 1
+        return 0
 
     def _register_peer(
         self, peer_id: str, config: Any, hub_peers: dict
