@@ -1,4 +1,4 @@
-"""Tests for HERMES Hub Mode (ARC-4601 §15)."""
+"""Tests for Amaru Hub Mode (ARC-4601 §15)."""
 
 import asyncio
 import json

@@ -1478,7 +1478,7 @@ class AgentNode:
                         from .installer import send_notification
 
                         send_notification(
-                            "HERMES",
+                            "Amaru",
                             f"[{msg.type}] from {msg.src}: {msg.msg[:60]}",
                         )
                     break  # One notification per batch

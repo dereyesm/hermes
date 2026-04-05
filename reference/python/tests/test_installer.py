@@ -1,4 +1,4 @@
-"""Tests for HERMES installer, hooks, and CLI integration."""
+"""Tests for Amaru installer, hooks, and CLI integration."""
 
 from __future__ import annotations
 

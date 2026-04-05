@@ -1,4 +1,4 @@
-"""Tests for HERMES Agent Gateway — ARC-3022 Reference Implementation.
+"""Tests for Amaru Agent Gateway — ARC-3022 Reference Implementation.
 
 Covers: TranslationTable, OutboundFilter, InboundValidator,
 AttestationStore, ResonanceCalculator, Gateway.

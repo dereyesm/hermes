@@ -495,7 +495,7 @@ def install_service(plat: Platform, clan_dir: Path) -> tuple[bool, str]:
         elif plat == Platform.WINDOWS:
             bat_path, bat_content = generate_windows_task(clan_dir)
             bat_path.write_text(bat_content)
-            task_name = "HermesAgentNode"
+            task_name = "AmaruAgentNode"
             subprocess.run(
                 [
                     "schtasks",
@@ -549,7 +549,7 @@ def uninstall_service(plat: Platform) -> tuple[bool, str]:
 
         elif plat == Platform.WINDOWS:
             subprocess.run(
-                ["schtasks", "/Delete", "/TN", "HermesAgentNode", "/F"],
+                ["schtasks", "/Delete", "/TN", "AmaruAgentNode", "/F"],
                 capture_output=True,
             )
             return True, "Windows scheduled task removed"
@@ -808,7 +808,7 @@ def send_notification(title: str, msg: str, plat: Platform | None = None) -> boo
                 f"ContentType=WindowsRuntime]::new();"
                 f"$t.LoadXml($xml);"
                 f"[Windows.UI.Notifications.ToastNotificationManager]"
-                f"::CreateToastNotifier('HERMES').Show("
+                f"::CreateToastNotifier('Amaru').Show("
                 f"[Windows.UI.Notifications.ToastNotification]::new($t))"
             )
             subprocess.run(

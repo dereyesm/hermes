@@ -1,4 +1,4 @@
-"""Tests for HERMES Adapter — Agent-agnostic bridge (installable-model.md Phase 2+3)."""
+"""Tests for Amaru Adapter — Agent-agnostic bridge (installable-model.md Phase 2+3)."""
 
 from pathlib import Path
 

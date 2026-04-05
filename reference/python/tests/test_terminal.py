@@ -1,4 +1,4 @@
-"""Tests for HERMES Terminal — brand-aware CLI output (terminal.py).
+"""Tests for Amaru Terminal — brand-aware CLI output (terminal.py).
 
 Covers:
 - Brand palette constants

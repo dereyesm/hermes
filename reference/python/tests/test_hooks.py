@@ -1,4 +1,4 @@
-"""Tests for HERMES Hook Handlers (hooks.py).
+"""Tests for Amaru Hook Handlers (hooks.py).
 
 Covers:
 - _read_bus_pending: bus parsing, config discovery (TOML/JSON), filtering

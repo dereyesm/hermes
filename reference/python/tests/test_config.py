@@ -1,4 +1,4 @@
-"""Tests for HERMES Gateway Configuration — ARC-3022 Section 16."""
+"""Tests for Amaru Gateway Configuration — ARC-3022 Section 16."""
 
 import json
 import tomllib

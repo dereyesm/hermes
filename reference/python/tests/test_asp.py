@@ -1,4 +1,4 @@
-"""Tests for HERMES Agent Service Platform — ARC-0369 F1 + F2 + F3 + F4 + F5."""
+"""Tests for Amaru Agent Service Platform — ARC-0369 F1 + F2 + F3 + F4 + F5."""
 
 import json
 from datetime import date, datetime, timedelta

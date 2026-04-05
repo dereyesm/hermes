@@ -1,4 +1,4 @@
-"""Tests for HERMES crypto module — Ed25519 + X25519 + AES-256-GCM."""
+"""Tests for Amaru crypto module — Ed25519 + X25519 + AES-256-GCM."""
 
 import json
 import os

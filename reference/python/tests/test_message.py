@@ -1,4 +1,4 @@
-"""Tests for HERMES message validation and bus operations."""
+"""Tests for Amaru message validation and bus operations."""
 
 import json
 from datetime import date, timedelta

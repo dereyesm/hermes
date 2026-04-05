@@ -1,4 +1,4 @@
-"""Tests for HERMES Agora Directory Client — ARC-2606."""
+"""Tests for Amaru Agora Directory Client — ARC-2606."""
 
 import json
 

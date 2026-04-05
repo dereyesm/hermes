@@ -1,4 +1,4 @@
-"""Tests for HERMES Agent Node — ARC-4601 Reference Implementation."""
+"""Tests for Amaru Agent Node — ARC-4601 Reference Implementation."""
 
 from __future__ import annotations
 

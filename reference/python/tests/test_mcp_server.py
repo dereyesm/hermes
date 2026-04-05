@@ -1,4 +1,4 @@
-"""Tests for HERMES MCP server — tool functions + cursor + resources."""
+"""Tests for Amaru MCP server — tool functions + cursor + resources."""
 
 import json
 import os

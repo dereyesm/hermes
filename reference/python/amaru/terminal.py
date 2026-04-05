@@ -143,7 +143,7 @@ def print_clan_status(
 
     # Header panel
     title = Text()
-    title.append("H E R M E S", style="bold white")
+    title.append("A M A R U", style="bold white")
     title.append("  ", style="default")
     title.append(f"{clan_id}", style=f"bold {TEAL}")
     title.append(f"  ({display_name})", style=SLATE)

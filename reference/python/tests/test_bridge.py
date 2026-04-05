@@ -1,4 +1,4 @@
-"""Tests for HERMES Bridge Protocol Mapping — ARC-7231 Reference Implementation.
+"""Tests for Amaru Bridge Protocol Mapping — ARC-7231 Reference Implementation.
 
 Covers: A2ABridge, MCPBridge, BridgeConfig, CID generation,
 error translation, and round-trip translation flows.
