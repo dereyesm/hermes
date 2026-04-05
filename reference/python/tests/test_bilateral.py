@@ -311,3 +311,87 @@ class TestBurstProtection:
                 await _cleanup(server, task, alice, bob)
 
         _run(_test())
+
+
+class TestPeerStatusUpgrade:
+    """Test pending_ack -> active upgrade (P4 fix)."""
+
+    def test_pending_ack_upgrades_on_message(self, tmp_path):
+        """Peer in pending_ack upgrades to active on receiving direct message."""
+        from hermes.agent import AgentNode
+        from hermes.agent import AgentNodeConfig
+        from hermes.config import load_config
+
+        clan_dir = tmp_path / "clan-upgrade"
+        clan_dir.mkdir()
+        (clan_dir / "bus.jsonl").touch()
+        (clan_dir / "gateway.json").write_text(json.dumps({
+            "clan_id": "alice",
+            "display_name": "Test Alice",
+            "namespace": "alice",
+            "agent_node": {"hub": {"listen_port": 9999}},
+            "peers": [
+                {"clan_id": "bob", "public_key_file": "keys/peers/bob.pub",
+                 "status": "pending_ack", "added": "2026-04-04"}
+            ],
+        }))
+        (clan_dir / "hub-peers.json").write_text(json.dumps({
+            "peers": {"bob": {"sign_pub": "bb" * 32}}
+        }))
+        (clan_dir / "federation-peers.json").write_text(json.dumps({
+            "hubs": {}, "self": {"hub_id": "test"}
+        }))
+
+        config = load_config(clan_dir / "gateway.json")
+        assert next(p for p in config.peers if p.clan_id == "bob").status == "pending_ack"
+
+        node = AgentNode(AgentNodeConfig(
+            namespace="alice", clan_dir=clan_dir,
+            bus_path=clan_dir / "bus.jsonl",
+            gateway_url="",
+        ))
+
+        node._auto_peer_from_presence({
+            "type": "event", "from": "bob",
+            "msg": "hello from bob", "ts": "2026-04-04T12:00:00Z",
+        })
+
+        config = load_config(clan_dir / "gateway.json")
+        assert next(p for p in config.peers if p.clan_id == "bob").status == "active"
+
+    def test_already_active_no_rewrite(self, tmp_path):
+        """Active peer stays active without rewriting config."""
+        from hermes.agent import AgentNode
+        from hermes.agent import AgentNodeConfig
+
+        clan_dir = tmp_path / "clan-active"
+        clan_dir.mkdir()
+        (clan_dir / "bus.jsonl").touch()
+        (clan_dir / "gateway.json").write_text(json.dumps({
+            "clan_id": "alice",
+            "display_name": "Test Alice",
+            "namespace": "alice",
+            "agent_node": {"hub": {"listen_port": 9999}},
+            "peers": [
+                {"clan_id": "bob", "public_key_file": "keys/peers/bob.pub",
+                 "status": "active", "added": "2026-04-04"}
+            ],
+        }))
+        (clan_dir / "hub-peers.json").write_text(json.dumps({"peers": {}}))
+        (clan_dir / "federation-peers.json").write_text(json.dumps({
+            "hubs": {}, "self": {"hub_id": "test"}
+        }))
+
+        node = AgentNode(AgentNodeConfig(
+            namespace="alice", clan_dir=clan_dir,
+            bus_path=clan_dir / "bus.jsonl",
+            gateway_url="",
+        ))
+
+        mtime_before = (clan_dir / "gateway.json").stat().st_mtime
+        node._auto_peer_from_presence({
+            "type": "event", "from": "bob",
+            "msg": "hello", "ts": "2026-04-04T12:00:00Z",
+        })
+        mtime_after = (clan_dir / "gateway.json").stat().st_mtime
+        assert mtime_before == mtime_after
