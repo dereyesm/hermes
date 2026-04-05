@@ -1594,6 +1594,13 @@ class AgentNode:
         if not peer_ids:
             return
 
+        # Fast path: skip config I/O if all peers are already known-active
+        if hasattr(self, "_active_peers_cache"):
+            if all(pid in self._active_peers_cache for pid in peer_ids):
+                return
+        else:
+            self._active_peers_cache: set[str] = set()
+
         # Batch registration: load config once, register all, save once
         try:
             from .config import (
@@ -1635,40 +1642,40 @@ class AgentNode:
 
         if added or upgraded:
             save_config(config, config_path)
+            # Update active peers cache
+            self._active_peers_cache = {
+                p.clan_id for p in config.peers if p.status == "active"
+            }
+
+    def _store_peer_key(self, peer_id: str, sign_pub: str) -> None:
+        """Store a peer's public key if not already stored."""
+        if not sign_pub:
+            return
+        keys_dir = self.config.clan_dir / ".keys" / "peers"
+        keys_dir.mkdir(parents=True, exist_ok=True)
+        pub_file = keys_dir / f"{peer_id}.pub"
+        if not pub_file.exists():
+            pub_file.write_text(sign_pub)
+            logger.info("Auto-peer: stored pub key for %s", peer_id)
 
     def _upgrade_peer_status(
         self, peer_id: str, config: Any, hub_peers: dict, msg_type: str,
     ) -> int:
         """Upgrade a peer from pending_ack to active when bilateral is confirmed.
 
-        Triggers on:
-        - Direct message received from peer (not presence/roster)
-        - Hub-peers.json has their public key (TOFU verified)
-
         Returns 1 if upgraded, 0 if no change needed.
         """
-        from .config import save_config
-
         peer = next((p for p in config.peers if p.clan_id == peer_id), None)
         if not peer or peer.status == "active":
             return 0
 
-        # Upgrade if we received a direct message (bilateral proven)
         is_direct_msg = msg_type not in self._HUB_SKIP_TYPES
         sign_pub = hub_peers.get(peer_id, {}).get("sign_pub", "")
 
         if is_direct_msg or sign_pub:
             old_status = peer.status
             peer.status = "active"
-
-            # Store key if we have it and didn't before
-            if sign_pub:
-                keys_dir = self.config.clan_dir / ".keys" / "peers"
-                keys_dir.mkdir(parents=True, exist_ok=True)
-                pub_file = keys_dir / f"{peer_id}.pub"
-                if not pub_file.exists():
-                    pub_file.write_text(sign_pub)
-
+            self._store_peer_key(peer_id, sign_pub)
             logger.info(
                 "Auto-peer: upgraded %s: %s -> active (trigger: %s)",
                 peer_id, old_status, "direct_msg" if is_direct_msg else "key_found",
@@ -1683,15 +1690,7 @@ class AgentNode:
         from .config import PeerConfig
 
         sign_pub = hub_peers.get(peer_id, {}).get("sign_pub", "")
-
-        # Store pub key if available
-        if sign_pub:
-            keys_dir = self.config.clan_dir / ".keys" / "peers"
-            keys_dir.mkdir(parents=True, exist_ok=True)
-            pub_file = keys_dir / f"{peer_id}.pub"
-            if not pub_file.exists():
-                pub_file.write_text(sign_pub)
-                logger.info("Auto-peer: stored pub key for %s", peer_id)
+        self._store_peer_key(peer_id, sign_pub)
 
         peer = PeerConfig(
             clan_id=peer_id,
