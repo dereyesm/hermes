@@ -627,3 +627,223 @@ class TestHubInboxBridge:
         assert len(bus_msgs) == 2
         assert bus_msgs[0].msg == "good-1"
         assert bus_msgs[1].msg == "good-2"
+
+
+# ---------------------------------------------------------------------------
+# Tier 3: Dual Clan End-to-End (hub + bridge + evaluator)
+# ---------------------------------------------------------------------------
+
+
+class TestDualClanDispatch:
+    """Test full bilateral dispatch: alice sends via hub → bob processes → response returns."""
+
+    def test_alice_dispatch_reaches_bob_bus(self, clan_factory):
+        """Alice sends dispatch via hub, bob's bridge writes it to bob's bus."""
+        from hermes.agent import AgentNode, AgentNodeConfig
+        from hermes.bus import read_bus
+
+        alice_key, alice_pub = _generate_keys()
+        bob_key, bob_pub = _generate_keys()
+        port = random.randint(19000, 19999)
+
+        async def _test():
+            # Start hub with both peers registered
+            hub_info = clan_factory("hub-t3", port, {"alice": alice_pub, "bob": bob_pub})
+            config = HubConfig(listen_host="127.0.0.1", listen_port=port,
+                               auth_timeout=5, max_queue_depth=100)
+            server = HubServer(config, hub_info.dir)
+            hub_task = asyncio.create_task(server.start())
+            await asyncio.sleep(0.15)
+
+            uri = f"ws://127.0.0.1:{port}"
+
+            # Bob's clan dir with inbox for bridge
+            bob_dir = clan_factory("bob-clan", port + 1, {"alice": alice_pub})
+            bob_inbox = bob_dir.dir / "hub-inbox.jsonl"
+
+            # Connect alice as sender
+            alice = await connect_hub_client(uri, "alice", alice_key)
+            await _drain(alice)
+
+            # Connect bob as receiver — listen for messages and write to inbox
+            bob_ws = await connect_hub_client(uri, "bob", bob_key)
+            await _drain(bob_ws)
+
+            # Alice sends dispatch
+            await alice.send_msg("bob", "dispatch", "QUEST-T3-001: bilateral test")
+
+            # Bob receives via hub
+            frame = await bob_ws.recv_until("msg", timeout=3.0)
+            assert frame["payload"]["type"] == "dispatch"
+
+            # Write to bob's inbox (simulating hub listener)
+            inbox_entry = {
+                "ts": frame["payload"].get("ts", "2026-04-05T12:00:00Z"),
+                "from": frame["payload"]["src"],
+                "msg": frame["payload"]["msg"],
+                "type": frame["payload"]["type"],
+                "dst": frame["payload"]["dst"],
+            }
+            with open(bob_inbox, "a") as f:
+                f.write(json.dumps(inbox_entry) + "\n")
+
+            # Bob's agent node bridges inbox → bus
+            bob_config = AgentNodeConfig(
+                namespace="bob", clan_dir=bob_dir.dir,
+                bus_path=bob_dir.dir / "bus.jsonl", gateway_url="",
+                hub_inbox_path=bob_inbox, hub_inbox_poll_interval=0.1,
+            )
+            bob_node = AgentNode(bob_config)
+            bob_node._running = True
+
+            bridge_task = asyncio.create_task(bob_node._hub_inbox_loop())
+            await asyncio.sleep(0.3)
+            bob_node._running = False
+            bridge_task.cancel()
+            try:
+                await bridge_task
+            except asyncio.CancelledError:
+                pass
+
+            # Verify: dispatch is now in bob's bus
+            bob_bus = read_bus(bob_dir.dir / "bus.jsonl")
+            quest_msgs = [m for m in bob_bus if "QUEST-T3-001" in m.msg]
+            assert len(quest_msgs) == 1
+            assert quest_msgs[0].src == "alice"
+            assert quest_msgs[0].type == "dispatch"
+            assert quest_msgs[0].dst == "bob"
+
+            await _cleanup(server, hub_task, alice, bob_ws)
+
+        _run(_test())
+
+    def test_evaluator_dispatches_cross_clan(self, tmp_path):
+        """MessageEvaluator returns DISPATCH for a dispatch message addressed to us."""
+        from hermes.agent import AgentNodeConfig, MessageEvaluator, Action
+        from hermes.message import Message
+        from datetime import date
+
+        config = AgentNodeConfig(
+            namespace="bob", clan_dir=tmp_path,
+            bus_path=tmp_path / "bus.jsonl", gateway_url="",
+        )
+        evaluator = MessageEvaluator(config)
+
+        msg = Message(
+            ts=date.today(), src="alice", dst="bob",
+            type="dispatch", msg="QUEST-T3: test", ttl=7, ack=[],
+        )
+        assert evaluator.evaluate(msg) == Action.DISPATCH
+
+    def test_evaluator_ignores_own_acked(self, tmp_path):
+        """Messages already ACKed by this node are ignored."""
+        from hermes.agent import AgentNodeConfig, MessageEvaluator, Action
+        from hermes.message import Message
+        from datetime import date
+
+        config = AgentNodeConfig(
+            namespace="bob", clan_dir=tmp_path,
+            bus_path=tmp_path / "bus.jsonl", gateway_url="",
+        )
+        evaluator = MessageEvaluator(config)
+
+        msg = Message(
+            ts=date.today(), src="alice", dst="bob",
+            type="dispatch", msg="QUEST-T3: test", ttl=7, ack=["bob"],
+        )
+        assert evaluator.evaluate(msg) == Action.IGNORE
+
+    def test_full_bilateral_round_trip(self, clan_factory):
+        """Full round-trip: alice dispatch → hub → bob inbox → bob bus → evaluator → response to alice."""
+        from hermes.agent import AgentNode, AgentNodeConfig, MessageEvaluator, Action
+        from hermes.bus import read_bus
+        from hermes.bus import write_message
+        from hermes.message import create_message
+
+        alice_key, alice_pub = _generate_keys()
+        bob_key, bob_pub = _generate_keys()
+        port = random.randint(19000, 19999)
+
+        async def _test():
+            # Hub
+            hub_info = clan_factory("hub-rt", port, {"alice": alice_pub, "bob": bob_pub})
+            config = HubConfig(listen_host="127.0.0.1", listen_port=port,
+                               auth_timeout=5, max_queue_depth=100)
+            server = HubServer(config, hub_info.dir)
+            hub_task = asyncio.create_task(server.start())
+            await asyncio.sleep(0.15)
+
+            uri = f"ws://127.0.0.1:{port}"
+
+            # Bob's infrastructure
+            bob_dir = clan_factory("bob-rt", port + 1, {"alice": alice_pub})
+            bob_inbox = bob_dir.dir / "hub-inbox.jsonl"
+
+            # Connect both
+            alice = await connect_hub_client(uri, "alice", alice_key)
+            bob_ws = await connect_hub_client(uri, "bob", bob_key)
+            await _drain(alice)
+            await _drain(bob_ws)
+
+            # Step 1: Alice sends dispatch
+            await alice.send_msg("bob", "dispatch", "QUEST-RT-001: round trip")
+
+            # Step 2: Bob receives via hub
+            frame = await bob_ws.recv_until("msg", timeout=3.0)
+
+            # Step 3: Write to bob's inbox (hub listener simulation)
+            inbox_entry = {
+                "ts": frame["payload"].get("ts", "2026-04-05T12:00:00Z"),
+                "from": frame["payload"]["src"],
+                "msg": frame["payload"]["msg"],
+                "type": frame["payload"]["type"],
+                "dst": frame["payload"]["dst"],
+            }
+            with open(bob_inbox, "a") as f:
+                f.write(json.dumps(inbox_entry) + "\n")
+
+            # Step 4: Bob's bridge processes inbox → bus
+            bob_config = AgentNodeConfig(
+                namespace="bob", clan_dir=bob_dir.dir,
+                bus_path=bob_dir.dir / "bus.jsonl", gateway_url="",
+                hub_inbox_path=bob_inbox, hub_inbox_poll_interval=0.1,
+            )
+            bob_node = AgentNode(bob_config)
+            bob_node._running = True
+
+            bridge_task = asyncio.create_task(bob_node._hub_inbox_loop())
+            await asyncio.sleep(0.3)
+            bob_node._running = False
+            bridge_task.cancel()
+            try:
+                await bridge_task
+            except asyncio.CancelledError:
+                pass
+
+            # Step 5: Verify dispatch in bob's bus
+            bob_bus = read_bus(bob_dir.dir / "bus.jsonl")
+            dispatch_msg = next(m for m in bob_bus if "QUEST-RT-001" in m.msg)
+            assert dispatch_msg.type == "dispatch"
+
+            # Step 6: Evaluator decides → DISPATCH
+            evaluator = MessageEvaluator(bob_config)
+            assert evaluator.evaluate(dispatch_msg) == Action.DISPATCH
+
+            # Step 7: Simulate dispatch response (what _execute_decision does)
+            response = create_message(
+                src="bob", dst="alice",  # Cross-clan: reply to sender
+                type="event", msg="[RE:cross-clan-dispatch] OK",
+            )
+            write_message(bob_dir.dir / "bus.jsonl", response)
+
+            # Step 8: Bob sends response back via hub
+            await bob_ws.send_msg("alice", "event", "[RE:QUEST-RT-001] OK")
+
+            # Step 9: Alice receives the response
+            resp_frame = await alice.recv_until("msg", timeout=3.0)
+            assert resp_frame["payload"]["src"] == "bob"
+            assert "OK" in resp_frame["payload"]["msg"]
+
+            await _cleanup(server, hub_task, alice, bob_ws)
+
+        _run(_test())
