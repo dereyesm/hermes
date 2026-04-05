@@ -1584,11 +1584,7 @@ class AgentNode:
         if not peer_ids:
             return
 
-        for peer_id in peer_ids:
-            self._register_peer(peer_id)
-
-    def _register_peer(self, peer_id: str) -> None:
-        """Register a single peer in gateway config if not already known."""
+        # Batch registration: load config once, register all, save once
         try:
             from .config import (
                 PeerConfig,
@@ -1599,22 +1595,39 @@ class AgentNode:
 
             config_path = resolve_config_path(self.config.clan_dir)
             config = load_config(config_path)
-        except (FileNotFoundError, Exception):
+        except (FileNotFoundError, json.JSONDecodeError, OSError) as e:
+            logger.debug("Auto-peer: cannot load config: %s", e)
             return
 
-        if any(p.clan_id == peer_id for p in config.peers):
-            return
-
-        # Look up sign_pub in hub-peers.json
+        # Load hub-peers.json once for key lookups
+        hub_peers: dict = {}
         hub_peers_path = self.config.clan_dir / "hub-peers.json"
-        sign_pub = ""
         if hub_peers_path.exists():
             try:
-                hub_peers = json.loads(hub_peers_path.read_text())
-                peer_data = hub_peers.get("peers", {}).get(peer_id, {})
-                sign_pub = peer_data.get("sign_pub", "")
+                hub_peers = json.loads(hub_peers_path.read_text()).get("peers", {})
             except (json.JSONDecodeError, OSError):
                 pass
+
+        known = {p.clan_id for p in config.peers}
+        added = 0
+
+        for peer_id in peer_ids:
+            if peer_id in known:
+                continue
+            self._register_peer(peer_id, config, hub_peers)
+            known.add(peer_id)
+            added += 1
+
+        if added:
+            save_config(config, config_path)
+
+    def _register_peer(
+        self, peer_id: str, config: Any, hub_peers: dict
+    ) -> None:
+        """Register a single peer in the config object (caller saves)."""
+        from .config import PeerConfig
+
+        sign_pub = hub_peers.get(peer_id, {}).get("sign_pub", "")
 
         # Store pub key if available
         if sign_pub:
@@ -1625,7 +1638,6 @@ class AgentNode:
                 pub_file.write_text(sign_pub)
                 logger.info("Auto-peer: stored pub key for %s", peer_id)
 
-        # Register peer in gateway config
         peer = PeerConfig(
             clan_id=peer_id,
             public_key_file=f".keys/peers/{peer_id}.pub",
@@ -1633,7 +1645,6 @@ class AgentNode:
             added=date.today().isoformat(),
         )
         config.peers.append(peer)
-        save_config(config, config_path)
 
         status = "active (key from hub)" if sign_pub else "pending_ack (TOFU, no key)"
         logger.info("Auto-peer: registered %s as %s", peer_id, status)
@@ -1721,6 +1732,12 @@ class AgentNode:
                     new_offset = f.tell()
 
                 bridged = 0
+                # Cache bus messages once per poll cycle (not per message)
+                existing = read_bus(self.config.bus_path)
+                dedup_keys = {
+                    (m.src, str(m.ts), m.msg) for m in existing
+                }
+
                 for line in new_data.strip().splitlines():
                     line = line.strip()
                     if not line:
@@ -1740,13 +1757,9 @@ class AgentNode:
                     if msg is None:
                         continue
 
-                    # Dedup against existing bus messages
-                    existing = read_bus(self.config.bus_path)
-                    is_dup = any(
-                        m.src == msg.src and m.ts == msg.ts and m.msg == msg.msg
-                        for m in existing
-                    )
-                    if is_dup:
+                    # Dedup against cached bus messages
+                    msg_key = (msg.src, str(msg.ts), msg.msg)
+                    if msg_key in dedup_keys:
                         continue
 
                     write_message(
@@ -1755,6 +1768,7 @@ class AgentNode:
                         seq_tracker=self.seq_tracker,
                         wv_tracker=self.wv_tracker,
                     )
+                    dedup_keys.add(msg_key)
                     bridged += 1
                     logger.info("Hub → bus: [%s] %s: %s", msg.type, msg.src, msg.msg[:50])
 

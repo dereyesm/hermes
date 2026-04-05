@@ -233,7 +233,18 @@ def cmd_status(args: argparse.Namespace) -> int:
     inbox_file = clan_dir / "hub-inbox.jsonl"
     if inbox_file.exists():
         try:
-            for line in inbox_file.read_text().splitlines():
+            # Read only the last 64KB to avoid OOM on large inboxes (e.g. ping storms)
+            _MAX_PRESENCE_READ = 65536
+            raw = ""
+            fsize = inbox_file.stat().st_size
+            if fsize <= _MAX_PRESENCE_READ:
+                raw = inbox_file.read_text(encoding="utf-8")
+            else:
+                with open(inbox_file, encoding="utf-8") as f:
+                    f.seek(fsize - _MAX_PRESENCE_READ)
+                    f.readline()  # skip partial line
+                    raw = f.read()
+            for line in raw.splitlines():
                 if not line.strip():
                     continue
                 msg = _json.loads(line)
