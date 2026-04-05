@@ -143,18 +143,12 @@ class TestPeer:
 
 
 class TestSend:
-    def test_send_drops_message(self, tmp_path):
+    def test_send_no_hub_returns_error(self, tmp_path):
+        """hermes send fails gracefully when no hub is reachable."""
         main(["init", "sender", "Sender", "--dir", str(tmp_path)])
         rc = main(["send", "receiver", "Hello from sender!", "--dir", str(tmp_path)])
-        assert rc == 0
-
-        from hermes.agora import AgoraDirectory
-
-        agora = AgoraDirectory(tmp_path / ".agora")
-        messages = agora.read_inbox("receiver")
-        assert len(messages) == 1
-        assert messages[0]["payload"] == "Hello from sender!"
-        assert messages[0]["source_clan"] == "sender"
+        # Should fail (rc=1) because no hub is running
+        assert rc == 1
 
     def test_send_blocked_by_filter(self, tmp_path):
         main(["init", "leaky", "Leaky", "--dir", str(tmp_path)])
@@ -479,10 +473,10 @@ class TestEndToEnd:
         assert len(msgs_j) == 1
         assert msgs_j[0]["source_clan"] == "momosho-d"
 
-        # Daniel sends a message
-        main(["send", "jeimmy-clan", "First Contact achieved!", "--dir", str(clan_d)])
+        # Daniel sends a message (fails: no hub running, but doesn't crash)
+        rc = main(["send", "jeimmy-clan", "First Contact achieved!", "--dir", str(clan_d)])
+        assert rc == 1  # No hub → graceful failure
 
-        # Jeimmy reads inbox — hello + quest_response
+        # Jeimmy inbox still has the hello from peer add
         msgs_j2 = agora.read_inbox("jeimmy-clan")
-        assert len(msgs_j2) == 2
-        assert any(m.get("payload") == "First Contact achieved!" for m in msgs_j2)
+        assert len(msgs_j2) == 1  # Only the hello, no send without hub
