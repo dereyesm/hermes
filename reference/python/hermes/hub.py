@@ -333,12 +333,19 @@ class FederationTable:
         return self.get_link_for(dst) is not None
 
     def register_link(self, hub_id: str, ws: Any, remote_peers: list[str]) -> FederationLink:
-        """Register an inbound S2S link from a remote hub."""
+        """Register an inbound S2S link from a remote hub.
+
+        Merges remote_peers with any existing config-loaded peers to avoid
+        losing routing entries when S2S reconnects (ARC-0370 §4.4).
+        """
         link = self._links.get(hub_id)
         if link:
             link.ws = ws
             link.connected = True
-            link.remote_peers = remote_peers
+            # Merge: keep config-loaded peers + add new ones from HELLO
+            existing = set(link.remote_peers)
+            existing.update(remote_peers)
+            link.remote_peers = sorted(existing)
         else:
             link = FederationLink(
                 hub_id=hub_id,
@@ -349,7 +356,7 @@ class FederationTable:
                 connected=True,
             )
             self._links[hub_id] = link
-        for peer in remote_peers:
+        for peer in link.remote_peers:
             self._routing[peer] = hub_id
         return link
 
