@@ -633,6 +633,169 @@ class TestHubInboxBridge:
 # Tier 3: Dual Clan End-to-End (hub + bridge + evaluator)
 # ---------------------------------------------------------------------------
 
+# (TestDualClanDispatch class follows below)
+
+# ---------------------------------------------------------------------------
+# Tier 4: Multi-Clan Quest (3 clans: nymyka dispatches, dani+jei process)
+# ---------------------------------------------------------------------------
+
+
+class TestMultiClanQuest:
+    """Test multi-clan quest: one clan dispatches, two others process and respond."""
+
+    def test_broadcast_reaches_both_peers(self, clan_factory):
+        """A broadcast dispatch (dst=*) reaches both peers through the hub."""
+        nymyka_key, nymyka_pub = _generate_keys()
+        dani_key, dani_pub = _generate_keys()
+        jei_key, jei_pub = _generate_keys()
+        port = random.randint(19000, 19999)
+
+        async def _test():
+            hub_info = clan_factory("hub-mc", port, {
+                "nymyka": nymyka_pub, "dani": dani_pub, "jei": jei_pub,
+            })
+            config = HubConfig(listen_host="127.0.0.1", listen_port=port,
+                               auth_timeout=5, max_queue_depth=100)
+            server = HubServer(config, hub_info.dir)
+            hub_task = asyncio.create_task(server.start())
+            await asyncio.sleep(0.15)
+
+            uri = f"ws://127.0.0.1:{port}"
+            nymyka = await connect_hub_client(uri, "nymyka", nymyka_key)
+            dani = await connect_hub_client(uri, "dani", dani_key)
+            jei = await connect_hub_client(uri, "jei", jei_key)
+            await _drain(nymyka)
+            await _drain(dani)
+            await _drain(jei)
+
+            # Nymyka broadcasts a quest
+            await nymyka.send_msg("*", "dispatch", "QUEST-CROSS-002: multi-clan test")
+
+            # Both dani and jei should receive it
+            dani_frame = await dani.recv_until("msg", timeout=3.0)
+            assert dani_frame["payload"]["msg"] == "QUEST-CROSS-002: multi-clan test"
+            assert dani_frame["payload"]["src"] == "nymyka"
+
+            jei_frame = await jei.recv_until("msg", timeout=3.0)
+            assert jei_frame["payload"]["msg"] == "QUEST-CROSS-002: multi-clan test"
+            assert jei_frame["payload"]["src"] == "nymyka"
+
+            await _cleanup(server, hub_task, nymyka, dani, jei)
+
+        _run(_test())
+
+    def test_both_peers_respond_independently(self, clan_factory):
+        """Both peers process a broadcast quest and send responses back to origin."""
+        nymyka_key, nymyka_pub = _generate_keys()
+        dani_key, dani_pub = _generate_keys()
+        jei_key, jei_pub = _generate_keys()
+        port = random.randint(19000, 19999)
+
+        async def _test():
+            hub_info = clan_factory("hub-mc2", port, {
+                "nymyka": nymyka_pub, "dani": dani_pub, "jei": jei_pub,
+            })
+            config = HubConfig(listen_host="127.0.0.1", listen_port=port,
+                               auth_timeout=5, max_queue_depth=100)
+            server = HubServer(config, hub_info.dir)
+            hub_task = asyncio.create_task(server.start())
+            await asyncio.sleep(0.15)
+
+            uri = f"ws://127.0.0.1:{port}"
+            nymyka = await connect_hub_client(uri, "nymyka", nymyka_key)
+            dani = await connect_hub_client(uri, "dani", dani_key)
+            jei = await connect_hub_client(uri, "jei", jei_key)
+            await _drain(nymyka)
+            await _drain(dani)
+            await _drain(jei)
+
+            # Nymyka dispatches
+            await nymyka.send_msg("*", "dispatch", "QUEST-CROSS-003: solve this")
+
+            # Both receive
+            await dani.recv_until("msg", timeout=3.0)
+            await jei.recv_until("msg", timeout=3.0)
+
+            # Both respond independently to nymyka
+            await dani.send_msg("nymyka", "event", "[RE:QUEST-CROSS-003] DANI done")
+            await jei.send_msg("nymyka", "event", "[RE:QUEST-CROSS-003] JEI done")
+
+            # Nymyka receives both responses
+            responses = []
+            try:
+                for _ in range(5):
+                    frame = await asyncio.wait_for(nymyka.ws.recv(), timeout=3.0)
+                    parsed = json.loads(frame)
+                    if parsed.get("type") == "msg" and "RE:QUEST-CROSS-003" in parsed["payload"].get("msg", ""):
+                        responses.append(parsed["payload"])
+                    if len(responses) == 2:
+                        break
+            except (TimeoutError, asyncio.TimeoutError):
+                pass
+
+            assert len(responses) == 2, f"Expected 2 responses, got {len(responses)}"
+            sources = {r["src"] for r in responses}
+            assert sources == {"dani", "jei"}
+
+            await _cleanup(server, hub_task, nymyka, dani, jei)
+
+        _run(_test())
+
+    def test_partial_failure_other_succeeds(self, clan_factory):
+        """If one peer disconnects, the other still receives and responds."""
+        nymyka_key, nymyka_pub = _generate_keys()
+        dani_key, dani_pub = _generate_keys()
+        jei_key, jei_pub = _generate_keys()
+        port = random.randint(19000, 19999)
+
+        async def _test():
+            hub_info = clan_factory("hub-mc3", port, {
+                "nymyka": nymyka_pub, "dani": dani_pub, "jei": jei_pub,
+            })
+            config = HubConfig(listen_host="127.0.0.1", listen_port=port,
+                               auth_timeout=5, max_queue_depth=100)
+            server = HubServer(config, hub_info.dir)
+            hub_task = asyncio.create_task(server.start())
+            await asyncio.sleep(0.15)
+
+            uri = f"ws://127.0.0.1:{port}"
+            nymyka = await connect_hub_client(uri, "nymyka", nymyka_key)
+            dani = await connect_hub_client(uri, "dani", dani_key)
+            jei = await connect_hub_client(uri, "jei", jei_key)
+            await _drain(nymyka)
+            await _drain(dani)
+            await _drain(jei)
+
+            # JEI disconnects (simulating failure)
+            await jei.close()
+            await asyncio.sleep(0.1)
+
+            # Nymyka dispatches — only dani is online
+            await nymyka.send_msg("*", "dispatch", "QUEST-CROSS-004: partial")
+
+            # Dani receives and responds
+            dani_frame = await dani.recv_until("msg", timeout=3.0)
+            assert "QUEST-CROSS-004" in dani_frame["payload"]["msg"]
+            await dani.send_msg("nymyka", "event", "[RE:QUEST-CROSS-004] DANI done")
+
+            # Nymyka gets dani's response
+            resp = await nymyka.recv_until("msg", timeout=3.0)
+            assert resp["payload"]["src"] == "dani"
+            assert "DANI done" in resp["payload"]["msg"]
+
+            # Broadcast is best-effort: offline peers don't get queued
+            # (store-and-forward only works for unicast dst)
+            # JEI reconnecting later would NOT receive the broadcast
+
+            # But if nymyka sends unicast to jei, it DOES queue
+            await nymyka.send_msg("jei", "dispatch", "QUEST-CROSS-004b: unicast to offline")
+            await asyncio.sleep(0.1)
+            assert server.queue.depth("jei") >= 1
+
+            await _cleanup(server, hub_task, nymyka, dani)
+
+        _run(_test())
+
 
 class TestDualClanDispatch:
     """Test full bilateral dispatch: alice sends via hub → bob processes → response returns."""
