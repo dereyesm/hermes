@@ -34,29 +34,36 @@
 **Skill**: /protocol-architect
 **Effort**: 1 session
 
-### P2: Ping Storm Protection
+### P2: Ping Storm Protection (ELEVATED — caused P3 failure)
 
-**Problem**: JEI's broadcast test created 241K messages (9.8MB), corrupted inbox, invalidated cursor, caused 1M+ hub routes.
+**Problem**: JEI's broadcast test created 241K messages (9.8MB), corrupted inbox, invalidated cursor, caused 1M+ hub routes. **Additionally**: the ping storm batch (~24,900 identical lines) directly caused QUEST-006-FINAL to fail bridging to bus — the daemon processed the batch but the final dispatch message was lost due to missing per-message exception handling in `_hub_inbox_loop`.
 
 **Solution**:
 1. **Rate limiting in hub**: max N messages per client per minute (already in ARC-4601 §15 as SHOULD)
 2. **Inbox rotation**: `hub-inbox.jsonl` → rotate when > 1MB, keep last N lines
 3. **Cursor resilience**: DONE (4e7cfc5) — auto-reset when file truncated
+4. **Per-message exception handling**: DONE (Apr 4, 2026) — `write_message` wrapped in try/except inside for-loop
 
 **Skill**: /protocol-architect
 **Effort**: 1 session
 
-### P3: Autonomous Response Loop
+### P3: Autonomous Response Loop — RESOLVED (Apr 4, 2026)
 
 **Problem**: Daemon dispatches quests but response doesn't reliably travel back to originating peer via hub. Code written (5a9df9d) but untested end-to-end.
 
-**Solution**:
-1. Verify `_forward_to_hub()` works with `tool_hub_send()` from daemon context
-2. Test: JEI sends quest → daemon dispatches → response auto-forwards → JEI receives
-3. May need to run `tool_hub_send` in a subprocess if MCP server import has side effects
+**Root cause found**: QUEST-006-FINAL arrived in hub-inbox (line 24978) but wasn't bridged to bus. The daemon cursor advanced to EOF, but `write_message` had no per-message exception handling — a failure in the ping storm batch (P2) silently prevented subsequent messages from being written.
 
-**Skill**: /protocol-architect
-**Effort**: 1 session (with JEI online)
+**Fix applied**:
+1. Per-message try/except around `write_message` in `_hub_inbox_loop` (agent.py L1779)
+2. `exc_info=True` on outer exception handler (agent.py L1800)
+3. Daemon cursor reset to byte 3,050,514 (just before QUEST-006-FINAL)
+4. Daemon restarted → QUEST-006-FINAL bridged to bus at seq 7
+5. Dispatch executed: `cross-clan-dispatch` OK + `heraldo-dispatch-inbound` OK
+6. Response auto-forwarded to JEI via hub (DANI-HERMES-059 confirmed)
+
+**Verification**: QUEST-006-FINAL in bus (seq 7), responses at seq 5+6 with `dst: jei`. Hub send confirmed `via: hub@localhost:8443`.
+
+**Status**: DONE
 
 ### P4: Peer Status pending_ack → active
 
@@ -74,6 +81,8 @@ Add to `_auto_peer_from_presence()` or new method `_upgrade_peer_status()`.
 ### P5: Zombie Process Cleanup
 
 **Problem**: pytest leaves daemon processes running (60+ zombies). Hub SIGTERM ignored (needs SIGKILL).
+
+**Evidence** (Apr 4, 2026): 6 zombie pytest daemon processes confirmed (PIDs 1956-1963, all from `/tmp/pytest-*/test_install_*` and `/tmp/pytest-*/test_uninstall_*` dirs). Manually killed this session.
 
 **Solution**:
 1. Test fixtures: add `atexit` or `finally` cleanup for daemon processes
@@ -96,11 +105,12 @@ clan  ←──│ session setup,      │──── LAN ────→│ re
               lightweight                         encrypted tunnel
 ```
 
-## Verification Checklist (for next session)
+## Verification Checklist
 
-- [ ] `hermes status` shows peer as `● online` on both sides
-- [ ] Send message from DANI → JEI receives within 30s
-- [ ] Send message from JEI → DANI receives within 30s
-- [ ] Quest dispatch → daemon auto-processes → response auto-forwards
+- [x] `hermes status` shows peer as `● online` on both sides (Apr 5)
+- [x] Send message from DANI → JEI receives within 30s (Apr 5, DANI-HERMES-059)
+- [x] Send message from JEI → DANI receives within 30s (Apr 5, QUEST-006-FINAL)
+- [x] Quest dispatch → daemon auto-processes → response auto-forwards (Apr 4, P3 RESOLVED)
 - [ ] Inbox cleanup doesn't break communication
-- [ ] No zombie processes after test runs
+- [ ] No zombie processes after test runs (P5 pending)
+- [ ] Ping storm protection in place (P2 pending)
