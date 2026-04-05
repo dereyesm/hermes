@@ -16,7 +16,7 @@ import random
 
 import pytest
 
-from hermes.hub import HubConfig, HubServer
+from amaru.hub import HubConfig, HubServer
 from tests.conftest import (
     _generate_keys,
     connect_hub_client,
@@ -318,9 +318,9 @@ class TestPeerStatusUpgrade:
 
     def test_pending_ack_upgrades_on_message(self, tmp_path):
         """Peer in pending_ack upgrades to active on receiving direct message."""
-        from hermes.agent import AgentNode
-        from hermes.agent import AgentNodeConfig
-        from hermes.config import load_config
+        from amaru.agent import AgentNode
+        from amaru.agent import AgentNodeConfig
+        from amaru.config import load_config
 
         clan_dir = tmp_path / "clan-upgrade"
         clan_dir.mkdir()
@@ -361,8 +361,8 @@ class TestPeerStatusUpgrade:
 
     def test_already_active_no_rewrite(self, tmp_path):
         """Active peer stays active without rewriting config."""
-        from hermes.agent import AgentNode
-        from hermes.agent import AgentNodeConfig
+        from amaru.agent import AgentNode
+        from amaru.agent import AgentNodeConfig
 
         clan_dir = tmp_path / "clan-active"
         clan_dir.mkdir()
@@ -407,7 +407,7 @@ class TestHubInboxBridge:
 
     def _make_node(self, tmp_path, namespace="alice"):
         """Create a minimal AgentNode for bridge testing."""
-        from hermes.agent import AgentNode, AgentNodeConfig
+        from amaru.agent import AgentNode, AgentNodeConfig
 
         clan_dir = tmp_path / f"clan-{namespace}"
         clan_dir.mkdir(exist_ok=True)
@@ -436,7 +436,7 @@ class TestHubInboxBridge:
 
     def test_message_bridged_to_bus(self, tmp_path):
         """A hub message gets written to bus.jsonl by the bridge loop."""
-        from hermes.bus import read_bus
+        from amaru.bus import read_bus
 
         node, clan_dir, inbox = self._make_node(tmp_path)
 
@@ -469,7 +469,7 @@ class TestHubInboxBridge:
 
     def test_cursor_persistence(self, tmp_path):
         """Cursor file tracks position so messages aren't re-processed."""
-        from hermes.bus import read_bus
+        from amaru.bus import read_bus
 
         node, clan_dir, inbox = self._make_node(tmp_path)
         cursor_path = clan_dir / "hub-inbox.daemon.cursor"
@@ -506,7 +506,7 @@ class TestHubInboxBridge:
 
     def test_cursor_reset_on_truncation(self, tmp_path):
         """When inbox is truncated, cursor resets and re-reads from start."""
-        from hermes.bus import read_bus
+        from amaru.bus import read_bus
 
         node, clan_dir, inbox = self._make_node(tmp_path)
         cursor_path = clan_dir / "hub-inbox.daemon.cursor"
@@ -539,7 +539,7 @@ class TestHubInboxBridge:
 
     def test_skip_types_not_bridged(self, tmp_path):
         """Presence, roster, ping, pong messages are NOT bridged to bus."""
-        from hermes.bus import read_bus
+        from amaru.bus import read_bus
 
         node, clan_dir, inbox = self._make_node(tmp_path)
 
@@ -570,7 +570,7 @@ class TestHubInboxBridge:
 
     def test_dedup_prevents_double_bridge(self, tmp_path):
         """Duplicate messages in inbox are not written twice to bus."""
-        from hermes.bus import read_bus
+        from amaru.bus import read_bus
 
         node, clan_dir, inbox = self._make_node(tmp_path)
 
@@ -597,7 +597,7 @@ class TestHubInboxBridge:
 
     def test_per_message_error_doesnt_block_batch(self, tmp_path):
         """A bad message doesn't prevent subsequent good messages from bridging."""
-        from hermes.bus import read_bus
+        from amaru.bus import read_bus
 
         node, clan_dir, inbox = self._make_node(tmp_path)
 
@@ -802,8 +802,8 @@ class TestDualClanDispatch:
 
     def test_alice_dispatch_reaches_bob_bus(self, clan_factory):
         """Alice sends dispatch via hub, bob's bridge writes it to bob's bus."""
-        from hermes.agent import AgentNode, AgentNodeConfig
-        from hermes.bus import read_bus
+        from amaru.agent import AgentNode, AgentNodeConfig
+        from amaru.bus import read_bus
 
         alice_key, alice_pub = _generate_keys()
         bob_key, bob_pub = _generate_keys()
@@ -882,8 +882,8 @@ class TestDualClanDispatch:
 
     def test_evaluator_dispatches_cross_clan(self, tmp_path):
         """MessageEvaluator returns DISPATCH for a dispatch message addressed to us."""
-        from hermes.agent import AgentNodeConfig, MessageEvaluator, Action
-        from hermes.message import Message
+        from amaru.agent import AgentNodeConfig, MessageEvaluator, Action
+        from amaru.message import Message
         from datetime import date
 
         config = AgentNodeConfig(
@@ -900,8 +900,8 @@ class TestDualClanDispatch:
 
     def test_evaluator_ignores_own_acked(self, tmp_path):
         """Messages already ACKed by this node are ignored."""
-        from hermes.agent import AgentNodeConfig, MessageEvaluator, Action
-        from hermes.message import Message
+        from amaru.agent import AgentNodeConfig, MessageEvaluator, Action
+        from amaru.message import Message
         from datetime import date
 
         config = AgentNodeConfig(
@@ -918,10 +918,10 @@ class TestDualClanDispatch:
 
     def test_full_bilateral_round_trip(self, clan_factory):
         """Full round-trip: alice dispatch → hub → bob inbox → bob bus → evaluator → response to alice."""
-        from hermes.agent import AgentNode, AgentNodeConfig, MessageEvaluator, Action
-        from hermes.bus import read_bus
-        from hermes.bus import write_message
-        from hermes.message import create_message
+        from amaru.agent import AgentNode, AgentNodeConfig, MessageEvaluator, Action
+        from amaru.bus import read_bus
+        from amaru.bus import write_message
+        from amaru.message import create_message
 
         alice_key, alice_pub = _generate_keys()
         bob_key, bob_pub = _generate_keys()

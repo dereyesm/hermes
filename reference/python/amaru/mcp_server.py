@@ -1,6 +1,6 @@
-"""HERMES MCP Server — Native protocol access for Claude Code sessions.
+"""Amaru MCP Server — Native protocol access for Claude Code sessions.
 
-Exposes the full HERMES protocol stack as MCP tools:
+Exposes the full Amaru protocol stack as MCP tools:
 - Bus operations (ARC-5322, ARC-0793): read, write, ACK
 - Session lifecycle (SYN/FIN): session start/end protocols
 - Crypto (ARC-8446): ECDHE seal/open with per-peer keys
@@ -8,12 +8,12 @@ Exposes the full HERMES protocol stack as MCP tools:
 - Bus integrity (ARC-9001): sequence tracking, ownership
 
 Usage:
-    python -m hermes.mcp_server              # stdio transport (for Claude Code)
-    hermes mcp serve                         # via CLI
-    hermes mcp serve --hermes-dir ~/.hermes  # custom clan directory
+    python -m amaru.mcp_server              # stdio transport (for Claude Code)
+    amaru mcp serve                         # via CLI
+    amaru mcp serve --amaru-dir ~/.amaru  # custom clan directory
 
 Environment:
-    HERMES_DIR: Path to clan directory (default: ~/.hermes)
+    AMARU_DIR: Path to clan directory (default: ~/.amaru)
 """
 
 from __future__ import annotations
@@ -23,8 +23,8 @@ import os
 from datetime import date, timedelta
 from pathlib import Path
 
-from hermes import __version__
-from hermes.bus import (
+from amaru import __version__
+from amaru.bus import (
     ack_message,
     filter_for_namespace,
     find_expired,
@@ -32,15 +32,15 @@ from hermes.bus import (
     read_bus,
     write_message,
 )
-from hermes.message import Message, create_message
+from amaru.message import Message, create_message
 
 # ---------- helpers ----------
 
-_HERMES_DIR = Path(os.environ.get("HERMES_DIR", os.path.expanduser("~/.hermes")))
+_AMARU_DIR = Path(os.environ.get("AMARU_DIR", os.path.expanduser("~/.amaru")))
 
 
 def _bus_path() -> Path:
-    return _HERMES_DIR / "bus.jsonl"
+    return _AMARU_DIR / "bus.jsonl"
 
 
 def _msg_to_dict(m: Message) -> dict:
@@ -81,7 +81,7 @@ class SessionCursor:
                 continue
             try:
                 data = json.loads(line)
-                from hermes.message import validate_message
+                from amaru.message import validate_message
                 results.append(validate_message(data))
             except Exception:
                 continue
@@ -169,7 +169,7 @@ def tool_bus_ack(
 
 def tool_syn(namespace: str) -> dict:
     """Execute SYN protocol — returns pending messages and session report."""
-    from hermes.sync import syn, syn_report
+    from amaru.sync import syn, syn_report
     bp = _bus_path()
     if not bp.exists():
         return {"report": "No bus file found.", "pending": 0, "stale": 0}
@@ -187,7 +187,7 @@ def tool_syn(namespace: str) -> dict:
 
 def tool_fin(namespace: str, actions: list[dict] | None = None) -> dict:
     """Execute FIN protocol — write state changes, ACK consumed."""
-    from hermes.sync import FinAction, fin
+    from amaru.sync import FinAction, fin
     bp = _bus_path()
     fin_actions = None
     if actions:
@@ -209,12 +209,12 @@ def tool_status() -> dict:
     """Clan status, protocol version, bus stats."""
     result: dict = {
         "protocol_version": __version__,
-        "hermes_dir": str(_HERMES_DIR),
+        "amaru_dir": str(_AMARU_DIR),
     }
 
     try:
-        from hermes.config import load_config
-        cfg = load_config(str(_HERMES_DIR))
+        from amaru.config import load_config
+        cfg = load_config(str(_AMARU_DIR))
         result["clan_id"] = cfg.clan_id
         result["display_name"] = cfg.display_name
         result["peers"] = len(cfg.peers)
@@ -240,8 +240,8 @@ def tool_status() -> dict:
 def tool_peers() -> list[dict]:
     """List known peers with status."""
     try:
-        from hermes.config import load_config
-        cfg = load_config(str(_HERMES_DIR))
+        from amaru.config import load_config
+        cfg = load_config(str(_AMARU_DIR))
         return [
             {
                 "clan_id": p.clan_id,
@@ -257,16 +257,16 @@ def tool_peers() -> list[dict]:
 
 def tool_seal(peer_clan_id: str, msg: str, envelope_meta: dict | None = None) -> dict:
     """Encrypt + sign a message for a peer using ECDHE (ARC-8446)."""
-    from hermes.config import load_config
-    from hermes.crypto import ClanKeyPair, seal_bus_message_ecdhe
+    from amaru.config import load_config
+    from amaru.crypto import ClanKeyPair, seal_bus_message_ecdhe
 
-    cfg = load_config(str(_HERMES_DIR))
-    my_keys = ClanKeyPair.load(str(_HERMES_DIR / ".keys"), cfg.clan_id)
+    cfg = load_config(str(_AMARU_DIR))
+    my_keys = ClanKeyPair.load(str(_AMARU_DIR / ".keys"), cfg.clan_id)
 
     peer_pub_path = None
     for p in cfg.peers:
         if p.clan_id == peer_clan_id:
-            peer_pub_path = _HERMES_DIR / p.public_key_file
+            peer_pub_path = _AMARU_DIR / p.public_key_file
             break
 
     if not peer_pub_path or not peer_pub_path.exists():
@@ -285,16 +285,16 @@ def tool_open(sealed_json: dict, sender_clan_id: str, envelope_meta: dict | None
     from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
     from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PublicKey
 
-    from hermes.config import load_config
-    from hermes.crypto import ClanKeyPair, open_bus_message
+    from amaru.config import load_config
+    from amaru.crypto import ClanKeyPair, open_bus_message
 
-    cfg = load_config(str(_HERMES_DIR))
-    my_keys = ClanKeyPair.load(str(_HERMES_DIR / ".keys"), cfg.clan_id)
+    cfg = load_config(str(_AMARU_DIR))
+    my_keys = ClanKeyPair.load(str(_AMARU_DIR / ".keys"), cfg.clan_id)
 
     peer_pub_path = None
     for p in cfg.peers:
         if p.clan_id == sender_clan_id:
-            peer_pub_path = _HERMES_DIR / p.public_key_file
+            peer_pub_path = _AMARU_DIR / p.public_key_file
             break
 
     if not peer_pub_path or not peer_pub_path.exists():
@@ -314,35 +314,35 @@ def tool_open(sealed_json: dict, sender_clan_id: str, envelope_meta: dict | None
 
 
 async def tool_hub_send(dst: str, msg_type: str, msg: str, ttl: int = 14) -> dict:
-    """Send a message to a peer via the local HERMES hub (WebSocket).
+    """Send a message to a peer via the local Amaru hub (WebSocket).
 
     Completes the outbound path: Claude Code -> MCP -> Hub -> Peer.
     Authenticates as local clan via Ed25519 challenge-response (ARC-4601 section 15.6).
     """
     import asyncio
 
-    hub_state_path = _HERMES_DIR / "hub-state.json"
+    hub_state_path = _AMARU_DIR / "hub-state.json"
     if not hub_state_path.exists():
-        return {"error": "Hub not running. Start with: hermes hub start"}
+        return {"error": "Hub not running. Start with: amaru hub start"}
 
     hub_state = json.loads(hub_state_path.read_text())
     port = hub_state.get("port", 8443)
     host = "localhost"
 
     # Load clan keys
-    key_path = _HERMES_DIR / "keys" / "momoshod.key"
+    key_path = _AMARU_DIR / "keys" / "momoshod.key"
     if not key_path.exists():
         # Try to discover key file from gateway.json
-        gw_path = _HERMES_DIR / "gateway.json"
+        gw_path = _AMARU_DIR / "gateway.json"
         if gw_path.exists():
             gw = json.loads(gw_path.read_text())
             key_file = gw.get("keys", {}).get("private", "keys/momoshod.key")
-            key_path = _HERMES_DIR / key_file
+            key_path = _AMARU_DIR / key_file
         if not key_path.exists():
             return {"error": "Clan private key not found"}
 
     try:
-        from hermes.crypto import ClanKeyPair
+        from amaru.crypto import ClanKeyPair
 
         key_data = json.loads(key_path.read_text())
         keys = ClanKeyPair.from_private_hex(key_data["sign_private"], key_data["dh_private"])
@@ -351,7 +351,7 @@ async def tool_hub_send(dst: str, msg_type: str, msg: str, ttl: int = 14) -> dic
 
     # Determine clan_id from gateway.json
     clan_id = "momoshod"
-    gw_path = _HERMES_DIR / "gateway.json"
+    gw_path = _AMARU_DIR / "gateway.json"
     if gw_path.exists():
         try:
             clan_id = json.loads(gw_path.read_text()).get("clan_id", "momoshod")
@@ -423,7 +423,7 @@ async def tool_hub_send(dst: str, msg_type: str, msg: str, ttl: int = 14) -> dic
 
 def tool_integrity_check() -> dict:
     """Run bus integrity checks (ARC-9001): sequence gaps, ownership, conflicts."""
-    from hermes.integrity import (
+    from amaru.integrity import (
         BusIntegrityChecker,
         OwnershipRegistry,
         SequenceTracker,
@@ -456,14 +456,14 @@ def tool_integrity_check() -> dict:
 # ---------- MCP server setup ----------
 
 def create_server():
-    """Create and configure the MCP server with all HERMES tools and resources."""
+    """Create and configure the MCP server with all Amaru tools and resources."""
     try:
         import mcp.types as types
         from mcp.server import Server
     except ImportError as err:
-        raise ImportError("MCP SDK required: pip install 'hermes-protocol[mcp]'") from err
+        raise ImportError("MCP SDK required: pip install 'amaru-protocol[mcp]'") from err
 
-    server = Server("hermes-bus")
+    server = Server("amaru-bus")
 
     # Advance cursor to current end on startup (don't replay history)
     _cursor.advance_to_end(_bus_path())
@@ -472,8 +472,8 @@ def create_server():
     async def list_tools() -> list[types.Tool]:
         return [
             types.Tool(
-                name="hermes_bus_read",
-                description="Read HERMES bus messages with filters. Use new_only=true for real-time sync between sessions.",
+                name="amaru_bus_read",
+                description="Read Amaru bus messages with filters. Use new_only=true for real-time sync between sessions.",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -486,8 +486,8 @@ def create_server():
                 },
             ),
             types.Tool(
-                name="hermes_bus_write",
-                description="Write a message to the HERMES bus. Other sessions will see it via hermes_bus_read.",
+                name="amaru_bus_write",
+                description="Write a message to the Amaru bus. Other sessions will see it via amaru_bus_read.",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -501,7 +501,7 @@ def create_server():
                 },
             ),
             types.Tool(
-                name="hermes_bus_ack",
+                name="amaru_bus_ack",
                 description="Acknowledge bus messages matching filters.",
                 inputSchema={
                     "type": "object",
@@ -514,8 +514,8 @@ def create_server():
                 },
             ),
             types.Tool(
-                name="hermes_syn",
-                description="Execute SYN protocol — start a HERMES session, get pending messages.",
+                name="amaru_syn",
+                description="Execute SYN protocol — start a Amaru session, get pending messages.",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -525,8 +525,8 @@ def create_server():
                 },
             ),
             types.Tool(
-                name="hermes_fin",
-                description="Execute FIN protocol — end a HERMES session, write state changes.",
+                name="amaru_fin",
+                description="Execute FIN protocol — end a Amaru session, write state changes.",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -550,17 +550,17 @@ def create_server():
                 },
             ),
             types.Tool(
-                name="hermes_status",
-                description="Show HERMES clan status: identity, protocol version, bus stats.",
+                name="amaru_status",
+                description="Show Amaru clan status: identity, protocol version, bus stats.",
                 inputSchema={"type": "object", "properties": {}},
             ),
             types.Tool(
-                name="hermes_peers",
-                description="List known HERMES peers with status and fingerprints.",
+                name="amaru_peers",
+                description="List known Amaru peers with status and fingerprints.",
                 inputSchema={"type": "object", "properties": {}},
             ),
             types.Tool(
-                name="hermes_seal",
+                name="amaru_seal",
                 description="Encrypt + sign a message for a peer using ECDHE (ARC-8446). Forward secrecy per message.",
                 inputSchema={
                     "type": "object",
@@ -573,7 +573,7 @@ def create_server():
                 },
             ),
             types.Tool(
-                name="hermes_open",
+                name="amaru_open",
                 description="Decrypt + verify a sealed message from a peer (ARC-8446).",
                 inputSchema={
                     "type": "object",
@@ -586,13 +586,13 @@ def create_server():
                 },
             ),
             types.Tool(
-                name="hermes_integrity_check",
+                name="amaru_integrity_check",
                 description="Run bus integrity checks (ARC-9001): sequence gaps, ownership violations, MVCC conflicts.",
                 inputSchema={"type": "object", "properties": {}},
             ),
             types.Tool(
-                name="hermes_hub_send",
-                description="Send a message to a peer via the HERMES hub (WebSocket). Completes the outbound path: Claude Code -> Hub -> Peer. Requires hub to be running.",
+                name="amaru_hub_send",
+                description="Send a message to a peer via the Amaru hub (WebSocket). Completes the outbound path: Claude Code -> Hub -> Peer. Requires hub to be running.",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -609,38 +609,38 @@ def create_server():
     @server.call_tool()
     async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
         handlers = {
-            "hermes_bus_read": lambda a: tool_bus_read(
+            "amaru_bus_read": lambda a: tool_bus_read(
                 since_minutes=a.get("since_minutes"),
                 namespace=a.get("namespace"),
                 type_filter=a.get("type_filter"),
                 pending_only=a.get("pending_only", False),
                 new_only=a.get("new_only", False),
             ),
-            "hermes_bus_write": lambda a: tool_bus_write(
+            "amaru_bus_write": lambda a: tool_bus_write(
                 src=a["src"], dst=a["dst"], type=a["type"], msg=a["msg"], ttl=a.get("ttl", 7),
             ),
-            "hermes_bus_ack": lambda a: tool_bus_ack(
+            "amaru_bus_ack": lambda a: tool_bus_ack(
                 namespace=a["namespace"],
                 src_filter=a.get("src_filter"),
                 type_filter=a.get("type_filter"),
             ),
-            "hermes_syn": lambda a: tool_syn(namespace=a["namespace"]),
-            "hermes_fin": lambda a: tool_fin(namespace=a["namespace"], actions=a.get("actions")),
-            "hermes_status": lambda _: tool_status(),
-            "hermes_peers": lambda _: tool_peers(),
-            "hermes_seal": lambda a: tool_seal(
+            "amaru_syn": lambda a: tool_syn(namespace=a["namespace"]),
+            "amaru_fin": lambda a: tool_fin(namespace=a["namespace"], actions=a.get("actions")),
+            "amaru_status": lambda _: tool_status(),
+            "amaru_peers": lambda _: tool_peers(),
+            "amaru_seal": lambda a: tool_seal(
                 peer_clan_id=a["peer_clan_id"], msg=a["msg"],
                 envelope_meta=a.get("envelope_meta"),
             ),
-            "hermes_open": lambda a: tool_open(
+            "amaru_open": lambda a: tool_open(
                 sealed_json=a["sealed_json"], sender_clan_id=a["sender_clan_id"],
                 envelope_meta=a.get("envelope_meta"),
             ),
-            "hermes_integrity_check": lambda _: tool_integrity_check(),
+            "amaru_integrity_check": lambda _: tool_integrity_check(),
         }
 
         # Async tools (hub_send uses WebSocket)
-        if name == "hermes_hub_send":
+        if name == "amaru_hub_send":
             try:
                 result = await tool_hub_send(
                     dst=arguments["dst"],
@@ -668,19 +668,19 @@ def create_server():
 
         return [
             types.Resource(
-                uri=AnyUrl("hermes://protocol/version"),
-                name="HERMES Protocol Version",
-                description=f"HERMES v{__version__} — 21 specs, 1451+ tests, 19 modules, 4 adapters",
+                uri=AnyUrl("amaru://protocol/version"),
+                name="Amaru Protocol Version",
+                description=f"Amaru v{__version__} — 21 specs, 1451+ tests, 19 modules, 4 adapters",
                 mimeType="application/json",
             ),
             types.Resource(
-                uri=AnyUrl("hermes://bus/stats"),
+                uri=AnyUrl("amaru://bus/stats"),
                 name="Bus Statistics",
                 description="Live bus message counts: total, pending, expired, stale",
                 mimeType="application/json",
             ),
             types.Resource(
-                uri=AnyUrl("hermes://config/clan"),
+                uri=AnyUrl("amaru://config/clan"),
                 name="Clan Configuration",
                 description="Current clan identity and configuration (no secrets)",
                 mimeType="application/json",
@@ -689,7 +689,7 @@ def create_server():
 
     @server.read_resource()
     async def read_resource(uri: str) -> str:
-        if uri == "hermes://protocol/version":
+        if uri == "amaru://protocol/version":
             return json.dumps({
                 "version": __version__,
                 "specs": 21,
@@ -698,9 +698,9 @@ def create_server():
                 "adapters": 4,
                 "adapters_list": ["Claude Code", "Cursor", "OpenCode", "Gemini CLI"],
             })
-        elif uri == "hermes://bus/stats":
+        elif uri == "amaru://bus/stats":
             return json.dumps(tool_status().get("bus", {}))
-        elif uri == "hermes://config/clan":
+        elif uri == "amaru://config/clan":
             status = tool_status()
             return json.dumps({
                 k: v for k, v in status.items() if k != "bus"
@@ -720,7 +720,7 @@ async def run_server():
 
 
 def main():
-    """Entry point for python -m hermes.mcp_server."""
+    """Entry point for python -m amaru.mcp_server."""
     import asyncio
     asyncio.run(run_server())
 

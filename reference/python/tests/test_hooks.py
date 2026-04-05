@@ -3,7 +3,7 @@
 Covers:
 - _read_bus_pending: bus parsing, config discovery (TOML/JSON), filtering
 - cmd_hook_pull_on_start: SessionStart hook stdout output
-- cmd_hook_pull_on_prompt: UserPromptSubmit hook /hermes activation
+- cmd_hook_pull_on_prompt: UserPromptSubmit hook /amaru activation
 - cmd_hook_exit_reminder: Stop hook unacked reminder
 - main: CLI entry point dispatch
 """
@@ -16,7 +16,7 @@ from unittest.mock import patch
 
 import pytest
 
-from hermes.hooks import (
+from amaru.hooks import (
     _read_bus_pending,
     cmd_hook_exit_reminder,
     cmd_hook_pull_on_prompt,
@@ -180,7 +180,7 @@ class TestHookPullOnStart:
         with (
             patch.object(sys, "stdin", stdin),
             patch.object(sys, "stdout", stdout),
-            patch("hermes.hooks._default_clan_dir", return_value=clan_dir_json),
+            patch("amaru.hooks._default_clan_dir", return_value=clan_dir_json),
         ):
             cmd_hook_pull_on_start()
         assert stdout.getvalue() == ""
@@ -198,7 +198,7 @@ class TestHookPullOnStart:
         with (
             patch.object(sys, "stdin", stdin),
             patch.object(sys, "stdout", stdout),
-            patch("hermes.hooks._default_clan_dir", return_value=clan_dir_json),
+            patch("amaru.hooks._default_clan_dir", return_value=clan_dir_json),
         ):
             cmd_hook_pull_on_start()
         output = json.loads(stdout.getvalue())
@@ -218,7 +218,7 @@ class TestHookPullOnStart:
         with (
             patch.object(sys, "stdin", stdin),
             patch.object(sys, "stdout", stdout),
-            patch("hermes.hooks._default_clan_dir", return_value=clan_dir_json),
+            patch("amaru.hooks._default_clan_dir", return_value=clan_dir_json),
         ):
             cmd_hook_pull_on_start()
         output = json.loads(stdout.getvalue())
@@ -237,7 +237,7 @@ class TestHookPullOnStart:
         with (
             patch.object(sys, "stdin", stdin),
             patch.object(sys, "stdout", stdout),
-            patch("hermes.hooks._default_clan_dir", return_value=clan_dir_json),
+            patch("amaru.hooks._default_clan_dir", return_value=clan_dir_json),
         ):
             cmd_hook_pull_on_start()
         output = json.loads(stdout.getvalue())
@@ -252,20 +252,20 @@ class TestHookPullOnStart:
 class TestHookPullOnPrompt:
     """Tests for cmd_hook_pull_on_prompt()."""
 
-    def test_non_hermes_prompt_no_output(self, clan_dir_json):
-        """Produces no output for non-/hermes prompts."""
+    def test_non_amaru_prompt_no_output(self, clan_dir_json):
+        """Produces no output for non-/amaru prompts."""
         stdin = io.StringIO(json.dumps({"prompt": "hello world"}))
         stdout = io.StringIO()
         with (
             patch.object(sys, "stdin", stdin),
             patch.object(sys, "stdout", stdout),
-            patch("hermes.hooks._default_clan_dir", return_value=clan_dir_json),
+            patch("amaru.hooks._default_clan_dir", return_value=clan_dir_json),
         ):
             cmd_hook_pull_on_prompt()
         assert stdout.getvalue() == ""
 
-    def test_hermes_prompt_with_pending(self, clan_dir_json):
-        """Outputs pending count when prompt starts with /hermes."""
+    def test_amaru_prompt_with_pending(self, clan_dir_json):
+        """Outputs pending count when prompt starts with /amaru."""
         _write_bus(
             clan_dir_json,
             [
@@ -273,25 +273,25 @@ class TestHookPullOnPrompt:
                 {"src": "nymyka", "dst": "*", "type": "event", "msg": "ok2", "ack": []},
             ],
         )
-        stdin = io.StringIO(json.dumps({"prompt": "/hermes status"}))
+        stdin = io.StringIO(json.dumps({"prompt": "/amaru status"}))
         stdout = io.StringIO()
         with (
             patch.object(sys, "stdin", stdin),
             patch.object(sys, "stdout", stdout),
-            patch("hermes.hooks._default_clan_dir", return_value=clan_dir_json),
+            patch("amaru.hooks._default_clan_dir", return_value=clan_dir_json),
         ):
             cmd_hook_pull_on_prompt()
         output = json.loads(stdout.getvalue())
         assert "2 pending" in output["systemMessage"]
 
-    def test_hermes_prompt_no_pending(self, clan_dir_json):
-        """No output for /hermes prompt when bus is empty."""
-        stdin = io.StringIO(json.dumps({"prompt": "/hermes bus"}))
+    def test_amaru_prompt_no_pending(self, clan_dir_json):
+        """No output for /amaru prompt when bus is empty."""
+        stdin = io.StringIO(json.dumps({"prompt": "/amaru bus"}))
         stdout = io.StringIO()
         with (
             patch.object(sys, "stdin", stdin),
             patch.object(sys, "stdout", stdout),
-            patch("hermes.hooks._default_clan_dir", return_value=clan_dir_json),
+            patch("amaru.hooks._default_clan_dir", return_value=clan_dir_json),
         ):
             cmd_hook_pull_on_prompt()
         assert stdout.getvalue() == ""
@@ -303,7 +303,7 @@ class TestHookPullOnPrompt:
         with (
             patch.object(sys, "stdin", stdin),
             patch.object(sys, "stdout", stdout),
-            patch("hermes.hooks._default_clan_dir", return_value=clan_dir_json),
+            patch("amaru.hooks._default_clan_dir", return_value=clan_dir_json),
         ):
             cmd_hook_pull_on_prompt()
         assert stdout.getvalue() == ""
@@ -324,7 +324,7 @@ class TestHookExitReminder:
         with (
             patch.object(sys, "stdin", stdin),
             patch.object(sys, "stdout", stdout),
-            patch("hermes.hooks._default_clan_dir", return_value=clan_dir_json),
+            patch("amaru.hooks._default_clan_dir", return_value=clan_dir_json),
         ):
             cmd_hook_exit_reminder()
         assert stdout.getvalue() == ""
@@ -342,7 +342,7 @@ class TestHookExitReminder:
         with (
             patch.object(sys, "stdin", stdin),
             patch.object(sys, "stdout", stdout),
-            patch("hermes.hooks._default_clan_dir", return_value=clan_dir_json),
+            patch("amaru.hooks._default_clan_dir", return_value=clan_dir_json),
         ):
             cmd_hook_exit_reminder()
         output = json.loads(stdout.getvalue())
@@ -360,14 +360,14 @@ class TestMain:
 
     def test_no_args_exits(self):
         """Exits with error when no command given."""
-        with patch.object(sys, "argv", ["hermes.hooks"]):
+        with patch.object(sys, "argv", ["amaru.hooks"]):
             with pytest.raises(SystemExit) as exc_info:
                 main()
             assert exc_info.value.code == 1
 
     def test_unknown_command_exits(self):
         """Exits with error for unknown hook command."""
-        with patch.object(sys, "argv", ["hermes.hooks", "unknown_cmd"]):
+        with patch.object(sys, "argv", ["amaru.hooks", "unknown_cmd"]):
             with pytest.raises(SystemExit) as exc_info:
                 main()
             assert exc_info.value.code == 1
@@ -377,10 +377,10 @@ class TestMain:
         stdin = io.StringIO("{}")
         stdout = io.StringIO()
         with (
-            patch.object(sys, "argv", ["hermes.hooks", "pull_on_start"]),
+            patch.object(sys, "argv", ["amaru.hooks", "pull_on_start"]),
             patch.object(sys, "stdin", stdin),
             patch.object(sys, "stdout", stdout),
-            patch("hermes.hooks._default_clan_dir", return_value=clan_dir_json),
+            patch("amaru.hooks._default_clan_dir", return_value=clan_dir_json),
         ):
             main()
         # No crash, no output (no pending messages)
@@ -391,10 +391,10 @@ class TestMain:
         stdin = io.StringIO("{}")
         stdout = io.StringIO()
         with (
-            patch.object(sys, "argv", ["hermes.hooks", "exit_reminder"]),
+            patch.object(sys, "argv", ["amaru.hooks", "exit_reminder"]),
             patch.object(sys, "stdin", stdin),
             patch.object(sys, "stdout", stdout),
-            patch("hermes.hooks._default_clan_dir", return_value=clan_dir_json),
+            patch("amaru.hooks._default_clan_dir", return_value=clan_dir_json),
         ):
             main()
         assert stdout.getvalue() == ""

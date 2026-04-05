@@ -36,7 +36,7 @@ DANI scores are from the DANI artifact (quest005_artifact_dani.json, 2026-04-02)
 
 **Security (tie at 4/4)**: Both implement the full HERMES crypto stack (Ed25519 + X25519 + AES-256-GCM + HKDF). DANI authored ARC-8446 and the canonical v1.2 spec; JEI achieved canonical alignment (confirmed 2026-03-25). JEI adds a dedicated CISO agent with pre-flight checks — DANI handles this through rules files (supply-chain-sop.md, firewall rules) and Artemisa wellness monitoring. Both have zero-secrets-in-repo policies.
 
-**Orchestration (DANI leads, 4 vs 3)**: DANI operates a 33-skill ecosystem across 7 dimensions with formalized governance (Consejo 3-5 voices for decisions, Dojo for dispatch, Arena for training, HERMES bus for inter-dimensional sync). JEI has a mandatory 3-agent triada (REGLA-ORCH-002) and tiered autonomy (Tier1/Tier2), but acknowledges "significant human-in-the-loop orchestration" still required. DANI's governance is more layered: Consejo deliberates, Ares executes, Palas monitors, Artemisa guards — each with clear non-overlapping mandates.
+**Orchestration (DANI leads, 4 vs 3)**: DANI operates a 33-skill ecosystem across 7 dimensions with formalized governance (Consejo 3-5 voices for decisions, Dojo for dispatch, Arena for training, Amaru bus for inter-dimensional sync). JEI has a mandatory 3-agent triada (REGLA-ORCH-002) and tiered autonomy (Tier1/Tier2), but acknowledges "significant human-in-the-loop orchestration" still required. DANI's governance is more layered: Consejo deliberates, Ares executes, Palas monitors, Artemisa guards — each with clear non-overlapping mandates.
 
 **Knowledge Management (tie at 4/4)**: Both use typed persistent memory (4 types). JEI's GoGi Learning Daemon runs autonomously every 5 minutes — DANI has no equivalent autonomous learner but compensates with a rigorous exit protocol (7-step mandatory session harvest, MEMORY.md compaction checks, bus sync, dashboard sync). JEI's KNOWN_ERRORS.md maps failure domains to pre-flight triggers — a practice DANI lacks in formalized form.
 
@@ -47,7 +47,7 @@ DANI scores are from the DANI artifact (quest005_artifact_dani.json, 2026-04-02)
 ### Top practices unique to each
 
 **DANI only:**
-- **Multi-dimensional MCP firewall**: Skills are scoped to dimensions, each dimension has explicit ALLOWED/PROHIBITED MCP lists. A Nymyka skill cannot touch personal Gmail; a HERMES skill cannot touch any MCP. No equivalent in JEI.
+- **Multi-dimensional MCP firewall**: Skills are scoped to dimensions, each dimension has explicit ALLOWED/PROHIBITED MCP lists. A Nymyka skill cannot touch personal Gmail; an Amaru skill cannot touch any MCP. No equivalent in JEI.
 - **Exit protocol as institutional ritual**: 7 mandatory steps (harvest, HERMES FIN, memory update, commit/push, dashboard sync, next session prompt, gratitude). Ensures zero session-end data loss and always produces a next-session ramp-up prompt.
 - **Arena training system**: Skills grow XP through structured PvP/Multi/BR exercises with scored evaluations. Skills "level up" with documented first bloods and medals. JEI's GoGi has narrative arcs but is more of a learning daemon than a structured competitive growth system.
 
@@ -143,8 +143,8 @@ Based on the cross-pollination analysis and JEI's reported gaps:
 ## HERMES Updates Since Last Analysis (2026-03-27 → 2026-04-02)
 
 - **GeminiCLIAdapter**: 4th adapter (Claude Code + Cursor + OpenCode + Gemini CLI)
-- **`hermes adapt --list/--all`**: Auto-detect installed agents + batch adapt
-- **Token Telemetry**: telemetry.py (TokenTracker, 10 models, JSONL, `hermes llm usage` CLI)
+- **`amaru adapt --list/--all`**: Auto-detect installed agents + batch adapt
+- **Token Telemetry**: telemetry.py (TokenTracker, 10 models, JSONL, `amaru llm usage` CLI)
 - **ARC-1122 L3 Conformance**: 41 Network-Ready test vectors (126 total across 3 levels)
 - **CLI coverage**: Ratio improved 1:49 → 1:18
 - **CI threshold**: 75% → 80% (passing 81%)

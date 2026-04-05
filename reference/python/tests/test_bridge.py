@@ -8,7 +8,7 @@ from datetime import date
 
 import pytest
 
-from hermes.bridge import (
+from amaru.bridge import (
     A2ABridge,
     BridgeConfig,
     CIDGenerator,
@@ -18,7 +18,7 @@ from hermes.bridge import (
     translate_error_a2a,
     translate_error_mcp,
 )
-from hermes.message import Message
+from amaru.message import Message
 
 # ─── Fixtures ──────────────────────────────────────────────────────
 
@@ -36,7 +36,7 @@ def mcp_bridge():
 
 
 @pytest.fixture
-def sample_hermes_profile():
+def sample_amaru_profile():
     return {
         "alias": "aureus",
         "clan_id": "momosho-d",
@@ -71,7 +71,7 @@ def sample_agent_card():
 
 
 class TestA2ABridge:
-    def test_a2a_task_send_to_hermes_dispatch(self, a2a_bridge):
+    def test_a2a_task_send_to_amaru_dispatch(self, a2a_bridge):
         """A2A tasks/send → HERMES dispatch message with CID."""
         request = {
             "jsonrpc": "2.0",
@@ -86,14 +86,14 @@ class TestA2ABridge:
             "id": 1,
         }
 
-        msg = a2a_bridge.a2a_to_hermes(request)
+        msg = a2a_bridge.a2a_to_amaru(request)
         assert isinstance(msg, Message)
         assert msg.type == "dispatch"
         assert msg.src == "gateway"
         assert "[CID:" in msg.msg
         assert "Analyze debt" in msg.msg
 
-    def test_hermes_response_to_a2a_result(self, a2a_bridge):
+    def test_amaru_response_to_a2a_result(self, a2a_bridge):
         """HERMES [RE:token] → A2A completed task response."""
         response = Message(
             ts=date(2026, 3, 15),
@@ -105,7 +105,7 @@ class TestA2ABridge:
             ack=[],
         )
 
-        result = a2a_bridge.hermes_to_a2a(response, task_id="task-ext-001")
+        result = a2a_bridge.amaru_to_a2a(response, task_id="task-ext-001")
         assert result["jsonrpc"] == "2.0"
         assert result["result"]["id"] == "task-ext-001"
         assert result["result"]["status"]["state"] == "completed"
@@ -113,9 +113,9 @@ class TestA2ABridge:
         assert len(artifacts) >= 1
         assert "Avalanche" in artifacts[0]["parts"][0]["text"]
 
-    def test_build_agent_card_from_profile(self, a2a_bridge, sample_hermes_profile):
+    def test_build_agent_card_from_profile(self, a2a_bridge, sample_amaru_profile):
         """HERMES profile → A2A Agent Card."""
-        card = a2a_bridge.build_agent_card(sample_hermes_profile)
+        card = a2a_bridge.build_agent_card(sample_amaru_profile)
         assert card["name"] == "aureus"
         assert card["provider"]["organization"] == "momosho-d"
         assert card["version"] == "0.3.0"
@@ -223,7 +223,7 @@ class TestA2ABridge:
             "params": {"id": "task-ext-001"},
             "id": 2,
         }
-        msg = a2a_bridge.a2a_to_hermes(request)
+        msg = a2a_bridge.a2a_to_amaru(request)
         assert msg.type == "request"
         assert "[CID:task-ext-001]" in msg.msg
 
@@ -235,7 +235,7 @@ class TestA2ABridge:
             "params": {"id": "task-ext-001"},
             "id": 3,
         }
-        msg = a2a_bridge.a2a_to_hermes(request)
+        msg = a2a_bridge.a2a_to_amaru(request)
         assert msg.type == "alert"
         assert "CANCELLED" in msg.msg
         assert "[RE:task-ext-001]" in msg.msg
@@ -249,14 +249,14 @@ class TestA2ABridge:
             "id": 1,
         }
         with pytest.raises(ValueError, match="Unsupported A2A method"):
-            a2a_bridge.a2a_to_hermes(request)
+            a2a_bridge.a2a_to_amaru(request)
 
 
 # ─── MCPBridge ─────────────────────────────────────────────────────
 
 
 class TestMCPBridge:
-    def test_mcp_tool_call_to_hermes(self, mcp_bridge):
+    def test_mcp_tool_call_to_amaru(self, mcp_bridge):
         """MCP tools/call → HERMES dispatch."""
         request = {
             "jsonrpc": "2.0",
@@ -268,14 +268,14 @@ class TestMCPBridge:
             "id": 3,
         }
 
-        msg = mcp_bridge.mcp_to_hermes(request)
+        msg = mcp_bridge.mcp_to_amaru(request)
         assert isinstance(msg, Message)
         assert msg.type == "dispatch"
         assert msg.src == "gateway"
         assert msg.dst == "aureus"  # derived from tool name
         assert "[CID:" in msg.msg
 
-    def test_hermes_to_mcp_result(self, mcp_bridge):
+    def test_amaru_to_mcp_result(self, mcp_bridge):
         """HERMES response → MCP result."""
         response = Message(
             ts=date(2026, 3, 15),
@@ -287,7 +287,7 @@ class TestMCPBridge:
             ack=[],
         )
 
-        result = mcp_bridge.hermes_to_mcp(response, request_id=3)
+        result = mcp_bridge.amaru_to_mcp(response, request_id=3)
         assert result["jsonrpc"] == "2.0"
         assert result["id"] == 3
         content = result["result"]["content"]
@@ -296,7 +296,7 @@ class TestMCPBridge:
         assert "Avalanche" in content[0]["text"]
         assert result["result"]["isError"] is False
 
-    def test_hermes_alert_to_mcp_error(self, mcp_bridge):
+    def test_amaru_alert_to_mcp_error(self, mcp_bridge):
         """HERMES alert → MCP result with isError=True."""
         alert = Message(
             ts=date(2026, 3, 15),
@@ -307,7 +307,7 @@ class TestMCPBridge:
             ttl=5,
             ack=[],
         )
-        result = mcp_bridge.hermes_to_mcp(alert)
+        result = mcp_bridge.amaru_to_mcp(alert)
         assert result["result"]["isError"] is True
 
     def test_build_tool_list(self, mcp_bridge):
@@ -339,18 +339,18 @@ class TestMCPBridge:
         resources = mcp_bridge.build_resource_list(namespaces)
         assert len(resources) == 2
         uris = {r["uri"] for r in resources}
-        assert "hermes://finance" in uris
-        assert "hermes://engineering" in uris
+        assert "amaru://finance" in uris
+        assert "amaru://engineering" in uris
 
-    def test_mcp_resource_read_to_hermes(self, mcp_bridge):
+    def test_mcp_resource_read_to_amaru(self, mcp_bridge):
         """MCP resources/read → HERMES request."""
         request = {
             "jsonrpc": "2.0",
             "method": "resources/read",
-            "params": {"uri": "hermes://finance/debt-balance"},
+            "params": {"uri": "amaru://finance/debt-balance"},
             "id": 5,
         }
-        msg = mcp_bridge.mcp_to_hermes(request)
+        msg = mcp_bridge.mcp_to_amaru(request)
         assert msg.type == "request"
         assert msg.dst == "finance"
         assert "[CID:" in msg.msg
@@ -364,7 +364,7 @@ class TestMCPBridge:
             "id": 1,
         }
         with pytest.raises(ValueError, match="Unsupported MCP method"):
-            mcp_bridge.mcp_to_hermes(request)
+            mcp_bridge.mcp_to_amaru(request)
 
 
 # ─── BridgeConfig ─────────────────────────────────────────────────
@@ -492,12 +492,12 @@ class TestRoundTrip:
         }
 
         # Inbound
-        hermes_msg = a2a_bridge.a2a_to_hermes(request)
-        assert hermes_msg.type == "dispatch"
-        assert "[CID:rt-a2a-001]" in hermes_msg.msg
+        amaru_msg = a2a_bridge.a2a_to_amaru(request)
+        assert amaru_msg.type == "dispatch"
+        assert "[CID:rt-a2a-001]" in amaru_msg.msg
 
         # Simulate processing
-        hermes_response = Message(
+        amaru_response = Message(
             ts=date(2026, 3, 15),
             src="finance",
             dst="gateway",
@@ -508,7 +508,7 @@ class TestRoundTrip:
         )
 
         # Outbound
-        a2a_response = a2a_bridge.hermes_to_a2a(hermes_response, task_id="rt-a2a-001")
+        a2a_response = a2a_bridge.amaru_to_a2a(amaru_response, task_id="rt-a2a-001")
         assert a2a_response["result"]["status"]["state"] == "completed"
         assert "Avalanche" in a2a_response["result"]["artifacts"][0]["parts"][0]["text"]
 
@@ -525,15 +525,15 @@ class TestRoundTrip:
         }
 
         # Inbound
-        hermes_msg = mcp_bridge.mcp_to_hermes(request)
-        assert hermes_msg.type == "dispatch"
-        assert "[CID:" in hermes_msg.msg
+        amaru_msg = mcp_bridge.mcp_to_amaru(request)
+        assert amaru_msg.type == "dispatch"
+        assert "[CID:" in amaru_msg.msg
 
         # Extract CID
-        cid = hermes_msg.msg.split("[CID:")[1].split("]")[0]
+        cid = amaru_msg.msg.split("[CID:")[1].split("]")[0]
 
         # Simulate processing
-        hermes_response = Message(
+        amaru_response = Message(
             ts=date(2026, 3, 15),
             src="finance",
             dst="gateway",
@@ -544,7 +544,7 @@ class TestRoundTrip:
         )
 
         # Outbound
-        mcp_response = mcp_bridge.hermes_to_mcp(hermes_response, request_id=20)
+        mcp_response = mcp_bridge.amaru_to_mcp(amaru_response, request_id=20)
         assert mcp_response["id"] == 20
         assert mcp_response["result"]["isError"] is False
         assert "Avalanche" in mcp_response["result"]["content"][0]["text"]
@@ -561,5 +561,5 @@ class TestRoundTrip:
             },
             "id": 1,
         }
-        msg = a2a_bridge.a2a_to_hermes(request)
+        msg = a2a_bridge.a2a_to_amaru(request)
         assert len(msg.msg) <= 120

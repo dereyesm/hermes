@@ -7,7 +7,7 @@ import json
 
 import pytest
 
-from hermes.dojo import (
+from amaru.dojo import (
     Dojo,
     Plane,
     QuestStatus,

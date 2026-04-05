@@ -1,10 +1,10 @@
-"""HERMES Hook Handlers — Claude Code integration hooks.
+"""Amaru Hook Handlers — Claude Code integration hooks.
 
-Cross-platform (no bash dependency). Invoked via `python -m hermes.hooks <cmd>`.
+Cross-platform (no bash dependency). Invoked via `python -m amaru.hooks <cmd>`.
 
 Hook types:
 - pull_on_start: SessionStart — shows pending bus messages
-- pull_on_prompt: UserPromptSubmit — activates on /hermes commands
+- pull_on_prompt: UserPromptSubmit — activates on /amaru commands
 - exit_reminder: Stop — reminds about unacked messages
 
 Each hook reads JSON from stdin and writes JSON to stdout per the
@@ -19,8 +19,8 @@ from pathlib import Path
 
 
 def _default_clan_dir() -> Path:
-    """Return default clan dir (~/.hermes/)."""
-    return Path.home() / ".hermes"
+    """Return default clan dir (~/.amaru/)."""
+    return Path.home() / ".amaru"
 
 
 def _get_clan_id(clan_dir: Path) -> str:
@@ -136,8 +136,8 @@ def cmd_hook_pull_on_start() -> None:
 
     summary = "\n".join(summary_lines)
     system_msg = (
-        f"HERMES: {count} pending message(s) on the bus:\n{summary}\n"
-        f"Use 'hermes bus --pending' to see all."
+        f"Amaru: {count} pending message(s) on the bus:\n{summary}\n"
+        f"Use 'amaru bus --pending' to see all."
     )
 
     output = {"systemMessage": system_msg}
@@ -161,7 +161,7 @@ def cmd_hook_dojo_register() -> None:
     namespace = _get_clan_id(clan_dir)
     if namespace:
         import os
-        cwd = os.environ.get("HERMES_CWD", os.getcwd())
+        cwd = os.environ.get("AMARU_CWD", os.getcwd())
         dim = Path(cwd).name if cwd else "unknown"
         _write_dojo_event(
             clan_dir,
@@ -171,9 +171,9 @@ def cmd_hook_dojo_register() -> None:
 
 
 def cmd_hook_pull_on_prompt() -> None:
-    """UserPromptSubmit hook: activate only on /hermes commands.
+    """UserPromptSubmit hook: activate only on /amaru commands.
 
-    If the user prompt starts with /hermes, refresh bus state.
+    If the user prompt starts with /amaru, refresh bus state.
     Otherwise, pass through silently.
     """
     try:
@@ -182,14 +182,14 @@ def cmd_hook_pull_on_prompt() -> None:
         hook_input = {}
 
     prompt = hook_input.get("prompt", "")
-    if not prompt.strip().startswith("/hermes"):
+    if not prompt.strip().startswith("/amaru"):
         return
 
     clan_dir = _default_clan_dir()
     pending = _read_bus_pending(clan_dir)
 
     if pending:
-        output = {"systemMessage": f"HERMES bus: {len(pending)} pending message(s)."}
+        output = {"systemMessage": f"Amaru bus: {len(pending)} pending message(s)."}
         json.dump(output, sys.stdout)
         sys.stdout.write("\n")
         sys.stdout.flush()
@@ -198,7 +198,7 @@ def cmd_hook_pull_on_prompt() -> None:
 def cmd_hook_hub_inject() -> None:
     """UserPromptSubmit hook: inject pending hub messages into conversation.
 
-    Reads ~/.hermes/hub-inbox.jsonl from cursor position, injects new
+    Reads ~/.amaru/hub-inbox.jsonl from cursor position, injects new
     messages as systemMessage. Updates cursor after reading.
     Runs on EVERY prompt — no prefix required. Fast (file read only).
     """
@@ -298,8 +298,8 @@ def cmd_hook_exit_reminder() -> None:
     if pending:
         output = {
             "systemMessage": (
-                f"HERMES reminder: {len(pending)} unacked message(s) on the bus. "
-                f"Consider running 'hermes bus --pending' before leaving."
+                f"Amaru reminder: {len(pending)} unacked message(s) on the bus. "
+                f"Consider running 'amaru bus --pending' before leaving."
             )
         }
         json.dump(output, sys.stdout)
@@ -308,10 +308,10 @@ def cmd_hook_exit_reminder() -> None:
 
 
 def main() -> None:
-    """Entry point for python -m hermes.hooks <command>."""
+    """Entry point for python -m amaru.hooks <command>."""
     if len(sys.argv) < 2:
         print(
-            "Usage: python -m hermes.hooks <pull_on_start|pull_on_prompt|exit_reminder>",
+            "Usage: python -m amaru.hooks <pull_on_start|pull_on_prompt|exit_reminder>",
             file=sys.stderr,
         )
         sys.exit(1)

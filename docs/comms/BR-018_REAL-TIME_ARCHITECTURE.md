@@ -31,7 +31,7 @@ communication?
 - ARC-8446 E2E encryption guarantees preserved
 - ARC-3022 gateway semantics (NAT, filtering, translation) unchanged
 - Incremental — can ship in phases without blocking current work
-- No new runtime dependencies that break `pip install hermes-protocol`
+- No new runtime dependencies that break `pip install amaru-protocol`
 
 ---
 

@@ -124,7 +124,7 @@ The 120-char payload limit was a Shannon constraint for atomicity. Industry solv
   - MCP `prompts[]` → HERMES message templates
 
 - [ ] Define translation flow: Gateway receives A2A JSON-RPC → translates to HERMES JSONL → routes internally → response translated back
-- [ ] Reference: 3GPP SBA pattern (TS 23.501) where NFs expose services via standardized interfaces (HTTP/2 REST) — gateway does the same for HERMES agents
+- [ ] Reference: 3GPP SBA pattern (TS 23.501) where NFs expose services via standardized interfaces (HTTP/2 REST) — gateway does the same for Amaru agents
 
 ### 1.5 Test & CI Hardening
 
@@ -156,8 +156,8 @@ Inspired by RFC 8446 (TLS 1.3) + NIST PQC (FIPS 203-205) + IETF draft-goswami-ag
   - Ed25519 as MUST (fast, small, proven); Dilithium as SHOULD (PQC-ready)
   - Signature covers: `ts + src + dst + type + msg` (canonical form)
 - [ ] Define clan keypair lifecycle:
-  - Generation: `hermes keygen` CLI command
-  - Storage: `~/.hermes/keys/` (private), published via gateway profile (public)
+  - Generation: `amaru keygen` CLI command
+  - Storage: `~/.amaru/keys/` (private), published via gateway profile (public)
   - Rotation: annual, with overlap period for verification
 - [ ] Design key discovery: gateway publishes public key in ARC-2606 profile
 - [ ] Reference: ECMA-434 (NLIP Agent Security Profiles) for security level taxonomy:
@@ -165,7 +165,7 @@ Inspired by RFC 8446 (TLS 1.3) + NIST PQC (FIPS 203-205) + IETF draft-goswami-ag
   - Level 1: Message signing (integrity, non-repudiation)
   - Level 2: Payload encryption (confidentiality)
   - Level 3: Channel encryption + mutual auth (full security)
-- [x] Prototype: Python `hermes.crypto` module — sign/verify using Ed25519 (cryptography lib)
+- [x] Prototype: Python `amaru.crypto` module — sign/verify using Ed25519 (cryptography lib)
 
 ### 2.2 ATR-X.509: Agent Identity Certificates
 
@@ -307,7 +307,7 @@ Inspired by ITU-T X.509 + W3C DIDs + IETF draft-goswami-agentic-jwt:
   - Reference: draft-rosenberg-ai-protocols as framework, HERMES as instance
 - [ ] Submit to ITU-T OTAI as case study for open telecom agent protocol
 - [ ] Publish L3 efficiency paper to arXiv (reproducible, with open datasets)
-- [ ] Engage with AAIF: propose HERMES gateway bridge as interop layer for MCP/A2A
+- [ ] Engage with AAIF: propose Amaru gateway bridge as interop layer for MCP/A2A
 
 ### 5.3 Agent Visualization Standard (AES-2040)
 
@@ -328,9 +328,9 @@ AES-2040 defines a 5-layer visualization stack and the Protocol Explorer:
 
 - [ ] Version bump: v1.0.0
 - [ ] Complete documentation suite (positioning, architecture, quickstart, all specs)
-- [ ] PyPI package: `pip install hermes-protocol`
-- [ ] npm package: `npm install @hermes-protocol/core`
-- [ ] Crates.io: `hermes-protocol`
+- [ ] PyPI package: `pip install amaru-protocol`
+- [ ] npm package: `npm install @amaru-protocol/core`
+- [ ] Crates.io: `amaru-protocol`
 - [ ] Announcement: GitHub release + blog post + social
 
 **Phase 5 Deliverables**:
@@ -345,7 +345,7 @@ AES-2040 defines a 5-layer visualization stack and the Protocol Explorer:
 
 ## Cross-Phase: Standards Reference Matrix
 
-Every HERMES spec MUST cite its industry lineage. This matrix tracks the mapping:
+Every Amaru spec MUST cite its industry lineage. This matrix tracks the mapping:
 
 | HERMES Spec | Primary Lineage | Modern Equivalents | Standards Body |
 |-------------|----------------|-------------------|----------------|
@@ -370,7 +370,7 @@ Every HERMES spec MUST cite its industry lineage. This matrix tracks the mapping
 
 ## Principles (Non-Negotiable)
 
-1. **Complement, don't compete** — HERMES bridges to A2A/MCP, doesn't replace them
+1. **Complement, don't compete** — Amaru bridges to A2A/MCP, doesn't replace them
 2. **File-based always works** — Phase 0 JSONL mode is never deprecated
 3. **Reference real standards** — every spec cites IETF, 3GPP, ITU-T, IEEE, Ecma as applicable
 4. **Backward compatible** — new features are OPTIONAL extensions, never breaking changes

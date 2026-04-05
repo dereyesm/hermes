@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-from hermes.hub import HubConfig, HubServer
+from amaru.hub import HubConfig, HubServer
 
 
 # ---------------------------------------------------------------------------

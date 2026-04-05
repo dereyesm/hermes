@@ -14,8 +14,8 @@ from unittest.mock import patch
 
 import pytest
 
-import hermes.terminal as terminal
-from hermes.terminal import (
+import amaru.terminal as terminal
+from amaru.terminal import (
     AMBER,
     CRIMSON,
     EMERALD,
@@ -239,7 +239,7 @@ class TestPrintClanStatusRich:
                 daemon_alive=True,
                 bus_messages=50,
                 bus_pending=3,
-                clan_dir="/home/user/.hermes",
+                clan_dir="/home/user/.amaru",
             )
         out = capsys.readouterr().out
         assert "momoshod" in out.lower() or "MomoshoD" in out

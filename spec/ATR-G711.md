@@ -30,7 +30,7 @@ efficiency — and so does HERMES.
 
 This recommendation:
 
-- Specifies JSON (RFC 8259) as the NORMATIVE encoding for HERMES bus messages.
+- Specifies JSON (RFC 8259) as the NORMATIVE encoding for Amaru bus messages.
 - Defines encoding constraints for the ARC-5322 message format.
 - Provides a formal overhead model comparing HERMES to four alternative protocols.
 - Documents the design tradeoff: **inspectability over wire compactness**.
@@ -115,7 +115,7 @@ A human operator MUST be able to:
 4. Detect anomalies (malformed messages, unexpected senders) by scanning.
 
 Binary encodings (protobuf, CBOR, MessagePack) require decoding tools that
-may not be available in every environment where a HERMES bus operates. JSON
+may not be available in every environment where an Amaru bus operates. JSON
 requires only a text editor.
 
 ---
@@ -124,7 +124,7 @@ requires only a text editor.
 
 ### 5.1 Bus Messages (L1 Frame Layer)
 
-1. Messages on the HERMES bus MUST be encoded as JSON (RFC 8259).
+1. Messages on the Amaru bus MUST be encoded as JSON (RFC 8259).
 2. Each message MUST occupy exactly one line (JSONL format, per ARC-5322).
 3. Messages MUST use UTF-8 encoding without BOM.
 4. Implementations SHOULD use default JSON separators (`, ` and `: `) for
@@ -207,7 +207,7 @@ The reference payload size of 120 bytes represents a typical HERMES ARC-5322
   protocol measured — while remaining valid, human-readable JSON.
 - HERMES compact is **4.9x less overhead** than gRPC and **3.6x less** than
   MQTT, despite using no binary encoding.
-- HERMES bus has **zero transport overhead** — the primary advantage for
+- Amaru bus has **zero transport overhead** — the primary advantage for
   co-located agents on the same filesystem.
 - Even in verbose mode, HERMES is more efficient than all network alternatives.
 - gRPC's compact protobuf encoding (15B wrapper vs HERMES compact's 35B) is
@@ -279,7 +279,7 @@ the efficiency reflects a cleaner protocol design.
 
 | Source | Reference | Used for |
 |--------|-----------|----------|
-| ARC-5322 | HERMES spec | JSON message structure, field sizes |
+| ARC-5322 | Amaru spec | JSON message structure, field sizes |
 | RFC 793 | IETF | TCP header: 20 bytes minimum |
 | RFC 791 | IETF | IPv4 header: 20 bytes minimum |
 | RFC 8446 §5.2 | IETF | TLS 1.3 record: 5B header + 1B content type + 16B AEAD tag = 22B |
@@ -321,16 +321,16 @@ qualitatively across protocols:
 
 | Protocol | Cold Start | Warm Message | Notes |
 |----------|-----------|-------------|-------|
-| HERMES bus | ~0.1 ms | ~0.1 ms | File append + fsync. No handshake. |
+| Amaru bus | ~0.1 ms | ~0.1 ms | File append + fsync. No handshake. |
 | MQTT v5.0 | ~30-150 ms | ~1 RTT | Requires broker. CONNECT/CONNACK setup. |
 | gRPC | ~30-150 ms | sub-RTT | Persistent connection. Stream multiplexing. |
 | HTTP/2 | ~30-150 ms | ~1 RTT | Same setup as gRPC. Header compression helps bandwidth, not latency. |
 | HTTP/1.1 | ~30-150 ms | ~1 RTT | DNS + TCP + TLS = 3 RTTs cold. Keep-alive reduces to 1 RTT. |
 
-For co-located agents (same host), HERMES bus latency is **10-100x lower**
+For co-located agents (same host), Amaru bus latency is **10-100x lower**
 than any network protocol because it eliminates the entire network stack.
 
-At 100 messages/sec, HERMES bus adds ~10 ms total I/O time vs ~3,000 ms for
+At 100 messages/sec, Amaru bus adds ~10 ms total I/O time vs ~3,000 ms for
 HTTP/1.1 cold starts (or ~100 ms warm with keep-alive).
 
 ---
@@ -431,7 +431,7 @@ Measured on the reference implementation (Python 3.14, Apple M-series):
 ### 11.3 Interoperability
 
 JSON parsers exist in every programming language and runtime environment.
-A HERMES bus can be read by:
+An Amaru bus can be read by:
 
 - Python: `json.loads()`
 - JavaScript/Node.js: `JSON.parse()`
@@ -465,7 +465,7 @@ python3 overhead_model.py --csv              # Single-size CSV output
 
 The model is deterministic and fully reproducible. All byte counts are
 derived from protocol specifications (RFCs, OASIS standards) and verified
-against the HERMES reference implementation.
+against the Amaru reference implementation.
 
 ---
 
@@ -527,7 +527,7 @@ size), produced by `overhead_model.py`:
 | HTTP/1.1 REST (HTTPS) | 62 B | 350 B | 65 B | 477 B |
 
 Transport = TCP(20B) + TLS 1.3(22B) + IPv4(20B) = 62B for network protocols.
-HERMES bus: 0B transport (local file I/O, no network stack).
+Amaru bus: 0B transport (local file I/O, no network stack).
 
 ### D.3. Cumulative at Scale
 

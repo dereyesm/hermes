@@ -7,9 +7,9 @@ from datetime import date, timedelta
 
 import pytest
 
-from hermes.bus import read_bus, write_message
-from hermes.message import Message, create_message
-from hermes.sync import FinAction, SynResult, fin, syn, syn_report
+from amaru.bus import read_bus, write_message
+from amaru.message import Message, create_message
+from amaru.sync import FinAction, SynResult, fin, syn, syn_report
 
 # ─── Fixtures ──────────────────────────────────────────────────────
 
@@ -107,7 +107,7 @@ class TestSynReport:
     def test_no_messages(self):
         result = SynResult(pending=[], stale=[], total_bus_messages=0)
         report = syn_report(result, "eng")
-        assert "[HERMES]" in report
+        assert "[Amaru]" in report
         assert "No pending" in report
 
     def test_pending_messages_listed(self):

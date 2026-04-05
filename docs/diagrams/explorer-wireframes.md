@@ -1,6 +1,6 @@
 # Protocol Explorer — Wireframes
 
-> Text-based wireframes for each visualization mode of the HERMES Protocol Explorer (AES-2040).
+> Text-based wireframes for each visualization mode of the Amaru Protocol Explorer (AES-2040).
 
 These wireframes define the layout and information hierarchy. The actual implementation will use D3.js/Svelte with interactive elements.
 
@@ -10,7 +10,7 @@ These wireframes define the layout and information hierarchy. The actual impleme
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│  HERMES Protocol Explorer           [Connected ●]  [Dark Mode ◐]  │
+│  Amaru Protocol Explorer           [Connected ●]  [Dark Mode ◐]  │
 ├──────┬──────────────────────────────────────────────────────────────┤
 │      │                                                              │
 │ FILTER│   engineering    ops       finance    controller    *       │
@@ -227,7 +227,7 @@ These wireframes define the layout and information hierarchy. The actual impleme
 │  [Bus Health]                                                       │
 │                                                                     │
 │  Status: Connected to Agent Node (port 8472)                        │
-│  Bus: ~/.hermes/bus.jsonl (42 messages, 12 active)                  │
+│  Bus: ~/.amaru/bus.jsonl (42 messages, 12 active)                  │
 │  Last update: 2s ago                                                │
 └─────────────────────────────────────────────────────────────────────┘
 ```

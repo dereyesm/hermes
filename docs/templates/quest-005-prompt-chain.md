@@ -1,6 +1,6 @@
 # QUEST-005: Knowledge Exchange — Prompt Chain Template v1.0
 
-> Executable template for bilateral knowledge exchange between HERMES clans.
+> Executable template for bilateral knowledge exchange between Amaru clans.
 > Domain: Prompt Engineering & Agent Orchestration (Iteration 1).
 
 ## Instructions

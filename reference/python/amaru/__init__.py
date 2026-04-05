@@ -1,10 +1,12 @@
-"""HERMES — Heterogeneous Event Routing for Multi-agent Ephemeral Sessions.
+"""Amaru — Inter-agent communication protocol.
 
 A lightweight, file-based communication protocol for multi-agent AI systems.
 Inspired by TCP/IP. No servers, no databases — just files and convention.
+
+Formerly known as HERMES (Heterogeneous Event Routing for Multi-agent Ephemeral Sessions).
 """
 
-__version__ = "0.4.2a1"
+__version__ = "0.5.0a1"
 
 from .agora import AgoraDirectory
 from .bus import (

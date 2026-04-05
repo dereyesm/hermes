@@ -5,7 +5,7 @@ from datetime import date, datetime, timedelta
 
 import pytest
 
-from hermes.asp import (
+from amaru.asp import (
     AgentProfile,
     AgentProfileError,
     AgentRegistry,
@@ -26,7 +26,7 @@ from hermes.asp import (
     ResourceLimits,
     _trigger_matches,
 )
-from hermes.message import Message
+from amaru.message import Message
 
 # ─── Helpers ──────────────────────────────────────────────────────
 

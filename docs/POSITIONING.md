@@ -34,7 +34,7 @@ Sovereign mode is not a bootstrap phase. It is not a stepping stone toward somet
 
 ### Hosted Mode
 
-Centralized Hub service with managed infrastructure. The HERMES Hub operates gateways on behalf of clans, handles peering, provides discovery, and offers SLAs for message delivery, uptime, and latency. A clan using Hosted mode does not need to run any infrastructure -- they configure their agents to write to the Hub's API endpoint instead of a local `bus.jsonl`, and the Hub handles routing, translation, and inter-clan delivery.
+Centralized Hub service with managed infrastructure. The Amaru Hub operates gateways on behalf of clans, handles peering, provides discovery, and offers SLAs for message delivery, uptime, and latency. A clan using Hosted mode does not need to run any infrastructure -- they configure their agents to write to the Hub's API endpoint instead of a local `bus.jsonl`, and the Hub handles routing, translation, and inter-clan delivery.
 
 Hosted mode lowers the barrier to entry. A new clan can be operational in minutes: create an account, register agent capabilities, start sending messages. The Hub handles the operational complexity that Sovereign operators manage themselves.
 
@@ -69,7 +69,7 @@ Sovereign mode is where HERMES's design philosophy is most visible. A complete S
 2. A markdown file (`routes.md`) -- the routing table
 3. The convention that agents read from and write to these files
 
-That is the entire infrastructure. No compilation step, no daemon to start, no port to open, no dependency to install. An agent can write a HERMES message with nothing more than:
+That is the entire infrastructure. No compilation step, no daemon to start, no port to open, no dependency to install. An agent can write an Amaru message with nothing more than:
 
 ```bash
 echo '{"ts":"2026-03-03","src":"eng","dst":"ops","type":"state","msg":"Ready.","ttl":7,"ack":[]}' >> bus.jsonl
@@ -119,7 +119,7 @@ This architecture ensures that no central authority controls who can communicate
 
 Not every clan wants to run infrastructure. A solo developer experimenting with multi-agent coordination, a startup building its first agent team, a researcher who needs to collaborate with three other labs -- these users want the protocol's benefits without the operational overhead.
 
-The HERMES Hub provides managed gateway services for clans that prefer simplicity over sovereignty:
+The Amaru Hub provides managed gateway services for clans that prefer simplicity over sovereignty:
 
 **Managed Gateway.** The Hub runs a gateway on behalf of each Hosted clan. The gateway performs the same ARC-3022 NAT translation, the same ARC-1918 namespace enforcement, and the same trust metric computation as a self-hosted gateway. The difference is operational: the Hub handles uptime, patching, scaling, and monitoring.
 
@@ -148,19 +148,19 @@ No protocol will win the agent communication landscape alone. The future is hete
 In HERMES, the gateway can:
 
 1. **Receive an A2A JSON-RPC request** from an external agent network
-2. **Translate** the request to a HERMES bus message, mapping A2A Agent Card fields to the internal profile schema (ARC-2606)
+2. **Translate** the request to an Amaru bus message, mapping A2A Agent Card fields to the internal profile schema (ARC-2606)
 3. **Route** the message through the internal bus to the appropriate namespace and agent
 4. **Collect** the response from the internal bus
 5. **Translate back** to an A2A JSON-RPC response and return it to the external caller
 
-The external caller sees an A2A-compliant agent. The internal agent sees a HERMES bus message. Neither knows about the translation. This is the same pattern that 3GPP CUPS (TS 23.214) established for separating control and user planes in mobile networks: the interface is standardized, the implementation behind it is sovereign.
+The external caller sees an A2A-compliant agent. The internal agent sees an Amaru bus message. Neither knows about the translation. This is the same pattern that 3GPP CUPS (TS 23.214) established for separating control and user planes in mobile networks: the interface is standardized, the implementation behind it is sovereign.
 
 The same gateway architecture supports MCP bridging:
 
-- MCP `tools[]` map to HERMES agent capabilities in the ontology (ARC-2606)
+- MCP `tools[]` map to Amaru agent capabilities in the ontology (ARC-2606)
 - MCP `resources[]` map to namespace read permissions
 - MCP `prompts[]` map to message templates
-- The gateway exposes an MCP-compatible interface externally while routing to HERMES agents internally
+- The gateway exposes an MCP-compatible interface externally while routing to Amaru agents internally
 
 This means adopting HERMES does not require abandoning existing protocols. Run HERMES internally for privacy-first coordination, expose selected agents via A2A externally, and use MCP for tool binding -- all through the same gateway. Bridge capability works identically in both Sovereign and Hosted modes -- the gateway performs protocol translation regardless of who operates it.
 
@@ -273,4 +273,4 @@ The following table compares protocol capabilities across the dimensions that ma
 
 ---
 
-*HERMES is released under the [MIT License](../LICENSE). Repository: [github.com/dereyesm/hermes](https://github.com/dereyesm/hermes)*
+*HERMES is released under the [MIT License](../LICENSE). Repository: [github.com/amaru-protocol/amaru](https://github.com/amaru-protocol/amaru)*

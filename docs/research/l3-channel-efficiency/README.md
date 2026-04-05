@@ -5,7 +5,7 @@
 ## Objective
 
 Quantify the per-message overhead of HERMES compared to dominant alternatives
-(HTTP/REST, gRPC, MQTT, AMQP) for the HERMES use case: short agent messages (≤120 chars payload).
+(HTTP/REST, gRPC, MQTT, AMQP) for the Amaru use case: short agent messages (≤120 chars payload).
 
 ## Files
 
@@ -52,7 +52,7 @@ See [ATR-G.711](../../../spec/ATR-G711.md) for the full analysis.
 - All byte counts are **minimums** — real implementations add more headers
 - TCP/TLS/IP overhead assumed for all network protocols (20+21+20 = 61 bytes)
 - HERMES file-based: zero transport overhead (local file append)
-- HERMES gateway: same transport stack as HTTP/1.1 REST (inter-clan only)
+- Amaru gateway: same transport stack as HTTP/1.1 REST (inter-clan only)
 - gRPC: HPACK cold start shown (subsequent requests amortize header cost)
 - MQTT: QoS 1, topic `hermes/bus/<clan-id>` (~22 chars)
 

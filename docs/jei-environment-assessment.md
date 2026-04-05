@@ -216,7 +216,7 @@ Referencia rapida. Marca lo que ya tienes, identifica lo que falta.
 - [ ] Nunca commitear API keys, tokens, o passwords
 
 ### Comunicacion Inter-Agente (HERMES — opcional)
-- [ ] `~/.hermes/` existe con `gateway.json` y keys
+- [ ] `~/.amaru/` existe con `gateway.json` y keys
 - [ ] Bus activo (`bus.jsonl`) con mensajes entre sesiones
 - [ ] Hub configurado y funcional (si se usa modo hosted)
 - [ ] Peers registrados con pub keys verificadas

@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from hermes.adapter import (
+from amaru.adapter import (
     AdaptResult,
     ClaudeCodeAdapter,
     CursorAdapter,
@@ -16,23 +16,23 @@ from hermes.adapter import (
     list_adapters,
     run_adapter,
 )
-from hermes.config import GatewayConfig, PeerConfig, init_clan, save_config_toml
+from amaru.config import GatewayConfig, PeerConfig, init_clan, save_config_toml
 
 # ─── Fixtures ──────────────────────────────────────────────────────
 
 
 @pytest.fixture
-def hermes_dir(tmp_path):
-    """Create a minimal ~/.hermes/ structure with TOML config."""
-    hdir = tmp_path / ".hermes"
+def amaru_dir(tmp_path):
+    """Create a minimal ~/.amaru/ structure with TOML config."""
+    hdir = tmp_path / ".amaru"
     init_clan(hdir, "clan-test", "Test Clan", config_format="toml")
     return hdir
 
 
 @pytest.fixture
-def hermes_dir_with_dims(hermes_dir):
-    """Add dimension structure to hermes_dir."""
-    dims = hermes_dir / "dimensions"
+def amaru_dir_with_dims(amaru_dir):
+    """Add dimension structure to amaru_dir."""
+    dims = amaru_dir / "dimensions"
 
     # global dimension with skills
     global_skills = dims / "global" / "skills" / "consejo"
@@ -53,26 +53,26 @@ def hermes_dir_with_dims(hermes_dir):
     (nym_rules / "firewall.md").write_text("# Firewall rules\n")
     (nym_rules / "sops.md").write_text("# SOPs\n")
 
-    return hermes_dir
+    return amaru_dir
 
 
 @pytest.fixture
-def hermes_dir_with_bus(hermes_dir):
-    """Add bus file to hermes_dir."""
-    bus_dir = hermes_dir / "bus"
+def amaru_dir_with_bus(amaru_dir):
+    """Add bus file to amaru_dir."""
+    bus_dir = amaru_dir / "bus"
     bus_dir.mkdir(exist_ok=True)
     bus_file = bus_dir / "active.jsonl"
     bus_file.write_text(
         '{"ts":"2026-03-19","src":"test","dst":"*","type":"state",'
         '"msg":"test message","ttl":7,"ack":[]}\n'
     )
-    return hermes_dir
+    return amaru_dir
 
 
 @pytest.fixture
-def hermes_dir_with_peers(tmp_path):
-    """Create hermes_dir with peers configured."""
-    hdir = tmp_path / ".hermes"
+def amaru_dir_with_peers(tmp_path):
+    """Create amaru_dir with peers configured."""
+    hdir = tmp_path / ".amaru"
     config = GatewayConfig(
         clan_id="clan-test",
         display_name="Test Clan",
@@ -176,15 +176,15 @@ class TestWriteFileIfChanged:
 class TestClaudeCodeAdapterBasic:
     """Basic adapter tests with minimal config."""
 
-    def test_adapt_success(self, hermes_dir, target_dir):
-        adapter = ClaudeCodeAdapter(hermes_dir=hermes_dir, target_dir=target_dir)
+    def test_adapt_success(self, amaru_dir, target_dir):
+        adapter = ClaudeCodeAdapter(amaru_dir=amaru_dir, target_dir=target_dir)
         result = adapter.adapt()
         assert result.success is True
         assert result.adapter_name == "claude-code"
         assert len(result.steps) >= 2  # config loaded + CLAUDE.md
 
-    def test_generates_claude_md(self, hermes_dir, target_dir):
-        adapter = ClaudeCodeAdapter(hermes_dir=hermes_dir, target_dir=target_dir)
+    def test_generates_claude_md(self, amaru_dir, target_dir):
+        adapter = ClaudeCodeAdapter(amaru_dir=amaru_dir, target_dir=target_dir)
         adapter.adapt()
         claude_md = target_dir / "CLAUDE.md"
         assert claude_md.exists()
@@ -192,21 +192,21 @@ class TestClaudeCodeAdapterBasic:
         assert "clan-test" in content
         assert "Test Clan" in content
 
-    def test_claude_md_contains_identity(self, hermes_dir, target_dir):
-        adapter = ClaudeCodeAdapter(hermes_dir=hermes_dir, target_dir=target_dir)
+    def test_claude_md_contains_identity(self, amaru_dir, target_dir):
+        adapter = ClaudeCodeAdapter(amaru_dir=amaru_dir, target_dir=target_dir)
         adapter.adapt()
         content = (target_dir / "CLAUDE.md").read_text()
         assert "Clan ID" in content
         assert "Protocol Version" in content
 
-    def test_claude_md_contains_hermes_footer(self, hermes_dir, target_dir):
-        adapter = ClaudeCodeAdapter(hermes_dir=hermes_dir, target_dir=target_dir)
+    def test_claude_md_contains_amaru_footer(self, amaru_dir, target_dir):
+        adapter = ClaudeCodeAdapter(amaru_dir=amaru_dir, target_dir=target_dir)
         adapter.adapt()
         content = (target_dir / "CLAUDE.md").read_text()
-        assert "hermes adapt claude-code" in content
+        assert "amaru adapt claude-code" in content
 
-    def test_claude_md_auto_generated_notice(self, hermes_dir, target_dir):
-        adapter = ClaudeCodeAdapter(hermes_dir=hermes_dir, target_dir=target_dir)
+    def test_claude_md_auto_generated_notice(self, amaru_dir, target_dir):
+        adapter = ClaudeCodeAdapter(amaru_dir=amaru_dir, target_dir=target_dir)
         adapter.adapt()
         content = (target_dir / "CLAUDE.md").read_text()
         assert "Auto-generated" in content
@@ -219,34 +219,34 @@ class TestClaudeCodeAdapterBasic:
 class TestClaudeCodeAdapterBus:
     """Bus symlink tests."""
 
-    def test_links_bus_active(self, hermes_dir_with_bus, target_dir):
-        adapter = ClaudeCodeAdapter(hermes_dir=hermes_dir_with_bus, target_dir=target_dir)
+    def test_links_bus_active(self, amaru_dir_with_bus, target_dir):
+        adapter = ClaudeCodeAdapter(amaru_dir=amaru_dir_with_bus, target_dir=target_dir)
         adapter.adapt()
         bus_link = target_dir / "sync" / "bus.jsonl"
         assert bus_link.is_symlink()
         assert "test message" in bus_link.read_text()
 
-    def test_bus_link_resolves_to_hermes(self, hermes_dir_with_bus, target_dir):
-        adapter = ClaudeCodeAdapter(hermes_dir=hermes_dir_with_bus, target_dir=target_dir)
+    def test_bus_link_resolves_to_amaru(self, amaru_dir_with_bus, target_dir):
+        adapter = ClaudeCodeAdapter(amaru_dir=amaru_dir_with_bus, target_dir=target_dir)
         adapter.adapt()
         bus_link = target_dir / "sync" / "bus.jsonl"
         resolved = bus_link.resolve()
-        assert ".hermes" in str(resolved)
+        assert ".amaru" in str(resolved)
         assert resolved.name == "active.jsonl"
 
-    def test_creates_bus_if_missing(self, hermes_dir, target_dir):
-        # hermes_dir has no bus file — adapter should create one
-        adapter = ClaudeCodeAdapter(hermes_dir=hermes_dir, target_dir=target_dir)
+    def test_creates_bus_if_missing(self, amaru_dir, target_dir):
+        # amaru_dir has no bus file — adapter should create one
+        adapter = ClaudeCodeAdapter(amaru_dir=amaru_dir, target_dir=target_dir)
         adapter.adapt()
         bus_link = target_dir / "sync" / "bus.jsonl"
         assert bus_link.is_symlink()
         # Source should have been created
-        bus_source = hermes_dir / "bus" / "active.jsonl"
+        bus_source = amaru_dir / "bus" / "active.jsonl"
         assert bus_source.exists()
 
     def test_legacy_bus_path(self, tmp_path):
         """Adapter falls back to bus.jsonl (legacy) if bus/active.jsonl doesn't exist."""
-        hdir = tmp_path / ".hermes"
+        hdir = tmp_path / ".amaru"
         init_clan(hdir, "clan-test", "Test Clan", config_format="toml")
         # Create legacy bus.jsonl at root
         legacy_bus = hdir / "bus.jsonl"
@@ -260,7 +260,7 @@ class TestClaudeCodeAdapterBus:
 
         tdir = tmp_path / ".claude"
         tdir.mkdir()
-        adapter = ClaudeCodeAdapter(hermes_dir=hdir, target_dir=tdir)
+        adapter = ClaudeCodeAdapter(amaru_dir=hdir, target_dir=tdir)
         adapter.adapt()
         bus_link = tdir / "sync" / "bus.jsonl"
         assert bus_link.is_symlink()
@@ -273,8 +273,8 @@ class TestClaudeCodeAdapterBus:
 class TestClaudeCodeAdapterSkills:
     """Dimension skill linking tests."""
 
-    def test_links_global_skills(self, hermes_dir_with_dims, target_dir):
-        adapter = ClaudeCodeAdapter(hermes_dir=hermes_dir_with_dims, target_dir=target_dir)
+    def test_links_global_skills(self, amaru_dir_with_dims, target_dir):
+        adapter = ClaudeCodeAdapter(amaru_dir=amaru_dir_with_dims, target_dir=target_dir)
         adapter.adapt()
 
         consejo = target_dir / "skills" / "global" / "consejo"
@@ -283,22 +283,22 @@ class TestClaudeCodeAdapterSkills:
         assert palas.is_symlink()
         assert (consejo / "SKILL.md").read_text() == "# Consejo Skill\n"
 
-    def test_links_dimension_skills(self, hermes_dir_with_dims, target_dir):
-        adapter = ClaudeCodeAdapter(hermes_dir=hermes_dir_with_dims, target_dir=target_dir)
+    def test_links_dimension_skills(self, amaru_dir_with_dims, target_dir):
+        adapter = ClaudeCodeAdapter(amaru_dir=amaru_dir_with_dims, target_dir=target_dir)
         adapter.adapt()
 
         niky = target_dir / "skills" / "nymyka" / "niky-ceo"
         assert niky.is_symlink()
         assert (niky / "SKILL.md").read_text() == "# Niky CEO\n"
 
-    def test_no_skills_dir_ok(self, hermes_dir, target_dir):
-        adapter = ClaudeCodeAdapter(hermes_dir=hermes_dir, target_dir=target_dir)
+    def test_no_skills_dir_ok(self, amaru_dir, target_dir):
+        adapter = ClaudeCodeAdapter(amaru_dir=amaru_dir, target_dir=target_dir)
         result = adapter.adapt()
         assert result.success is True
         assert "No dimension skills found" in result.steps
 
-    def test_reports_linked_count(self, hermes_dir_with_dims, target_dir):
-        adapter = ClaudeCodeAdapter(hermes_dir=hermes_dir_with_dims, target_dir=target_dir)
+    def test_reports_linked_count(self, amaru_dir_with_dims, target_dir):
+        adapter = ClaudeCodeAdapter(amaru_dir=amaru_dir_with_dims, target_dir=target_dir)
         result = adapter.adapt()
         skill_step = [s for s in result.steps if "Skills linked" in s]
         assert len(skill_step) == 1
@@ -312,8 +312,8 @@ class TestClaudeCodeAdapterSkills:
 class TestClaudeCodeAdapterRules:
     """Dimension rule linking tests."""
 
-    def test_links_rules_with_prefix(self, hermes_dir_with_dims, target_dir):
-        adapter = ClaudeCodeAdapter(hermes_dir=hermes_dir_with_dims, target_dir=target_dir)
+    def test_links_rules_with_prefix(self, amaru_dir_with_dims, target_dir):
+        adapter = ClaudeCodeAdapter(amaru_dir=amaru_dir_with_dims, target_dir=target_dir)
         adapter.adapt()
 
         rules_dir = target_dir / "rules"
@@ -321,8 +321,8 @@ class TestClaudeCodeAdapterRules:
         assert (rules_dir / "nymyka-sops.md").is_symlink()
         assert "Firewall rules" in (rules_dir / "nymyka-firewall.md").read_text()
 
-    def test_no_rules_dir_ok(self, hermes_dir, target_dir):
-        adapter = ClaudeCodeAdapter(hermes_dir=hermes_dir, target_dir=target_dir)
+    def test_no_rules_dir_ok(self, amaru_dir, target_dir):
+        adapter = ClaudeCodeAdapter(amaru_dir=amaru_dir, target_dir=target_dir)
         result = adapter.adapt()
         assert result.success is True
         assert "No dimension rules found" in result.steps
@@ -334,8 +334,8 @@ class TestClaudeCodeAdapterRules:
 class TestClaudeCodeAdapterPeers:
     """Peer display in CLAUDE.md."""
 
-    def test_claude_md_includes_peers(self, hermes_dir_with_peers, target_dir):
-        adapter = ClaudeCodeAdapter(hermes_dir=hermes_dir_with_peers, target_dir=target_dir)
+    def test_claude_md_includes_peers(self, amaru_dir_with_peers, target_dir):
+        adapter = ClaudeCodeAdapter(amaru_dir=amaru_dir_with_peers, target_dir=target_dir)
         adapter.adapt()
         content = (target_dir / "CLAUDE.md").read_text()
         assert "clan-jei" in content
@@ -343,8 +343,8 @@ class TestClaudeCodeAdapterPeers:
         assert "clan-nymyka" in content
         assert "pending_ack" in content
 
-    def test_no_peers_section_when_empty(self, hermes_dir, target_dir):
-        adapter = ClaudeCodeAdapter(hermes_dir=hermes_dir, target_dir=target_dir)
+    def test_no_peers_section_when_empty(self, amaru_dir, target_dir):
+        adapter = ClaudeCodeAdapter(amaru_dir=amaru_dir, target_dir=target_dir)
         adapter.adapt()
         content = (target_dir / "CLAUDE.md").read_text()
         assert "## Peers" not in content
@@ -356,15 +356,15 @@ class TestClaudeCodeAdapterPeers:
 class TestClaudeCodeAdapterDimensions:
     """Dimension listing in CLAUDE.md."""
 
-    def test_lists_dimensions(self, hermes_dir_with_dims, target_dir):
-        adapter = ClaudeCodeAdapter(hermes_dir=hermes_dir_with_dims, target_dir=target_dir)
+    def test_lists_dimensions(self, amaru_dir_with_dims, target_dir):
+        adapter = ClaudeCodeAdapter(amaru_dir=amaru_dir_with_dims, target_dir=target_dir)
         adapter.adapt()
         content = (target_dir / "CLAUDE.md").read_text()
         assert "`global`" in content
         assert "`nymyka`" in content
 
-    def test_no_dimensions_section_when_missing(self, hermes_dir, target_dir):
-        adapter = ClaudeCodeAdapter(hermes_dir=hermes_dir, target_dir=target_dir)
+    def test_no_dimensions_section_when_missing(self, amaru_dir, target_dir):
+        adapter = ClaudeCodeAdapter(amaru_dir=amaru_dir, target_dir=target_dir)
         adapter.adapt()
         content = (target_dir / "CLAUDE.md").read_text()
         assert "## Dimensions" not in content
@@ -376,23 +376,23 @@ class TestClaudeCodeAdapterDimensions:
 class TestClaudeCodeAdapterIdempotency:
     """Adapter is safe to run multiple times."""
 
-    def test_run_twice_no_errors(self, hermes_dir_with_dims, target_dir):
-        adapter = ClaudeCodeAdapter(hermes_dir=hermes_dir_with_dims, target_dir=target_dir)
+    def test_run_twice_no_errors(self, amaru_dir_with_dims, target_dir):
+        adapter = ClaudeCodeAdapter(amaru_dir=amaru_dir_with_dims, target_dir=target_dir)
         r1 = adapter.adapt()
         r2 = adapter.adapt()
         assert r1.success is True
         assert r2.success is True
 
-    def test_run_twice_unchanged(self, hermes_dir_with_dims, target_dir):
-        adapter = ClaudeCodeAdapter(hermes_dir=hermes_dir_with_dims, target_dir=target_dir)
+    def test_run_twice_unchanged(self, amaru_dir_with_dims, target_dir):
+        adapter = ClaudeCodeAdapter(amaru_dir=amaru_dir_with_dims, target_dir=target_dir)
         adapter.adapt()
         r2 = adapter.adapt()
         # Second run should report "unchanged" for most steps
         assert "CLAUDE.md unchanged" in r2.steps
         assert "Bus symlink unchanged" in r2.steps
 
-    def test_symlinks_survive_rerun(self, hermes_dir_with_dims, target_dir):
-        adapter = ClaudeCodeAdapter(hermes_dir=hermes_dir_with_dims, target_dir=target_dir)
+    def test_symlinks_survive_rerun(self, amaru_dir_with_dims, target_dir):
+        adapter = ClaudeCodeAdapter(amaru_dir=amaru_dir_with_dims, target_dir=target_dir)
         adapter.adapt()
         adapter.adapt()
         # Skills still linked
@@ -407,26 +407,26 @@ class TestClaudeCodeAdapterErrors:
     """Error handling tests."""
 
     def test_no_config_fails_gracefully(self, tmp_path):
-        hdir = tmp_path / ".hermes"
+        hdir = tmp_path / ".amaru"
         hdir.mkdir()
         tdir = tmp_path / ".claude"
         tdir.mkdir()
-        adapter = ClaudeCodeAdapter(hermes_dir=hdir, target_dir=tdir)
+        adapter = ClaudeCodeAdapter(amaru_dir=hdir, target_dir=tdir)
         result = adapter.adapt()
         assert result.success is False
         assert any("Config error" in e for e in result.errors)
 
-    def test_missing_hermes_dir(self, tmp_path):
+    def test_missing_amaru_dir(self, tmp_path):
         hdir = tmp_path / "nonexistent"
         tdir = tmp_path / ".claude"
         tdir.mkdir()
-        adapter = ClaudeCodeAdapter(hermes_dir=hdir, target_dir=tdir)
+        adapter = ClaudeCodeAdapter(amaru_dir=hdir, target_dir=tdir)
         result = adapter.adapt()
         assert result.success is False
 
-    def test_target_dir_created_if_missing(self, hermes_dir, tmp_path):
+    def test_target_dir_created_if_missing(self, amaru_dir, tmp_path):
         tdir = tmp_path / "new_claude_dir"
-        adapter = ClaudeCodeAdapter(hermes_dir=hermes_dir, target_dir=tdir)
+        adapter = ClaudeCodeAdapter(amaru_dir=amaru_dir, target_dir=tdir)
         result = adapter.adapt()
         assert result.success is True
         assert (tdir / "CLAUDE.md").exists()
@@ -449,8 +449,8 @@ class TestAdapterRegistry:
     def test_get_unknown_returns_none(self):
         assert get_adapter("nonexistent") is None
 
-    def test_run_adapter(self, hermes_dir, target_dir):
-        result = run_adapter("claude-code", hermes_dir=hermes_dir, target_dir=target_dir)
+    def test_run_adapter(self, amaru_dir, target_dir):
+        result = run_adapter("claude-code", amaru_dir=amaru_dir, target_dir=target_dir)
         assert result.success is True
         assert result.adapter_name == "claude-code"
 
@@ -463,11 +463,11 @@ class TestAdapterRegistry:
 
 
 class TestClaudeCodeAdapterDefaults:
-    """Test that defaults point to ~/.hermes and ~/.claude."""
+    """Test that defaults point to ~/.amaru and ~/.claude."""
 
-    def test_default_hermes_dir(self):
+    def test_default_amaru_dir(self):
         adapter = ClaudeCodeAdapter()
-        assert adapter.hermes_dir == Path.home() / ".hermes"
+        assert adapter.amaru_dir == Path.home() / ".amaru"
 
     def test_default_target_dir(self):
         adapter = ClaudeCodeAdapter()
@@ -476,8 +476,8 @@ class TestClaudeCodeAdapterDefaults:
     def test_custom_dirs(self, tmp_path):
         hdir = tmp_path / "h"
         tdir = tmp_path / "t"
-        adapter = ClaudeCodeAdapter(hermes_dir=hdir, target_dir=tdir)
-        assert adapter.hermes_dir == hdir
+        adapter = ClaudeCodeAdapter(amaru_dir=hdir, target_dir=tdir)
+        assert adapter.amaru_dir == hdir
         assert adapter.target_dir == tdir
 
 
@@ -524,15 +524,15 @@ def cursor_target_dir(tmp_path):
 class TestCursorAdapterBasic:
     """Basic CursorAdapter tests with minimal config."""
 
-    def test_adapt_success(self, hermes_dir, cursor_target_dir):
-        adapter = CursorAdapter(hermes_dir=hermes_dir, target_dir=cursor_target_dir)
+    def test_adapt_success(self, amaru_dir, cursor_target_dir):
+        adapter = CursorAdapter(amaru_dir=amaru_dir, target_dir=cursor_target_dir)
         result = adapter.adapt()
         assert result.success is True
         assert result.adapter_name == "cursor"
         assert len(result.steps) >= 2
 
-    def test_generates_cursorrules(self, hermes_dir, cursor_target_dir):
-        adapter = CursorAdapter(hermes_dir=hermes_dir, target_dir=cursor_target_dir)
+    def test_generates_cursorrules(self, amaru_dir, cursor_target_dir):
+        adapter = CursorAdapter(amaru_dir=amaru_dir, target_dir=cursor_target_dir)
         adapter.adapt()
         cursorrules = cursor_target_dir / ".cursorrules"
         assert cursorrules.exists()
@@ -540,22 +540,22 @@ class TestCursorAdapterBasic:
         assert "clan-test" in content
         assert "Test Clan" in content
 
-    def test_cursorrules_contains_identity(self, hermes_dir, cursor_target_dir):
-        adapter = CursorAdapter(hermes_dir=hermes_dir, target_dir=cursor_target_dir)
+    def test_cursorrules_contains_identity(self, amaru_dir, cursor_target_dir):
+        adapter = CursorAdapter(amaru_dir=amaru_dir, target_dir=cursor_target_dir)
         adapter.adapt()
         content = (cursor_target_dir / ".cursorrules").read_text()
         assert "Clan ID" in content
         assert "Protocol Version" in content
 
-    def test_cursorrules_auto_generated_notice(self, hermes_dir, cursor_target_dir):
-        adapter = CursorAdapter(hermes_dir=hermes_dir, target_dir=cursor_target_dir)
+    def test_cursorrules_auto_generated_notice(self, amaru_dir, cursor_target_dir):
+        adapter = CursorAdapter(amaru_dir=amaru_dir, target_dir=cursor_target_dir)
         adapter.adapt()
         content = (cursor_target_dir / ".cursorrules").read_text()
         assert "Auto-generated" in content
-        assert "hermes adapt cursor" in content
+        assert "amaru adapt cursor" in content
 
-    def test_cursorrules_has_markers(self, hermes_dir, cursor_target_dir):
-        adapter = CursorAdapter(hermes_dir=hermes_dir, target_dir=cursor_target_dir)
+    def test_cursorrules_has_markers(self, amaru_dir, cursor_target_dir):
+        adapter = CursorAdapter(amaru_dir=amaru_dir, target_dir=cursor_target_dir)
         adapter.adapt()
         content = (cursor_target_dir / ".cursorrules").read_text()
         assert CursorAdapter.HEADER_MARKER in content
@@ -568,8 +568,8 @@ class TestCursorAdapterBasic:
 class TestCursorAdapterSkills:
     """Skill compilation tests."""
 
-    def test_compiles_skills_into_cursorrules(self, hermes_dir_with_dims, cursor_target_dir):
-        adapter = CursorAdapter(hermes_dir=hermes_dir_with_dims, target_dir=cursor_target_dir)
+    def test_compiles_skills_into_cursorrules(self, amaru_dir_with_dims, cursor_target_dir):
+        adapter = CursorAdapter(amaru_dir=amaru_dir_with_dims, target_dir=cursor_target_dir)
         adapter.adapt()
         content = (cursor_target_dir / ".cursorrules").read_text()
         assert "## Skills" in content
@@ -577,15 +577,15 @@ class TestCursorAdapterSkills:
         assert "Palas Skill" in content
         assert "Niky CEO" in content
 
-    def test_skills_grouped_by_dimension(self, hermes_dir_with_dims, cursor_target_dir):
-        adapter = CursorAdapter(hermes_dir=hermes_dir_with_dims, target_dir=cursor_target_dir)
+    def test_skills_grouped_by_dimension(self, amaru_dir_with_dims, cursor_target_dir):
+        adapter = CursorAdapter(amaru_dir=amaru_dir_with_dims, target_dir=cursor_target_dir)
         adapter.adapt()
         content = (cursor_target_dir / ".cursorrules").read_text()
         assert "Dimension: global" in content
         assert "Dimension: nymyka" in content
 
-    def test_no_skills_section_when_empty(self, hermes_dir, cursor_target_dir):
-        adapter = CursorAdapter(hermes_dir=hermes_dir, target_dir=cursor_target_dir)
+    def test_no_skills_section_when_empty(self, amaru_dir, cursor_target_dir):
+        adapter = CursorAdapter(amaru_dir=amaru_dir, target_dir=cursor_target_dir)
         adapter.adapt()
         content = (cursor_target_dir / ".cursorrules").read_text()
         assert "## Skills" not in content
@@ -597,23 +597,23 @@ class TestCursorAdapterSkills:
 class TestCursorAdapterRules:
     """Rule compilation tests."""
 
-    def test_compiles_rules_into_cursorrules(self, hermes_dir_with_dims, cursor_target_dir):
-        adapter = CursorAdapter(hermes_dir=hermes_dir_with_dims, target_dir=cursor_target_dir)
+    def test_compiles_rules_into_cursorrules(self, amaru_dir_with_dims, cursor_target_dir):
+        adapter = CursorAdapter(amaru_dir=amaru_dir_with_dims, target_dir=cursor_target_dir)
         adapter.adapt()
         content = (cursor_target_dir / ".cursorrules").read_text()
         assert "## Rules" in content
         assert "Firewall rules" in content
         assert "SOPs" in content
 
-    def test_rules_grouped_by_dimension(self, hermes_dir_with_dims, cursor_target_dir):
-        adapter = CursorAdapter(hermes_dir=hermes_dir_with_dims, target_dir=cursor_target_dir)
+    def test_rules_grouped_by_dimension(self, amaru_dir_with_dims, cursor_target_dir):
+        adapter = CursorAdapter(amaru_dir=amaru_dir_with_dims, target_dir=cursor_target_dir)
         adapter.adapt()
         content = (cursor_target_dir / ".cursorrules").read_text()
         # Rules only exist in nymyka dimension in fixture
         assert "Dimension: nymyka" in content
 
-    def test_no_rules_section_when_empty(self, hermes_dir, cursor_target_dir):
-        adapter = CursorAdapter(hermes_dir=hermes_dir, target_dir=cursor_target_dir)
+    def test_no_rules_section_when_empty(self, amaru_dir, cursor_target_dir):
+        adapter = CursorAdapter(amaru_dir=amaru_dir, target_dir=cursor_target_dir)
         adapter.adapt()
         content = (cursor_target_dir / ".cursorrules").read_text()
         assert "## Rules" not in content
@@ -625,16 +625,16 @@ class TestCursorAdapterRules:
 class TestCursorAdapterBus:
     """Bus symlink tests for Cursor."""
 
-    def test_links_bus(self, hermes_dir_with_bus, cursor_target_dir):
-        adapter = CursorAdapter(hermes_dir=hermes_dir_with_bus, target_dir=cursor_target_dir)
+    def test_links_bus(self, amaru_dir_with_bus, cursor_target_dir):
+        adapter = CursorAdapter(amaru_dir=amaru_dir_with_bus, target_dir=cursor_target_dir)
         adapter.adapt()
         bus_link = cursor_target_dir / ".cursor" / "bus.jsonl"
         assert bus_link.is_symlink()
         assert "test message" in bus_link.read_text()
 
-    def test_no_bus_no_error(self, hermes_dir, cursor_target_dir):
-        # hermes_dir has no bus file — should not fail
-        adapter = CursorAdapter(hermes_dir=hermes_dir, target_dir=cursor_target_dir)
+    def test_no_bus_no_error(self, amaru_dir, cursor_target_dir):
+        # amaru_dir has no bus file — should not fail
+        adapter = CursorAdapter(amaru_dir=amaru_dir, target_dir=cursor_target_dir)
         result = adapter.adapt()
         assert result.success is True
         assert "Bus symlink unchanged" in result.steps
@@ -646,15 +646,15 @@ class TestCursorAdapterBus:
 class TestCursorAdapterPeers:
     """Peer display in .cursorrules."""
 
-    def test_cursorrules_includes_peers(self, hermes_dir_with_peers, cursor_target_dir):
-        adapter = CursorAdapter(hermes_dir=hermes_dir_with_peers, target_dir=cursor_target_dir)
+    def test_cursorrules_includes_peers(self, amaru_dir_with_peers, cursor_target_dir):
+        adapter = CursorAdapter(amaru_dir=amaru_dir_with_peers, target_dir=cursor_target_dir)
         adapter.adapt()
         content = (cursor_target_dir / ".cursorrules").read_text()
         assert "clan-jei" in content
         assert "established" in content
 
-    def test_no_peers_section_when_empty(self, hermes_dir, cursor_target_dir):
-        adapter = CursorAdapter(hermes_dir=hermes_dir, target_dir=cursor_target_dir)
+    def test_no_peers_section_when_empty(self, amaru_dir, cursor_target_dir):
+        adapter = CursorAdapter(amaru_dir=amaru_dir, target_dir=cursor_target_dir)
         adapter.adapt()
         content = (cursor_target_dir / ".cursorrules").read_text()
         assert "## Peers" not in content
@@ -666,29 +666,29 @@ class TestCursorAdapterPeers:
 class TestCursorAdapterIdempotency:
     """Cursor adapter is safe to run multiple times."""
 
-    def test_run_twice_no_errors(self, hermes_dir_with_dims, cursor_target_dir):
-        adapter = CursorAdapter(hermes_dir=hermes_dir_with_dims, target_dir=cursor_target_dir)
+    def test_run_twice_no_errors(self, amaru_dir_with_dims, cursor_target_dir):
+        adapter = CursorAdapter(amaru_dir=amaru_dir_with_dims, target_dir=cursor_target_dir)
         r1 = adapter.adapt()
         r2 = adapter.adapt()
         assert r1.success is True
         assert r2.success is True
 
-    def test_run_twice_unchanged(self, hermes_dir_with_dims, cursor_target_dir):
-        adapter = CursorAdapter(hermes_dir=hermes_dir_with_dims, target_dir=cursor_target_dir)
+    def test_run_twice_unchanged(self, amaru_dir_with_dims, cursor_target_dir):
+        adapter = CursorAdapter(amaru_dir=amaru_dir_with_dims, target_dir=cursor_target_dir)
         adapter.adapt()
         r2 = adapter.adapt()
         assert ".cursorrules unchanged" in r2.steps
 
-    def test_preserves_user_content(self, hermes_dir, cursor_target_dir):
+    def test_preserves_user_content(self, amaru_dir, cursor_target_dir):
         """User content outside HERMES markers is preserved."""
         cursorrules = cursor_target_dir / ".cursorrules"
         # Write file with user content + HERMES markers
         cursorrules.write_text(
             "# My Project Rules\n\nCustom rule 1.\n\n"
-            "<!-- HERMES:BEGIN -->\nold hermes content\n<!-- HERMES:END -->\n\n"
+            "<!-- Amaru:BEGIN -->\nold amaru content\n<!-- Amaru:END -->\n\n"
             "# More User Rules\n\nCustom rule 2.\n"
         )
-        adapter = CursorAdapter(hermes_dir=hermes_dir, target_dir=cursor_target_dir)
+        adapter = CursorAdapter(amaru_dir=amaru_dir, target_dir=cursor_target_dir)
         adapter.adapt()
         content = cursorrules.read_text()
         # User content preserved
@@ -698,7 +698,7 @@ class TestCursorAdapterIdempotency:
         assert "Custom rule 2" in content
         # HERMES content updated
         assert "clan-test" in content
-        assert "old hermes content" not in content
+        assert "old amaru content" not in content
 
 
 # ─── CursorAdapter error handling ───────────────────────────────
@@ -708,18 +708,18 @@ class TestCursorAdapterErrors:
     """Error handling tests for Cursor adapter."""
 
     def test_no_config_fails_gracefully(self, tmp_path):
-        hdir = tmp_path / ".hermes"
+        hdir = tmp_path / ".amaru"
         hdir.mkdir()
         tdir = tmp_path / "project"
         tdir.mkdir()
-        adapter = CursorAdapter(hermes_dir=hdir, target_dir=tdir)
+        adapter = CursorAdapter(amaru_dir=hdir, target_dir=tdir)
         result = adapter.adapt()
         assert result.success is False
         assert any("Config error" in e for e in result.errors)
 
-    def test_target_dir_created_if_missing(self, hermes_dir, tmp_path):
+    def test_target_dir_created_if_missing(self, amaru_dir, tmp_path):
         tdir = tmp_path / "new_project"
-        adapter = CursorAdapter(hermes_dir=hermes_dir, target_dir=tdir)
+        adapter = CursorAdapter(amaru_dir=amaru_dir, target_dir=tdir)
         result = adapter.adapt()
         assert result.success is True
         assert (tdir / ".cursorrules").exists()
@@ -731,9 +731,9 @@ class TestCursorAdapterErrors:
 class TestCursorAdapterDefaults:
     """Default path tests for Cursor adapter."""
 
-    def test_default_hermes_dir(self):
+    def test_default_amaru_dir(self):
         adapter = CursorAdapter()
-        assert adapter.hermes_dir == Path.home() / ".hermes"
+        assert adapter.amaru_dir == Path.home() / ".amaru"
 
     def test_default_target_dir_is_cwd(self):
         adapter = CursorAdapter()
@@ -742,8 +742,8 @@ class TestCursorAdapterDefaults:
     def test_custom_dirs(self, tmp_path):
         hdir = tmp_path / "h"
         tdir = tmp_path / "t"
-        adapter = CursorAdapter(hermes_dir=hdir, target_dir=tdir)
-        assert adapter.hermes_dir == hdir
+        adapter = CursorAdapter(amaru_dir=hdir, target_dir=tdir)
+        assert adapter.amaru_dir == hdir
         assert adapter.target_dir == tdir
 
 
@@ -761,8 +761,8 @@ class TestAdapterRegistryCursor:
         cls = get_adapter("cursor")
         assert cls is CursorAdapter
 
-    def test_run_cursor_adapter(self, hermes_dir, cursor_target_dir):
-        result = run_adapter("cursor", hermes_dir=hermes_dir, target_dir=cursor_target_dir)
+    def test_run_cursor_adapter(self, amaru_dir, cursor_target_dir):
+        result = run_adapter("cursor", amaru_dir=amaru_dir, target_dir=cursor_target_dir)
         assert result.success is True
         assert result.adapter_name == "cursor"
 
@@ -786,15 +786,15 @@ def opencode_target_dir(tmp_path):
 class TestOpenCodeAdapterBasic:
     """Basic OpenCodeAdapter tests with minimal config."""
 
-    def test_adapt_success(self, hermes_dir, opencode_target_dir):
-        adapter = OpenCodeAdapter(hermes_dir=hermes_dir, target_dir=opencode_target_dir)
+    def test_adapt_success(self, amaru_dir, opencode_target_dir):
+        adapter = OpenCodeAdapter(amaru_dir=amaru_dir, target_dir=opencode_target_dir)
         result = adapter.adapt()
         assert result.success is True
         assert result.adapter_name == "opencode"
         assert len(result.steps) >= 3  # config + AGENTS.md + opencode.json
 
-    def test_generates_agents_md(self, hermes_dir, opencode_target_dir):
-        adapter = OpenCodeAdapter(hermes_dir=hermes_dir, target_dir=opencode_target_dir)
+    def test_generates_agents_md(self, amaru_dir, opencode_target_dir):
+        adapter = OpenCodeAdapter(amaru_dir=amaru_dir, target_dir=opencode_target_dir)
         adapter.adapt()
         agents_md = opencode_target_dir / "AGENTS.md"
         assert agents_md.exists()
@@ -802,22 +802,22 @@ class TestOpenCodeAdapterBasic:
         assert "clan-test" in content
         assert "Test Clan" in content
 
-    def test_agents_md_contains_identity(self, hermes_dir, opencode_target_dir):
-        adapter = OpenCodeAdapter(hermes_dir=hermes_dir, target_dir=opencode_target_dir)
+    def test_agents_md_contains_identity(self, amaru_dir, opencode_target_dir):
+        adapter = OpenCodeAdapter(amaru_dir=amaru_dir, target_dir=opencode_target_dir)
         adapter.adapt()
         content = (opencode_target_dir / "AGENTS.md").read_text()
         assert "Clan ID" in content
         assert "Protocol Version" in content
 
-    def test_agents_md_auto_generated_notice(self, hermes_dir, opencode_target_dir):
-        adapter = OpenCodeAdapter(hermes_dir=hermes_dir, target_dir=opencode_target_dir)
+    def test_agents_md_auto_generated_notice(self, amaru_dir, opencode_target_dir):
+        adapter = OpenCodeAdapter(amaru_dir=amaru_dir, target_dir=opencode_target_dir)
         adapter.adapt()
         content = (opencode_target_dir / "AGENTS.md").read_text()
         assert "Auto-generated" in content
-        assert "hermes adapt opencode" in content
+        assert "amaru adapt opencode" in content
 
-    def test_agents_md_has_markers(self, hermes_dir, opencode_target_dir):
-        adapter = OpenCodeAdapter(hermes_dir=hermes_dir, target_dir=opencode_target_dir)
+    def test_agents_md_has_markers(self, amaru_dir, opencode_target_dir):
+        adapter = OpenCodeAdapter(amaru_dir=amaru_dir, target_dir=opencode_target_dir)
         adapter.adapt()
         content = (opencode_target_dir / "AGENTS.md").read_text()
         assert OpenCodeAdapter.HEADER_MARKER in content
@@ -830,8 +830,8 @@ class TestOpenCodeAdapterBasic:
 class TestOpenCodeAdapterSkills:
     """Skill compilation and linking tests."""
 
-    def test_compiles_skills_into_agents_md(self, hermes_dir_with_dims, opencode_target_dir):
-        adapter = OpenCodeAdapter(hermes_dir=hermes_dir_with_dims, target_dir=opencode_target_dir)
+    def test_compiles_skills_into_agents_md(self, amaru_dir_with_dims, opencode_target_dir):
+        adapter = OpenCodeAdapter(amaru_dir=amaru_dir_with_dims, target_dir=opencode_target_dir)
         adapter.adapt()
         content = (opencode_target_dir / "AGENTS.md").read_text()
         assert "## Skills" in content
@@ -839,8 +839,8 @@ class TestOpenCodeAdapterSkills:
         assert "Palas Skill" in content
         assert "Niky CEO" in content
 
-    def test_symlinks_skills_with_dimension_subdirs(self, hermes_dir_with_dims, opencode_target_dir):
-        adapter = OpenCodeAdapter(hermes_dir=hermes_dir_with_dims, target_dir=opencode_target_dir)
+    def test_symlinks_skills_with_dimension_subdirs(self, amaru_dir_with_dims, opencode_target_dir):
+        adapter = OpenCodeAdapter(amaru_dir=amaru_dir_with_dims, target_dir=opencode_target_dir)
         adapter.adapt()
         skills_dir = opencode_target_dir / "skills"
         # Skills in dimension subdirs — directory name matches skill name (Agent Skills Standard)
@@ -850,14 +850,14 @@ class TestOpenCodeAdapterSkills:
         # Content accessible through symlinks
         assert (skills_dir / "global" / "consejo" / "SKILL.md").read_text() == "# Consejo Skill\n"
 
-    def test_no_skills_ok(self, hermes_dir, opencode_target_dir):
-        adapter = OpenCodeAdapter(hermes_dir=hermes_dir, target_dir=opencode_target_dir)
+    def test_no_skills_ok(self, amaru_dir, opencode_target_dir):
+        adapter = OpenCodeAdapter(amaru_dir=amaru_dir, target_dir=opencode_target_dir)
         result = adapter.adapt()
         assert result.success is True
         assert "No dimension skills found" in result.steps
 
-    def test_reports_linked_count(self, hermes_dir_with_dims, opencode_target_dir):
-        adapter = OpenCodeAdapter(hermes_dir=hermes_dir_with_dims, target_dir=opencode_target_dir)
+    def test_reports_linked_count(self, amaru_dir_with_dims, opencode_target_dir):
+        adapter = OpenCodeAdapter(amaru_dir=amaru_dir_with_dims, target_dir=opencode_target_dir)
         result = adapter.adapt()
         skill_step = [s for s in result.steps if "Skills linked" in s]
         assert len(skill_step) == 1
@@ -870,22 +870,22 @@ class TestOpenCodeAdapterSkills:
 class TestOpenCodeAdapterRules:
     """Rule compilation tests."""
 
-    def test_compiles_rules_into_agents_md(self, hermes_dir_with_dims, opencode_target_dir):
-        adapter = OpenCodeAdapter(hermes_dir=hermes_dir_with_dims, target_dir=opencode_target_dir)
+    def test_compiles_rules_into_agents_md(self, amaru_dir_with_dims, opencode_target_dir):
+        adapter = OpenCodeAdapter(amaru_dir=amaru_dir_with_dims, target_dir=opencode_target_dir)
         adapter.adapt()
         content = (opencode_target_dir / "AGENTS.md").read_text()
         assert "## Rules" in content
         assert "Firewall rules" in content
         assert "SOPs" in content
 
-    def test_rules_grouped_by_dimension(self, hermes_dir_with_dims, opencode_target_dir):
-        adapter = OpenCodeAdapter(hermes_dir=hermes_dir_with_dims, target_dir=opencode_target_dir)
+    def test_rules_grouped_by_dimension(self, amaru_dir_with_dims, opencode_target_dir):
+        adapter = OpenCodeAdapter(amaru_dir=amaru_dir_with_dims, target_dir=opencode_target_dir)
         adapter.adapt()
         content = (opencode_target_dir / "AGENTS.md").read_text()
         assert "Dimension: nymyka" in content
 
-    def test_no_rules_section_when_empty(self, hermes_dir, opencode_target_dir):
-        adapter = OpenCodeAdapter(hermes_dir=hermes_dir, target_dir=opencode_target_dir)
+    def test_no_rules_section_when_empty(self, amaru_dir, opencode_target_dir):
+        adapter = OpenCodeAdapter(amaru_dir=amaru_dir, target_dir=opencode_target_dir)
         adapter.adapt()
         content = (opencode_target_dir / "AGENTS.md").read_text()
         assert "## Rules" not in content
@@ -897,22 +897,22 @@ class TestOpenCodeAdapterRules:
 class TestOpenCodeAdapterBus:
     """Bus symlink tests for OpenCode."""
 
-    def test_links_bus(self, hermes_dir_with_bus, opencode_target_dir):
-        adapter = OpenCodeAdapter(hermes_dir=hermes_dir_with_bus, target_dir=opencode_target_dir)
+    def test_links_bus(self, amaru_dir_with_bus, opencode_target_dir):
+        adapter = OpenCodeAdapter(amaru_dir=amaru_dir_with_bus, target_dir=opencode_target_dir)
         adapter.adapt()
         bus_link = opencode_target_dir / "bus.jsonl"
         assert bus_link.is_symlink()
         assert "test message" in bus_link.read_text()
 
-    def test_bus_resolves_to_hermes(self, hermes_dir_with_bus, opencode_target_dir):
-        adapter = OpenCodeAdapter(hermes_dir=hermes_dir_with_bus, target_dir=opencode_target_dir)
+    def test_bus_resolves_to_amaru(self, amaru_dir_with_bus, opencode_target_dir):
+        adapter = OpenCodeAdapter(amaru_dir=amaru_dir_with_bus, target_dir=opencode_target_dir)
         adapter.adapt()
         bus_link = opencode_target_dir / "bus.jsonl"
         resolved = bus_link.resolve()
-        assert ".hermes" in str(resolved)
+        assert ".amaru" in str(resolved)
 
-    def test_no_bus_no_error(self, hermes_dir, opencode_target_dir):
-        adapter = OpenCodeAdapter(hermes_dir=hermes_dir, target_dir=opencode_target_dir)
+    def test_no_bus_no_error(self, amaru_dir, opencode_target_dir):
+        adapter = OpenCodeAdapter(amaru_dir=amaru_dir, target_dir=opencode_target_dir)
         result = adapter.adapt()
         assert result.success is True
         assert "Bus symlink unchanged" in result.steps
@@ -924,32 +924,32 @@ class TestOpenCodeAdapterBus:
 class TestOpenCodeAdapterJson:
     """opencode.json generation and merge tests."""
 
-    def test_generates_json_with_schema(self, hermes_dir, opencode_target_dir):
-        adapter = OpenCodeAdapter(hermes_dir=hermes_dir, target_dir=opencode_target_dir)
+    def test_generates_json_with_schema(self, amaru_dir, opencode_target_dir):
+        adapter = OpenCodeAdapter(amaru_dir=amaru_dir, target_dir=opencode_target_dir)
         adapter.adapt()
         import json
 
         config = json.loads((opencode_target_dir / "opencode.json").read_text())
         assert config["$schema"] == "https://opencode.ai/config.json"
 
-    def test_json_has_instructions_field(self, hermes_dir, opencode_target_dir):
-        adapter = OpenCodeAdapter(hermes_dir=hermes_dir, target_dir=opencode_target_dir)
+    def test_json_has_instructions_field(self, amaru_dir, opencode_target_dir):
+        adapter = OpenCodeAdapter(amaru_dir=amaru_dir, target_dir=opencode_target_dir)
         adapter.adapt()
         import json
 
         config = json.loads((opencode_target_dir / "opencode.json").read_text())
         assert "AGENTS.md" in config["instructions"]
 
-    def test_json_has_hermes_metadata(self, hermes_dir, opencode_target_dir):
-        adapter = OpenCodeAdapter(hermes_dir=hermes_dir, target_dir=opencode_target_dir)
+    def test_json_has_amaru_metadata(self, amaru_dir, opencode_target_dir):
+        adapter = OpenCodeAdapter(amaru_dir=amaru_dir, target_dir=opencode_target_dir)
         adapter.adapt()
         import json
 
         config = json.loads((opencode_target_dir / "opencode.json").read_text())
-        assert config["_hermes"]["managed_by"] == "hermes adapt opencode"
-        assert config["_hermes"]["clan_id"] == "clan-test"
+        assert config["_amaru"]["managed_by"] == "amaru adapt opencode"
+        assert config["_amaru"]["clan_id"] == "clan-test"
 
-    def test_merge_preserves_user_keys(self, hermes_dir, opencode_target_dir):
+    def test_merge_preserves_user_keys(self, amaru_dir, opencode_target_dir):
         """User-configured keys in opencode.json are preserved during merge."""
         import json
 
@@ -962,7 +962,7 @@ class TestOpenCodeAdapterJson:
         }
         (opencode_target_dir / "opencode.json").write_text(json.dumps(user_config))
 
-        adapter = OpenCodeAdapter(hermes_dir=hermes_dir, target_dir=opencode_target_dir)
+        adapter = OpenCodeAdapter(amaru_dir=amaru_dir, target_dir=opencode_target_dir)
         adapter.adapt()
 
         config = json.loads((opencode_target_dir / "opencode.json").read_text())
@@ -973,16 +973,16 @@ class TestOpenCodeAdapterJson:
         assert "my-rules.md" in config["instructions"]
         assert "AGENTS.md" in config["instructions"]
         # HERMES metadata added
-        assert "_hermes" in config
+        assert "_amaru" in config
 
-    def test_handles_instructions_as_string(self, hermes_dir, opencode_target_dir):
+    def test_handles_instructions_as_string(self, amaru_dir, opencode_target_dir):
         """OpenCode accepts instructions as string — adapter converts to list."""
         import json
 
         user_config = {"instructions": "my-rules.md"}
         (opencode_target_dir / "opencode.json").write_text(json.dumps(user_config))
 
-        adapter = OpenCodeAdapter(hermes_dir=hermes_dir, target_dir=opencode_target_dir)
+        adapter = OpenCodeAdapter(amaru_dir=amaru_dir, target_dir=opencode_target_dir)
         adapter.adapt()
 
         config = json.loads((opencode_target_dir / "opencode.json").read_text())
@@ -990,11 +990,11 @@ class TestOpenCodeAdapterJson:
         assert "my-rules.md" in config["instructions"]
         assert "AGENTS.md" in config["instructions"]
 
-    def test_handles_corrupt_json(self, hermes_dir, opencode_target_dir):
+    def test_handles_corrupt_json(self, amaru_dir, opencode_target_dir):
         """Corrupt opencode.json is replaced with fresh config (not crash)."""
         (opencode_target_dir / "opencode.json").write_text("{invalid json!!!}")
 
-        adapter = OpenCodeAdapter(hermes_dir=hermes_dir, target_dir=opencode_target_dir)
+        adapter = OpenCodeAdapter(amaru_dir=amaru_dir, target_dir=opencode_target_dir)
         result = adapter.adapt()
 
         assert result.success is True
@@ -1011,15 +1011,15 @@ class TestOpenCodeAdapterJson:
 class TestOpenCodeAdapterPeers:
     """Peer display in AGENTS.md."""
 
-    def test_agents_md_includes_peers(self, hermes_dir_with_peers, opencode_target_dir):
-        adapter = OpenCodeAdapter(hermes_dir=hermes_dir_with_peers, target_dir=opencode_target_dir)
+    def test_agents_md_includes_peers(self, amaru_dir_with_peers, opencode_target_dir):
+        adapter = OpenCodeAdapter(amaru_dir=amaru_dir_with_peers, target_dir=opencode_target_dir)
         adapter.adapt()
         content = (opencode_target_dir / "AGENTS.md").read_text()
         assert "clan-jei" in content
         assert "established" in content
 
-    def test_no_peers_section_when_empty(self, hermes_dir, opencode_target_dir):
-        adapter = OpenCodeAdapter(hermes_dir=hermes_dir, target_dir=opencode_target_dir)
+    def test_no_peers_section_when_empty(self, amaru_dir, opencode_target_dir):
+        adapter = OpenCodeAdapter(amaru_dir=amaru_dir, target_dir=opencode_target_dir)
         adapter.adapt()
         content = (opencode_target_dir / "AGENTS.md").read_text()
         assert "## Peers" not in content
@@ -1031,29 +1031,29 @@ class TestOpenCodeAdapterPeers:
 class TestOpenCodeAdapterIdempotency:
     """OpenCode adapter is safe to run multiple times."""
 
-    def test_run_twice_no_errors(self, hermes_dir_with_dims, opencode_target_dir):
-        adapter = OpenCodeAdapter(hermes_dir=hermes_dir_with_dims, target_dir=opencode_target_dir)
+    def test_run_twice_no_errors(self, amaru_dir_with_dims, opencode_target_dir):
+        adapter = OpenCodeAdapter(amaru_dir=amaru_dir_with_dims, target_dir=opencode_target_dir)
         r1 = adapter.adapt()
         r2 = adapter.adapt()
         assert r1.success is True
         assert r2.success is True
 
-    def test_run_twice_unchanged(self, hermes_dir_with_dims, opencode_target_dir):
-        adapter = OpenCodeAdapter(hermes_dir=hermes_dir_with_dims, target_dir=opencode_target_dir)
+    def test_run_twice_unchanged(self, amaru_dir_with_dims, opencode_target_dir):
+        adapter = OpenCodeAdapter(amaru_dir=amaru_dir_with_dims, target_dir=opencode_target_dir)
         adapter.adapt()
         r2 = adapter.adapt()
         assert "AGENTS.md unchanged" in r2.steps
         assert "opencode.json unchanged" in r2.steps
 
-    def test_preserves_user_content(self, hermes_dir, opencode_target_dir):
+    def test_preserves_user_content(self, amaru_dir, opencode_target_dir):
         """User content outside HERMES markers is preserved in AGENTS.md."""
         agents_md = opencode_target_dir / "AGENTS.md"
         agents_md.write_text(
             "# My Custom Instructions\n\nCustom rule 1.\n\n"
-            "<!-- HERMES:BEGIN -->\nold hermes content\n<!-- HERMES:END -->\n\n"
+            "<!-- Amaru:BEGIN -->\nold amaru content\n<!-- Amaru:END -->\n\n"
             "# More User Rules\n\nCustom rule 2.\n"
         )
-        adapter = OpenCodeAdapter(hermes_dir=hermes_dir, target_dir=opencode_target_dir)
+        adapter = OpenCodeAdapter(amaru_dir=amaru_dir, target_dir=opencode_target_dir)
         adapter.adapt()
         content = agents_md.read_text()
         # User content preserved
@@ -1063,10 +1063,10 @@ class TestOpenCodeAdapterIdempotency:
         assert "Custom rule 2" in content
         # HERMES content updated
         assert "clan-test" in content
-        assert "old hermes content" not in content
+        assert "old amaru content" not in content
 
-    def test_symlinks_survive_rerun(self, hermes_dir_with_dims, opencode_target_dir):
-        adapter = OpenCodeAdapter(hermes_dir=hermes_dir_with_dims, target_dir=opencode_target_dir)
+    def test_symlinks_survive_rerun(self, amaru_dir_with_dims, opencode_target_dir):
+        adapter = OpenCodeAdapter(amaru_dir=amaru_dir_with_dims, target_dir=opencode_target_dir)
         adapter.adapt()
         adapter.adapt()
         assert (opencode_target_dir / "skills" / "global" / "consejo").is_symlink()
@@ -1080,26 +1080,26 @@ class TestOpenCodeAdapterErrors:
     """Error handling tests for OpenCode adapter."""
 
     def test_no_config_fails_gracefully(self, tmp_path):
-        hdir = tmp_path / ".hermes"
+        hdir = tmp_path / ".amaru"
         hdir.mkdir()
         tdir = tmp_path / ".config" / "opencode"
         tdir.mkdir(parents=True)
-        adapter = OpenCodeAdapter(hermes_dir=hdir, target_dir=tdir)
+        adapter = OpenCodeAdapter(amaru_dir=hdir, target_dir=tdir)
         result = adapter.adapt()
         assert result.success is False
         assert any("Config error" in e for e in result.errors)
 
-    def test_missing_hermes_dir(self, tmp_path):
+    def test_missing_amaru_dir(self, tmp_path):
         hdir = tmp_path / "nonexistent"
         tdir = tmp_path / ".config" / "opencode"
         tdir.mkdir(parents=True)
-        adapter = OpenCodeAdapter(hermes_dir=hdir, target_dir=tdir)
+        adapter = OpenCodeAdapter(amaru_dir=hdir, target_dir=tdir)
         result = adapter.adapt()
         assert result.success is False
 
-    def test_target_dir_created_if_missing(self, hermes_dir, tmp_path):
+    def test_target_dir_created_if_missing(self, amaru_dir, tmp_path):
         tdir = tmp_path / "new_opencode_dir"
-        adapter = OpenCodeAdapter(hermes_dir=hermes_dir, target_dir=tdir)
+        adapter = OpenCodeAdapter(amaru_dir=amaru_dir, target_dir=tdir)
         result = adapter.adapt()
         assert result.success is True
         assert (tdir / "AGENTS.md").exists()
@@ -1112,9 +1112,9 @@ class TestOpenCodeAdapterErrors:
 class TestOpenCodeAdapterDefaults:
     """Default path tests for OpenCode adapter."""
 
-    def test_default_hermes_dir(self):
+    def test_default_amaru_dir(self):
         adapter = OpenCodeAdapter()
-        assert adapter.hermes_dir == Path.home() / ".hermes"
+        assert adapter.amaru_dir == Path.home() / ".amaru"
 
     def test_default_target_dir(self):
         adapter = OpenCodeAdapter()
@@ -1123,8 +1123,8 @@ class TestOpenCodeAdapterDefaults:
     def test_custom_dirs(self, tmp_path):
         hdir = tmp_path / "h"
         tdir = tmp_path / "t"
-        adapter = OpenCodeAdapter(hermes_dir=hdir, target_dir=tdir)
-        assert adapter.hermes_dir == hdir
+        adapter = OpenCodeAdapter(amaru_dir=hdir, target_dir=tdir)
+        assert adapter.amaru_dir == hdir
         assert adapter.target_dir == tdir
 
 
@@ -1142,8 +1142,8 @@ class TestAdapterRegistryOpenCode:
         cls = get_adapter("opencode")
         assert cls is OpenCodeAdapter
 
-    def test_run_opencode_adapter(self, hermes_dir, opencode_target_dir):
-        result = run_adapter("opencode", hermes_dir=hermes_dir, target_dir=opencode_target_dir)
+    def test_run_opencode_adapter(self, amaru_dir, opencode_target_dir):
+        result = run_adapter("opencode", amaru_dir=amaru_dir, target_dir=opencode_target_dir)
         assert result.success is True
         assert result.adapter_name == "opencode"
 
@@ -1167,15 +1167,15 @@ def gemini_target_dir(tmp_path):
 class TestGeminiCLIAdapterBasic:
     """Basic GeminiCLIAdapter tests with minimal config."""
 
-    def test_adapt_success(self, hermes_dir, gemini_target_dir):
-        adapter = GeminiCLIAdapter(hermes_dir=hermes_dir, target_dir=gemini_target_dir)
+    def test_adapt_success(self, amaru_dir, gemini_target_dir):
+        adapter = GeminiCLIAdapter(amaru_dir=amaru_dir, target_dir=gemini_target_dir)
         result = adapter.adapt()
         assert result.success is True
         assert result.adapter_name == "gemini"
         assert len(result.steps) >= 3  # config + GEMINI.md + settings.json
 
-    def test_generates_gemini_md(self, hermes_dir, gemini_target_dir):
-        adapter = GeminiCLIAdapter(hermes_dir=hermes_dir, target_dir=gemini_target_dir)
+    def test_generates_gemini_md(self, amaru_dir, gemini_target_dir):
+        adapter = GeminiCLIAdapter(amaru_dir=amaru_dir, target_dir=gemini_target_dir)
         adapter.adapt()
         gemini_md = gemini_target_dir / "GEMINI.md"
         assert gemini_md.exists()
@@ -1183,22 +1183,22 @@ class TestGeminiCLIAdapterBasic:
         assert "clan-test" in content
         assert "Test Clan" in content
 
-    def test_gemini_md_contains_identity(self, hermes_dir, gemini_target_dir):
-        adapter = GeminiCLIAdapter(hermes_dir=hermes_dir, target_dir=gemini_target_dir)
+    def test_gemini_md_contains_identity(self, amaru_dir, gemini_target_dir):
+        adapter = GeminiCLIAdapter(amaru_dir=amaru_dir, target_dir=gemini_target_dir)
         adapter.adapt()
         content = (gemini_target_dir / "GEMINI.md").read_text()
         assert "Clan ID" in content
         assert "Protocol Version" in content
 
-    def test_gemini_md_auto_generated_notice(self, hermes_dir, gemini_target_dir):
-        adapter = GeminiCLIAdapter(hermes_dir=hermes_dir, target_dir=gemini_target_dir)
+    def test_gemini_md_auto_generated_notice(self, amaru_dir, gemini_target_dir):
+        adapter = GeminiCLIAdapter(amaru_dir=amaru_dir, target_dir=gemini_target_dir)
         adapter.adapt()
         content = (gemini_target_dir / "GEMINI.md").read_text()
         assert "Auto-generated" in content
-        assert "hermes adapt gemini" in content
+        assert "amaru adapt gemini" in content
 
-    def test_gemini_md_has_markers(self, hermes_dir, gemini_target_dir):
-        adapter = GeminiCLIAdapter(hermes_dir=hermes_dir, target_dir=gemini_target_dir)
+    def test_gemini_md_has_markers(self, amaru_dir, gemini_target_dir):
+        adapter = GeminiCLIAdapter(amaru_dir=amaru_dir, target_dir=gemini_target_dir)
         adapter.adapt()
         content = (gemini_target_dir / "GEMINI.md").read_text()
         assert GeminiCLIAdapter.HEADER_MARKER in content
@@ -1211,8 +1211,8 @@ class TestGeminiCLIAdapterBasic:
 class TestGeminiCLIAdapterSkills:
     """Skill compilation and linking tests."""
 
-    def test_compiles_skills_into_gemini_md(self, hermes_dir_with_dims, gemini_target_dir):
-        adapter = GeminiCLIAdapter(hermes_dir=hermes_dir_with_dims, target_dir=gemini_target_dir)
+    def test_compiles_skills_into_gemini_md(self, amaru_dir_with_dims, gemini_target_dir):
+        adapter = GeminiCLIAdapter(amaru_dir=amaru_dir_with_dims, target_dir=gemini_target_dir)
         adapter.adapt()
         content = (gemini_target_dir / "GEMINI.md").read_text()
         assert "## Skills" in content
@@ -1220,8 +1220,8 @@ class TestGeminiCLIAdapterSkills:
         assert "Palas Skill" in content
         assert "Niky CEO" in content
 
-    def test_symlinks_skills_with_dimension_subdirs(self, hermes_dir_with_dims, gemini_target_dir):
-        adapter = GeminiCLIAdapter(hermes_dir=hermes_dir_with_dims, target_dir=gemini_target_dir)
+    def test_symlinks_skills_with_dimension_subdirs(self, amaru_dir_with_dims, gemini_target_dir):
+        adapter = GeminiCLIAdapter(amaru_dir=amaru_dir_with_dims, target_dir=gemini_target_dir)
         adapter.adapt()
         skills_dir = gemini_target_dir / "skills"
         assert (skills_dir / "global" / "consejo").is_symlink()
@@ -1229,14 +1229,14 @@ class TestGeminiCLIAdapterSkills:
         assert (skills_dir / "nymyka" / "niky-ceo").is_symlink()
         assert (skills_dir / "global" / "consejo" / "SKILL.md").read_text() == "# Consejo Skill\n"
 
-    def test_no_skills_ok(self, hermes_dir, gemini_target_dir):
-        adapter = GeminiCLIAdapter(hermes_dir=hermes_dir, target_dir=gemini_target_dir)
+    def test_no_skills_ok(self, amaru_dir, gemini_target_dir):
+        adapter = GeminiCLIAdapter(amaru_dir=amaru_dir, target_dir=gemini_target_dir)
         result = adapter.adapt()
         assert result.success is True
         assert "No dimension skills found" in result.steps
 
-    def test_reports_linked_count(self, hermes_dir_with_dims, gemini_target_dir):
-        adapter = GeminiCLIAdapter(hermes_dir=hermes_dir_with_dims, target_dir=gemini_target_dir)
+    def test_reports_linked_count(self, amaru_dir_with_dims, gemini_target_dir):
+        adapter = GeminiCLIAdapter(amaru_dir=amaru_dir_with_dims, target_dir=gemini_target_dir)
         result = adapter.adapt()
         skill_step = [s for s in result.steps if "Skills linked" in s]
         assert len(skill_step) == 1
@@ -1249,16 +1249,16 @@ class TestGeminiCLIAdapterSkills:
 class TestGeminiCLIAdapterRules:
     """Rule compilation tests."""
 
-    def test_compiles_rules_into_gemini_md(self, hermes_dir_with_dims, gemini_target_dir):
-        adapter = GeminiCLIAdapter(hermes_dir=hermes_dir_with_dims, target_dir=gemini_target_dir)
+    def test_compiles_rules_into_gemini_md(self, amaru_dir_with_dims, gemini_target_dir):
+        adapter = GeminiCLIAdapter(amaru_dir=amaru_dir_with_dims, target_dir=gemini_target_dir)
         adapter.adapt()
         content = (gemini_target_dir / "GEMINI.md").read_text()
         assert "## Rules" in content
         assert "Firewall rules" in content
         assert "SOPs" in content
 
-    def test_rules_grouped_by_dimension(self, hermes_dir_with_dims, gemini_target_dir):
-        adapter = GeminiCLIAdapter(hermes_dir=hermes_dir_with_dims, target_dir=gemini_target_dir)
+    def test_rules_grouped_by_dimension(self, amaru_dir_with_dims, gemini_target_dir):
+        adapter = GeminiCLIAdapter(amaru_dir=amaru_dir_with_dims, target_dir=gemini_target_dir)
         adapter.adapt()
         content = (gemini_target_dir / "GEMINI.md").read_text()
         assert "Dimension: nymyka" in content
@@ -1270,22 +1270,22 @@ class TestGeminiCLIAdapterRules:
 class TestGeminiCLIAdapterBus:
     """Bus symlink tests for Gemini CLI."""
 
-    def test_links_bus(self, hermes_dir_with_bus, gemini_target_dir):
-        adapter = GeminiCLIAdapter(hermes_dir=hermes_dir_with_bus, target_dir=gemini_target_dir)
+    def test_links_bus(self, amaru_dir_with_bus, gemini_target_dir):
+        adapter = GeminiCLIAdapter(amaru_dir=amaru_dir_with_bus, target_dir=gemini_target_dir)
         adapter.adapt()
         bus_link = gemini_target_dir / "bus.jsonl"
         assert bus_link.is_symlink()
         assert "test message" in bus_link.read_text()
 
-    def test_bus_resolves_to_hermes(self, hermes_dir_with_bus, gemini_target_dir):
-        adapter = GeminiCLIAdapter(hermes_dir=hermes_dir_with_bus, target_dir=gemini_target_dir)
+    def test_bus_resolves_to_amaru(self, amaru_dir_with_bus, gemini_target_dir):
+        adapter = GeminiCLIAdapter(amaru_dir=amaru_dir_with_bus, target_dir=gemini_target_dir)
         adapter.adapt()
         bus_link = gemini_target_dir / "bus.jsonl"
         resolved = bus_link.resolve()
-        assert ".hermes" in str(resolved)
+        assert ".amaru" in str(resolved)
 
-    def test_no_bus_no_error(self, hermes_dir, gemini_target_dir):
-        adapter = GeminiCLIAdapter(hermes_dir=hermes_dir, target_dir=gemini_target_dir)
+    def test_no_bus_no_error(self, amaru_dir, gemini_target_dir):
+        adapter = GeminiCLIAdapter(amaru_dir=amaru_dir, target_dir=gemini_target_dir)
         result = adapter.adapt()
         assert result.success is True
         assert "Bus symlink unchanged" in result.steps
@@ -1297,8 +1297,8 @@ class TestGeminiCLIAdapterBus:
 class TestGeminiCLIAdapterSettingsJson:
     """settings.json generation and merge tests."""
 
-    def test_generates_settings_json(self, hermes_dir, gemini_target_dir):
-        adapter = GeminiCLIAdapter(hermes_dir=hermes_dir, target_dir=gemini_target_dir)
+    def test_generates_settings_json(self, amaru_dir, gemini_target_dir):
+        adapter = GeminiCLIAdapter(amaru_dir=amaru_dir, target_dir=gemini_target_dir)
         adapter.adapt()
         import json
 
@@ -1306,16 +1306,16 @@ class TestGeminiCLIAdapterSettingsJson:
         assert "context" in config
         assert "GEMINI.md" in config["context"]["fileName"]
 
-    def test_json_has_hermes_metadata(self, hermes_dir, gemini_target_dir):
-        adapter = GeminiCLIAdapter(hermes_dir=hermes_dir, target_dir=gemini_target_dir)
+    def test_json_has_amaru_metadata(self, amaru_dir, gemini_target_dir):
+        adapter = GeminiCLIAdapter(amaru_dir=amaru_dir, target_dir=gemini_target_dir)
         adapter.adapt()
         import json
 
         config = json.loads((gemini_target_dir / "settings.json").read_text())
-        assert config["_hermes"]["managed_by"] == "hermes adapt gemini"
-        assert config["_hermes"]["clan_id"] == "clan-test"
+        assert config["_amaru"]["managed_by"] == "amaru adapt gemini"
+        assert config["_amaru"]["clan_id"] == "clan-test"
 
-    def test_merge_preserves_user_keys(self, hermes_dir, gemini_target_dir):
+    def test_merge_preserves_user_keys(self, amaru_dir, gemini_target_dir):
         """User-configured keys in settings.json are preserved during merge."""
         import json
 
@@ -1327,7 +1327,7 @@ class TestGeminiCLIAdapterSettingsJson:
         }
         (gemini_target_dir / "settings.json").write_text(json.dumps(user_config))
 
-        adapter = GeminiCLIAdapter(hermes_dir=hermes_dir, target_dir=gemini_target_dir)
+        adapter = GeminiCLIAdapter(amaru_dir=amaru_dir, target_dir=gemini_target_dir)
         adapter.adapt()
 
         config = json.loads((gemini_target_dir / "settings.json").read_text())
@@ -1339,16 +1339,16 @@ class TestGeminiCLIAdapterSettingsJson:
         assert "MY_RULES.md" in config["context"]["fileName"]
         assert "GEMINI.md" in config["context"]["fileName"]
         # HERMES metadata added
-        assert "_hermes" in config
+        assert "_amaru" in config
 
-    def test_handles_filename_as_string(self, hermes_dir, gemini_target_dir):
+    def test_handles_filename_as_string(self, amaru_dir, gemini_target_dir):
         """Gemini CLI accepts fileName as string — adapter converts to list."""
         import json
 
         user_config = {"context": {"fileName": "MY_RULES.md"}}
         (gemini_target_dir / "settings.json").write_text(json.dumps(user_config))
 
-        adapter = GeminiCLIAdapter(hermes_dir=hermes_dir, target_dir=gemini_target_dir)
+        adapter = GeminiCLIAdapter(amaru_dir=amaru_dir, target_dir=gemini_target_dir)
         adapter.adapt()
 
         config = json.loads((gemini_target_dir / "settings.json").read_text())
@@ -1356,11 +1356,11 @@ class TestGeminiCLIAdapterSettingsJson:
         assert "MY_RULES.md" in config["context"]["fileName"]
         assert "GEMINI.md" in config["context"]["fileName"]
 
-    def test_handles_corrupt_json(self, hermes_dir, gemini_target_dir):
+    def test_handles_corrupt_json(self, amaru_dir, gemini_target_dir):
         """Corrupt settings.json is replaced with fresh config (not crash)."""
         (gemini_target_dir / "settings.json").write_text("{invalid json!!!}")
 
-        adapter = GeminiCLIAdapter(hermes_dir=hermes_dir, target_dir=gemini_target_dir)
+        adapter = GeminiCLIAdapter(amaru_dir=amaru_dir, target_dir=gemini_target_dir)
         result = adapter.adapt()
 
         assert result.success is True
@@ -1369,14 +1369,14 @@ class TestGeminiCLIAdapterSettingsJson:
         config = json.loads((gemini_target_dir / "settings.json").read_text())
         assert "GEMINI.md" in config["context"]["fileName"]
 
-    def test_handles_non_dict_context(self, hermes_dir, gemini_target_dir):
+    def test_handles_non_dict_context(self, amaru_dir, gemini_target_dir):
         """If context field is not a dict, it gets replaced."""
         import json
 
         user_config = {"context": "bad"}
         (gemini_target_dir / "settings.json").write_text(json.dumps(user_config))
 
-        adapter = GeminiCLIAdapter(hermes_dir=hermes_dir, target_dir=gemini_target_dir)
+        adapter = GeminiCLIAdapter(amaru_dir=amaru_dir, target_dir=gemini_target_dir)
         adapter.adapt()
 
         config = json.loads((gemini_target_dir / "settings.json").read_text())
@@ -1390,15 +1390,15 @@ class TestGeminiCLIAdapterSettingsJson:
 class TestGeminiCLIAdapterPeers:
     """Peer display in GEMINI.md."""
 
-    def test_gemini_md_includes_peers(self, hermes_dir_with_peers, gemini_target_dir):
-        adapter = GeminiCLIAdapter(hermes_dir=hermes_dir_with_peers, target_dir=gemini_target_dir)
+    def test_gemini_md_includes_peers(self, amaru_dir_with_peers, gemini_target_dir):
+        adapter = GeminiCLIAdapter(amaru_dir=amaru_dir_with_peers, target_dir=gemini_target_dir)
         adapter.adapt()
         content = (gemini_target_dir / "GEMINI.md").read_text()
         assert "clan-jei" in content
         assert "established" in content
 
-    def test_no_peers_section_when_empty(self, hermes_dir, gemini_target_dir):
-        adapter = GeminiCLIAdapter(hermes_dir=hermes_dir, target_dir=gemini_target_dir)
+    def test_no_peers_section_when_empty(self, amaru_dir, gemini_target_dir):
+        adapter = GeminiCLIAdapter(amaru_dir=amaru_dir, target_dir=gemini_target_dir)
         adapter.adapt()
         content = (gemini_target_dir / "GEMINI.md").read_text()
         assert "## Peers" not in content
@@ -1410,29 +1410,29 @@ class TestGeminiCLIAdapterPeers:
 class TestGeminiCLIAdapterIdempotency:
     """Gemini CLI adapter is safe to run multiple times."""
 
-    def test_run_twice_no_errors(self, hermes_dir_with_dims, gemini_target_dir):
-        adapter = GeminiCLIAdapter(hermes_dir=hermes_dir_with_dims, target_dir=gemini_target_dir)
+    def test_run_twice_no_errors(self, amaru_dir_with_dims, gemini_target_dir):
+        adapter = GeminiCLIAdapter(amaru_dir=amaru_dir_with_dims, target_dir=gemini_target_dir)
         r1 = adapter.adapt()
         r2 = adapter.adapt()
         assert r1.success is True
         assert r2.success is True
 
-    def test_run_twice_unchanged(self, hermes_dir_with_dims, gemini_target_dir):
-        adapter = GeminiCLIAdapter(hermes_dir=hermes_dir_with_dims, target_dir=gemini_target_dir)
+    def test_run_twice_unchanged(self, amaru_dir_with_dims, gemini_target_dir):
+        adapter = GeminiCLIAdapter(amaru_dir=amaru_dir_with_dims, target_dir=gemini_target_dir)
         adapter.adapt()
         r2 = adapter.adapt()
         assert "GEMINI.md unchanged" in r2.steps
         assert "settings.json unchanged" in r2.steps
 
-    def test_preserves_user_content(self, hermes_dir, gemini_target_dir):
+    def test_preserves_user_content(self, amaru_dir, gemini_target_dir):
         """User content outside HERMES markers is preserved in GEMINI.md."""
         gemini_md = gemini_target_dir / "GEMINI.md"
         gemini_md.write_text(
             "# My Project Context\n\nCustom instructions.\n\n"
-            "<!-- HERMES:BEGIN -->\nold hermes content\n<!-- HERMES:END -->\n\n"
+            "<!-- Amaru:BEGIN -->\nold amaru content\n<!-- Amaru:END -->\n\n"
             "# More Context\n\nAdditional rules.\n"
         )
-        adapter = GeminiCLIAdapter(hermes_dir=hermes_dir, target_dir=gemini_target_dir)
+        adapter = GeminiCLIAdapter(amaru_dir=amaru_dir, target_dir=gemini_target_dir)
         adapter.adapt()
         content = gemini_md.read_text()
         assert "My Project Context" in content
@@ -1440,10 +1440,10 @@ class TestGeminiCLIAdapterIdempotency:
         assert "More Context" in content
         assert "Additional rules" in content
         assert "clan-test" in content
-        assert "old hermes content" not in content
+        assert "old amaru content" not in content
 
-    def test_symlinks_survive_rerun(self, hermes_dir_with_dims, gemini_target_dir):
-        adapter = GeminiCLIAdapter(hermes_dir=hermes_dir_with_dims, target_dir=gemini_target_dir)
+    def test_symlinks_survive_rerun(self, amaru_dir_with_dims, gemini_target_dir):
+        adapter = GeminiCLIAdapter(amaru_dir=amaru_dir_with_dims, target_dir=gemini_target_dir)
         adapter.adapt()
         adapter.adapt()
         assert (gemini_target_dir / "skills" / "global" / "consejo").is_symlink()
@@ -1457,26 +1457,26 @@ class TestGeminiCLIAdapterErrors:
     """Error handling tests for Gemini CLI adapter."""
 
     def test_no_config_fails_gracefully(self, tmp_path):
-        hdir = tmp_path / ".hermes"
+        hdir = tmp_path / ".amaru"
         hdir.mkdir()
         tdir = tmp_path / ".gemini"
         tdir.mkdir()
-        adapter = GeminiCLIAdapter(hermes_dir=hdir, target_dir=tdir)
+        adapter = GeminiCLIAdapter(amaru_dir=hdir, target_dir=tdir)
         result = adapter.adapt()
         assert result.success is False
         assert any("Config error" in e for e in result.errors)
 
-    def test_missing_hermes_dir(self, tmp_path):
+    def test_missing_amaru_dir(self, tmp_path):
         hdir = tmp_path / "nonexistent"
         tdir = tmp_path / ".gemini"
         tdir.mkdir()
-        adapter = GeminiCLIAdapter(hermes_dir=hdir, target_dir=tdir)
+        adapter = GeminiCLIAdapter(amaru_dir=hdir, target_dir=tdir)
         result = adapter.adapt()
         assert result.success is False
 
-    def test_target_dir_created_if_missing(self, hermes_dir, tmp_path):
+    def test_target_dir_created_if_missing(self, amaru_dir, tmp_path):
         tdir = tmp_path / "new_gemini_dir"
-        adapter = GeminiCLIAdapter(hermes_dir=hermes_dir, target_dir=tdir)
+        adapter = GeminiCLIAdapter(amaru_dir=amaru_dir, target_dir=tdir)
         result = adapter.adapt()
         assert result.success is True
         assert (tdir / "GEMINI.md").exists()
@@ -1489,9 +1489,9 @@ class TestGeminiCLIAdapterErrors:
 class TestGeminiCLIAdapterDefaults:
     """Default path tests for Gemini CLI adapter."""
 
-    def test_default_hermes_dir(self):
+    def test_default_amaru_dir(self):
         adapter = GeminiCLIAdapter()
-        assert adapter.hermes_dir == Path.home() / ".hermes"
+        assert adapter.amaru_dir == Path.home() / ".amaru"
 
     def test_default_target_dir(self):
         adapter = GeminiCLIAdapter()
@@ -1500,8 +1500,8 @@ class TestGeminiCLIAdapterDefaults:
     def test_custom_dirs(self, tmp_path):
         hdir = tmp_path / "h"
         tdir = tmp_path / "t"
-        adapter = GeminiCLIAdapter(hermes_dir=hdir, target_dir=tdir)
-        assert adapter.hermes_dir == hdir
+        adapter = GeminiCLIAdapter(amaru_dir=hdir, target_dir=tdir)
+        assert adapter.amaru_dir == hdir
         assert adapter.target_dir == tdir
 
 
@@ -1519,8 +1519,8 @@ class TestAdapterRegistryGemini:
         cls = get_adapter("gemini")
         assert cls is GeminiCLIAdapter
 
-    def test_run_gemini_adapter(self, hermes_dir, gemini_target_dir):
-        result = run_adapter("gemini", hermes_dir=hermes_dir, target_dir=gemini_target_dir)
+    def test_run_gemini_adapter(self, amaru_dir, gemini_target_dir):
+        result = run_adapter("gemini", amaru_dir=amaru_dir, target_dir=gemini_target_dir)
         assert result.success is True
         assert result.adapter_name == "gemini"
 

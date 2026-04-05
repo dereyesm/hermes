@@ -1,6 +1,6 @@
 # Industry Research — Agentic Organizations
 
-> Curated research on industry frameworks that validate and inform HERMES protocol design.
+> Curated research on industry frameworks that validate and inform Amaru protocol design.
 > This document complements [RESEARCH-AGENDA.md](RESEARCH-AGENDA.md) (technical research lines)
 > and [USE-CASES-PRESENTATION.md](USE-CASES-PRESENTATION.md) (market positioning).
 
@@ -77,7 +77,7 @@
 
 ## 2. HERMES Alignment Map
 
-How HERMES protocol components map to McKinsey's 15 transformation themes:
+How Amaru protocol components map to McKinsey's 15 transformation themes:
 
 | McKinsey Theme | HERMES Component | Spec | Status |
 |---|---|---|---|

@@ -2,11 +2,11 @@
 
 Tracks input/output tokens, estimates cost, persists to JSONL, and produces
 aggregated summaries by backend and model. Designed for integration with the
-HERMES AdapterManager so every LLM call is automatically instrumented.
+Amaru AdapterManager so every LLM call is automatically instrumented.
 
 Usage::
 
-    tracker = TokenTracker(file_path=Path("~/.hermes/telemetry.jsonl"))
+    tracker = TokenTracker(file_path=Path("~/.amaru/telemetry.jsonl"))
     event = tracker.record(llm_response)
     summary = tracker.summary()
     print(f"Total: {summary.total_tokens} tokens, ${summary.total_cost_usd:.4f}")

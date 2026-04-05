@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from hermes.llm.skill import SkillContext, SkillLoader
+from amaru.llm.skill import SkillContext, SkillLoader
 
 
 @pytest.fixture
@@ -175,10 +175,10 @@ def test_to_system_prompt_basic(tmp_path, loader):
 def test_to_system_prompt_with_context(tmp_path, loader):
     (tmp_path / "SKILL.md").write_text("---\nname: ctx\n---\nBody.")
     ctx = loader.load(tmp_path)
-    prompt = loader.to_system_prompt(ctx, context={"date": "2026-03-31", "dim": "hermes"})
+    prompt = loader.to_system_prompt(ctx, context={"date": "2026-03-31", "dim": "amaru"})
     assert "## Context" in prompt
     assert "- date: 2026-03-31" in prompt
-    assert "- dim: hermes" in prompt
+    assert "- dim: amaru" in prompt
 
 
 def test_to_system_prompt_no_context(tmp_path, loader):

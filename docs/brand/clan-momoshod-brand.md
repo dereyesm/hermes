@@ -96,7 +96,7 @@ the mono version.
 
 | Artifact | Symbol Use | Palette | Typography |
 |----------|-----------|---------|------------|
-| HERMES specs (ARC/ATR) | None (protocol is neutral) | Indigo + White | JetBrains Mono + Inter |
+| Amaru specs (ARC/ATR) | None (protocol is neutral) | Indigo + White | JetBrains Mono + Inter |
 | Clan communications (PDF) | Watermark, corner | Full palette | All three families |
 | Quest proposals | Header, small | Gold + Indigo | JetBrains Mono + Cormorant |
 | Relay messages | None (encrypted) | N/A | N/A |
@@ -112,12 +112,12 @@ a broader personal brand:
 
 | Brand | Scope | Symbol | Aesthetic |
 |-------|-------|--------|-----------|
-| **Clan momoshod** | HERMES protocol, inter-clan comms | Techno-Amaru ouroboros | Andean + circuit fusion |
+| **Clan momoshod** | Amaru protocol, inter-clan comms | Techno-Amaru ouroboros | Andean + circuit fusion |
 | **Daniel Reyes** | Professional, conferences, editorial | TBD (separate document) | Tech leader, philosophy, art |
 | **MomoshoD** | Editorial (La Voluntad de D., Nakama) | Infinity symbol (established) | Literary, intimate |
-| **HERMES Protocol** | Open-source project (neutral) | Protocol logo (separate) | Clean technical |
+| **Amaru Protocol** | Open-source project (neutral) | Protocol logo (separate) | Clean technical |
 
 The Techno-Amaru is specifically for clan identity — it appears on clan
 communications, quest proposals, and bilateral documents. It does NOT
-appear on HERMES protocol specs (which must be clan-neutral) or on
+appear on Amaru protocol specs (which must be clan-neutral) or on
 MomoshoD editorial content (which has its own identity).

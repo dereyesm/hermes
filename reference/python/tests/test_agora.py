@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from hermes.agora import AgoraDirectory
+from amaru.agora import AgoraDirectory
 
 # ─── Fixtures ──────────────────────────────────────────────────────
 

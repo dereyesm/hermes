@@ -1,4 +1,4 @@
-"""HERMES Agent Gateway — ARC-3022 Reference Implementation.
+"""Amaru Agent Gateway — ARC-3022 Reference Implementation.
 
 Identity translation (NAT), outbound filtering, inbound validation,
 attestation storage, Resonance computation, and profile publication

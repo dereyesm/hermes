@@ -1,4 +1,4 @@
-"""HERMES Hub Mode — Server-side Agent Node (ARC-4601 §15).
+"""Amaru Hub Mode — Server-side Agent Node (ARC-4601 §15).
 
 A Hub accepts WebSocket connections from peer daemons, routes encrypted
 messages between them, and provides store-and-forward for offline peers.
@@ -23,7 +23,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-logger = logging.getLogger("hermes.hub")
+logger = logging.getLogger("amaru.hub")
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -870,7 +870,7 @@ class HubServer:
         Returns (clan_id, role, remote_peers) on success, (None, "", []) on failure.
         Role is "hub" for S2S connections, "peer" for regular peers.
         """
-        from hermes import __version__
+        from amaru import __version__
 
         fail: tuple[str | None, str, list[str]] = (None, "", [])
 
@@ -1234,7 +1234,7 @@ class HubServer:
     @staticmethod
     def _get_version() -> str:
         try:
-            from hermes import __version__
+            from amaru import __version__
             return __version__
         except Exception:
             return "0.4.2a1"
@@ -1279,7 +1279,7 @@ def cmd_hub_start(hub_dir: Path, foreground: bool = False) -> int:
     peers_path = hub_dir / config.peers_file
     if not peers_path.exists():
         print(f"Error: peers file not found: {peers_path}")
-        print("  Run 'hermes hub init' to generate it from your peer registry.")
+        print("  Run 'amaru hub init' to generate it from your peer registry.")
         return 1
 
     # PID lock
@@ -1468,7 +1468,7 @@ def cmd_hub_listen(hub_dir: Path, daemon: bool = False) -> int:
         clan_id = gw.clan_id
         key_path = hub_dir / gw.keys_private
     except Exception:
-        print("Error: cannot load clan config. Run 'hermes init' first.")
+        print("Error: cannot load clan config. Run 'amaru init' first.")
         return 1
 
     if not key_path.exists():

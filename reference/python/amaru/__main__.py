@@ -1,4 +1,4 @@
-"""Allow running HERMES CLI via: python -m hermes"""
+"""Allow running Amaru CLI via: python -m amaru"""
 
 import sys
 

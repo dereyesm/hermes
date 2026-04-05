@@ -1,6 +1,6 @@
-"""HERMES Agent Node — ARC-4601 Reference Implementation.
+"""Amaru Agent Node — ARC-4601 Reference Implementation.
 
-A persistent local daemon that observes the HERMES bus continuously,
+A persistent local daemon that observes the Amaru bus continuously,
 maintains a bidirectional link with a remote gateway, and dispatches
 sub-agent processes with defined guardrails.
 
@@ -29,7 +29,7 @@ from urllib.request import Request, urlopen
 from .bus import filter_for_namespace, read_bus, write_message
 from .message import Message, ValidationError, create_message, validate_message
 
-logger = logging.getLogger("hermes.agent")
+logger = logging.getLogger("amaru.agent")
 
 
 def _sanitize_payload(text: str) -> str:
@@ -824,7 +824,7 @@ class MessageEvaluator:
 # LLM Triage Evaluator
 # ---------------------------------------------------------------------------
 
-_TRIAGE_PROMPT = """You are a HERMES message triage agent. Classify the incoming bus message.
+_TRIAGE_PROMPT = """You are a Amaru message triage agent. Classify the incoming bus message.
 
 Respond with EXACTLY one word:
 - DISPATCH — actionable task, should be executed autonomously
@@ -1470,7 +1470,7 @@ class AgentNode:
                         from .installer import send_notification
 
                         send_notification(
-                            f"HERMES — {msg.type}",
+                            f"Amaru — {msg.type}",
                             msg.msg[:120],
                         )
                         self.asp_throttler.record(msg.src)

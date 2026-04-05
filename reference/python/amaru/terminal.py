@@ -1,6 +1,6 @@
-"""HERMES Terminal — Brand-aware CLI output.
+"""Amaru Terminal — Brand-aware CLI output.
 
-Uses `rich` for styled terminal output aligned with the HERMES brand kit.
+Uses `rich` for styled terminal output aligned with the Amaru brand kit.
 Falls back gracefully to plain text if rich is not installed.
 
 Brand colors (AES-2040 / BRAND-MANUAL.md):
@@ -136,7 +136,7 @@ def print_clan_status(
                 pres_str = f"  [{presence}]" if presence else ""
                 print(f"  {p.clan_id:24s} status:{p.status}  added:{p.added}{pres_str}")
         else:
-            print("No peers. Run 'hermes peer add <clan-id>'.")
+            print("No peers. Run 'amaru peer add <clan-id>'.")
         return
 
     console = Console()
@@ -237,7 +237,7 @@ def print_clan_status(
             t.add_row(p.clan_id, Text(p.status, style=status_style), pres_text, p.added)
         console.print(t)
     else:
-        console.print("  [dim]No peers. Run 'hermes peer add <clan-id>'.[/dim]")
+        console.print("  [dim]No peers. Run 'amaru peer add <clan-id>'.[/dim]")
 
 
 # ---------------------------------------------------------------------------
@@ -311,7 +311,7 @@ def print_daemon_status(
         t.add_row("Last eval", Text(eval_text, style=SLATE))
 
     title = Text()
-    title.append(" HERMES ", style="bold white")
+    title.append(" Amaru ", style="bold white")
     title.append("Agent Node", style="bold")
 
     console.print(Panel(t, title=title, border_style=TEAL if alive else CRIMSON))
@@ -369,7 +369,7 @@ def print_inbox(clan_id: str, messages: list[dict]) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Bus display (for future `hermes bus` command)
+# Bus display (for future `amaru bus` command)
 # ---------------------------------------------------------------------------
 
 

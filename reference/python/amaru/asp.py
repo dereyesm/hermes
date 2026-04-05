@@ -1,4 +1,4 @@
-"""HERMES Agent Service Platform — ARC-0369 Reference Implementation.
+"""Amaru Agent Service Platform — ARC-0369 Reference Implementation.
 
 F1: Bus Convergence — message classification (internal/outbound/inbound/expired).
 F2: Agent Registration — declarative profiles, registry, dispatch rule matching.
@@ -27,7 +27,7 @@ from .message import Message
 if TYPE_CHECKING:
     from .integrity import OwnershipRegistry
 
-logger = logging.getLogger("hermes.asp")
+logger = logging.getLogger("amaru.asp")
 
 
 # ---------------------------------------------------------------------------

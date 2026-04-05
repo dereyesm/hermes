@@ -5,7 +5,7 @@ import tomllib
 
 import pytest
 
-from hermes.config import (
+from amaru.config import (
     CONFIG_SCHEMA_VERSION,
     GatewayConfig,
     PeerConfig,

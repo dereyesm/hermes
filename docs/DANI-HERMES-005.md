@@ -25,7 +25,7 @@ validation a spec can get. This is exactly what open standards need.
 ## 2. Bruja's Security Review — Status Report
 
 Bruja's review is thorough and professional. Here is the current status of each
-finding against the HERMES codebase:
+finding against the Amaru codebase:
 
 | # | Finding | Severity | Status | Evidence |
 |---|---------|----------|--------|----------|

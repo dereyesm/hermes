@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from hermes.llm.adapters import LLMResponse
-from hermes.llm.telemetry import (
+from amaru.llm.adapters import LLMResponse
+from amaru.llm.telemetry import (
     COST_PER_MTOK,
     BackendUsage,
     TokenEvent,

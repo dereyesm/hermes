@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from hermes.agent import (
+from amaru.agent import (
     Action,
     AgentNode,
     AgentNodeConfig,
@@ -24,7 +24,7 @@ from hermes.agent import (
     StateManager,
     load_agent_config,
 )
-from hermes.message import Message, create_message
+from amaru.message import Message, create_message
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -600,7 +600,7 @@ class TestAgentNodeLifecycle:
 
 class TestCLICommands:
     def test_daemon_status_not_running(self, tmp_clan, capsys):
-        from hermes.agent import cmd_daemon_status
+        from amaru.agent import cmd_daemon_status
 
         ret = cmd_daemon_status(tmp_clan)
         assert ret == 0
@@ -608,7 +608,7 @@ class TestCLICommands:
         assert "not running" in captured.out
 
     def test_daemon_stop_not_running(self, tmp_clan, capsys):
-        from hermes.agent import cmd_daemon_stop
+        from amaru.agent import cmd_daemon_stop
 
         ret = cmd_daemon_stop(tmp_clan)
         assert ret == 1
@@ -616,7 +616,7 @@ class TestCLICommands:
         assert "No agent node" in captured.out
 
     def test_daemon_start_no_config(self, tmp_clan, capsys):
-        from hermes.agent import cmd_daemon_start
+        from amaru.agent import cmd_daemon_start
 
         ret = cmd_daemon_start(tmp_clan)
         assert ret == 1
@@ -727,7 +727,7 @@ class TestASPInitialization:
         state = NodeState(pid=1, started_at="now")
         node._init_asp(state)
 
-        from hermes.asp import AgentState
+        from amaru.asp import AgentState
 
         assert node.asp_state_tracker.get_state("scanner") == AgentState.ACTIVE
 
@@ -763,7 +763,7 @@ class TestASPInitialization:
         node._init_asp(state)
 
         # set_active on IDLE → ACTIVE
-        from hermes.asp import AgentState
+        from amaru.asp import AgentState
 
         assert node.asp_state_tracker.get_state("scanner") == AgentState.ACTIVE
         # Dispatch count preserved
@@ -1026,7 +1026,7 @@ class TestHubInboxLoop:
         asyncio.run(run_once())
 
         # Verify message was bridged
-        from hermes.bus import read_bus
+        from amaru.bus import read_bus
         messages = read_bus(bus)
         assert len(messages) >= 1
         bridged = [m for m in messages if m.src == "jei"]
@@ -1061,7 +1061,7 @@ class TestHubInboxLoop:
 
         asyncio.run(run_once())
 
-        from hermes.bus import read_bus
+        from amaru.bus import read_bus
         messages = read_bus(bus)
         assert len(messages) == 0
 
@@ -1130,7 +1130,7 @@ class TestHubInboxLoop:
 
         asyncio.run(run_once())
 
-        from hermes.bus import read_bus
+        from amaru.bus import read_bus
         messages = read_bus(bus)
         jei_msgs = [m for m in messages if m.src == "jei"]
         assert len(jei_msgs) == 1
@@ -1362,7 +1362,7 @@ class TestAutoPeerDiscovery:
         gw = json.loads((peer_config.clan_dir / "gateway.json").read_text())
         assert any(p["clan_id"] == "jei" for p in gw.get("peers", []))
 
-        from hermes.bus import read_bus
+        from amaru.bus import read_bus
 
         messages = read_bus(bus)
         assert any(m.src == "jei" for m in messages)

@@ -2,7 +2,7 @@
 
 > *"The sad truth is that most evil is done by people who never make up their minds to be good or evil."* — Hannah Arendt
 
-This document defines the ethical boundaries of the HERMES protocol. It is not a legal disclaimer. It is a set of commitments — things HERMES will never do, patterns it will never enable, and principles that override convenience, growth metrics, or competitive pressure.
+This document defines the ethical boundaries of the Amaru protocol. It is not a legal disclaimer. It is a set of commitments — things HERMES will never do, patterns it will never enable, and principles that override convenience, growth metrics, or competitive pressure.
 
 These anti-patterns are as much a part of the protocol specification as ARC-5322 or ARC-8446. Violating them is a protocol violation.
 
@@ -32,7 +32,7 @@ Your bus, your keys, your identity, your quest history — all live on your mach
 
 If HERMES connects to a hub (Hosted mode), the hub sees routing metadata — not message content (ARC-8446 E2E encryption ensures this). The hub is a relay, not a database.
 
-**The test**: Can you `rm -rf ~/.hermes/` and know that nothing remains anywhere? If yes, we're still aligned.
+**The test**: Can you `rm -rf ~/.amaru/` and know that nothing remains anywhere? If yes, we're still aligned.
 
 ### 4. HERMES Will Never Replace Human Connection
 
@@ -85,7 +85,7 @@ To prevent gamification decay:
 | A quest gives bad advice | Quest creator + peer reviewers | Quest is flagged, reviewed, corrected or removed |
 | A clan leader abuses power | Governance Council (when formed) | Leader removed, members migrate freely |
 | AI agent gives harmful guidance | The human using it | HERMES is a communication protocol, not an AI provider. The agent's behavior is governed by the agent provider's policies. |
-| Someone monetizes a HERMES fork | No one — MIT license allows this | But it cannot use the HERMES trademark if it violates these ethics. |
+| Someone monetizes an Amaru fork | No one — MIT license allows this | But it cannot use the Amaru trademark if it violates these ethics. |
 | Protocol design enables harm | HERMES maintainers | Design is reviewed, spec is updated, affected parties are notified. |
 
 ### Disclaimers
