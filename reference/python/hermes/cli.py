@@ -558,7 +558,14 @@ def cmd_peer_accept(args: argparse.Namespace) -> int:
 
 
 def cmd_send(args: argparse.Namespace) -> int:
-    """Send a message to a peer clan via Agora inbox."""
+    """Send a message to a peer clan via hub websocket.
+
+    Tries local hub first, falls back to direct peer hub connection
+    using ws_uri from federation-peers.json.
+    """
+    import asyncio
+    from datetime import datetime, timezone
+
     clan_dir = _resolve_clan_dir(args)
     try:
         config, gateway, agora = _load_gateway(clan_dir)
@@ -567,25 +574,97 @@ def cmd_send(args: argparse.Namespace) -> int:
         return 1
 
     target = args.target_clan
-    payload = args.message
+    msg_text = args.message
+    msg_type = getattr(args, "type", "event") or "event"
 
-    # Check outbound filter
-    allowed, reason = gateway.outbound_filter.evaluate("quest_response", payload)
-    if not allowed:
-        print(f"Blocked by outbound filter: {reason}", file=sys.stderr)
+    # Load keys
+    key_path = clan_dir / config.keys_private
+    if not key_path.exists():
+        print(f"Error: key file not found: {key_path}", file=sys.stderr)
         return 1
 
-    message = {
-        "type": "quest_response",
-        "source_clan": config.clan_id,
-        "target_clan": target,
-        "payload": payload,
-        "timestamp": date.today().isoformat(),
+    try:
+        key_data = json.loads(key_path.read_text())
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+        sign_priv = Ed25519PrivateKey.from_private_bytes(
+            bytes.fromhex(key_data["sign_private"])
+        )
+        sign_pub_hex = key_data.get("sign_public", "")
+        if not sign_pub_hex:
+            sign_pub_hex = sign_priv.public_key().public_bytes_raw().hex()
+    except Exception as e:
+        print(f"Error loading keys: {e}", file=sys.stderr)
+        return 1
+
+    # Build hub URIs to try: local hub first, then direct peer hubs
+    hub_uris = ["ws://127.0.0.1:8443"]
+    fed_path = clan_dir / "federation-peers.json"
+    if fed_path.exists():
+        try:
+            fed = json.loads(fed_path.read_text())
+            for _hub_id, info in fed.get("hubs", {}).items():
+                uri = info.get("ws_uri", "")
+                if uri and uri not in hub_uris:
+                    hub_uris.append(uri)
+        except Exception:
+            pass
+
+    payload = {
+        "src": config.clan_id,
+        "dst": target,
+        "type": msg_type,
+        "ts": datetime.now(timezone.utc).isoformat(),
+        "msg": msg_text,
     }
 
-    path = agora.send_message(target, message)
-    print(f"Message sent to {target}: {path}")
-    return 0
+    async def _send() -> str:
+        import websockets
+
+        for uri in hub_uris:
+            try:
+                async with websockets.connect(uri, open_timeout=5) as ws:
+                    # Auth
+                    await ws.send(
+                        json.dumps(
+                            {
+                                "type": "hello",
+                                "clan_id": config.clan_id,
+                                "sign_pub": sign_pub_hex,
+                            }
+                        )
+                    )
+                    resp = json.loads(await asyncio.wait_for(ws.recv(), timeout=5))
+                    if resp.get("type") != "challenge":
+                        continue
+                    sig = sign_priv.sign(bytes.fromhex(resp["nonce"])).hex()
+                    await ws.send(json.dumps({"type": "auth", "nonce_response": sig}))
+                    resp2 = json.loads(await asyncio.wait_for(ws.recv(), timeout=5))
+                    if resp2.get("type") != "auth_ok":
+                        continue
+
+                    # Drain queue + roster
+                    depth = resp2.get("queue_depth", 0)
+                    for _ in range(depth):
+                        await asyncio.wait_for(ws.recv(), timeout=5)
+                    try:
+                        await asyncio.wait_for(ws.recv(), timeout=2)
+                    except asyncio.TimeoutError:
+                        pass
+
+                    # Send
+                    await ws.send(
+                        json.dumps({"type": "msg", "payload": payload})
+                    )
+                    via = "local hub" if "127.0.0.1" in uri else f"direct ({uri})"
+                    return f"delivered via {via}"
+            except Exception:
+                continue
+        return "failed — no hub reachable"
+
+    result = asyncio.run(_send())
+    print(f"[{msg_type}] {config.clan_id} → {target}: {result}")
+    return 0 if "delivered" in result else 1
 
 
 def cmd_inbox(args: argparse.Namespace) -> int:
@@ -1164,10 +1243,11 @@ def build_parser() -> argparse.ArgumentParser:
     _add_dir_arg(p_peer_accept)
 
     # send
-    p_send = sub.add_parser("send", help="Send message to peer")
+    p_send = sub.add_parser("send", help="Send message to peer via hub")
     p_send.add_argument("target_clan", help="Target clan ID")
-    p_send.add_argument("message", help="Message payload")
-    # Note: --compact not supported for send (uses Agora JSON transport, not bus compact encoding)
+    p_send.add_argument("message", help="Message text")
+    p_send.add_argument("--type", default="event", choices=["event", "dispatch", "alert", "state"],
+                        help="Message type (default: event)")
     _add_dir_arg(p_send)
 
     # inbox
