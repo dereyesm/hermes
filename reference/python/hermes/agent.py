@@ -1208,14 +1208,19 @@ class AgentNode:
                     slot = await self.dispatcher.dispatch(trigger, cid)
                     result = await self.dispatcher.wait_slot(slot)
                     self.asp_concurrency.decrement(decision.agent_id)
+                    # Determine response destination: reply to sender if cross-clan
+                    reply_dst = "*"
+                    if decision.trigger_msg and decision.trigger_msg.src != self.config.namespace:
+                        reply_dst = decision.trigger_msg.src
+
                     if result.exit_code == 0:
                         self.asp_state_tracker.set_idle(decision.agent_id)
                         self.asp_state_tracker.record_dispatch(decision.agent_id, success=True)
-                        # Write dispatch result to bus
+                        # Write dispatch result to bus + forward via hub if cross-clan
                         try:
                             result_msg = create_message(
                                 src=self.config.namespace,
-                                dst="*",
+                                dst=reply_dst,
                                 type="event",
                                 msg=f"[RE:{decision.rule_id}] OK",
                             )
@@ -1225,6 +1230,9 @@ class AgentNode:
                                 seq_tracker=self.seq_tracker,
                                 wv_tracker=self.wv_tracker,
                             )
+                            # Forward response via hub for cross-clan dispatch
+                            if reply_dst != "*":
+                                await self._forward_to_hub(result_msg)
                         except Exception:
                             pass
                     else:
@@ -1233,7 +1241,7 @@ class AgentNode:
                         try:
                             fail_msg = create_message(
                                 src=self.config.namespace,
-                                dst="*",
+                                dst=reply_dst,
                                 type="alert",
                                 msg=f"DISPATCH_FAILED:{decision.agent_id}:{decision.rule_id}",
                             )
@@ -1243,6 +1251,8 @@ class AgentNode:
                                 seq_tracker=self.seq_tracker,
                                 wv_tracker=self.wv_tracker,
                             )
+                            if reply_dst != "*":
+                                await self._forward_to_hub(fail_msg)
                         except Exception:
                             pass
                 except RuntimeError as e:
@@ -1786,6 +1796,34 @@ class AgentNode:
                 logger.warning("Hub inbox bridge error (non-fatal): %s", e)
 
             await asyncio.sleep(self.config.hub_inbox_poll_interval)
+
+    async def _forward_to_hub(self, msg: Message) -> None:
+        """Forward a response message to a peer via the local hub.
+
+        Uses the mcp_server's hub_send implementation to authenticate and
+        send via WebSocket. Falls back silently if hub is not running.
+        """
+        try:
+            hub_state_path = self.config.clan_dir / "hub-state.json"
+            if not hub_state_path.exists():
+                return
+            hub_data = json.loads(hub_state_path.read_text())
+            hub_pid = hub_data.get("pid")
+            if hub_pid is None:
+                return
+            os.kill(hub_pid, 0)
+        except (OSError, json.JSONDecodeError, KeyError):
+            return
+
+        try:
+            from .mcp_server import tool_hub_send
+            result = await tool_hub_send(msg.dst, msg.type, msg.msg)
+            if result.get("sent"):
+                logger.info("Forwarded response to %s via hub", msg.dst)
+            else:
+                logger.debug("Hub forward failed: %s", result.get("error", "unknown"))
+        except Exception as e:
+            logger.debug("Forward to hub failed (non-fatal): %s", e)
 
     async def _heartbeat_loop(self) -> None:
         """Send periodic heartbeats to the gateway."""
