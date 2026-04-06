@@ -30,8 +30,8 @@ from amaru.installer import (
     run_install,
     run_uninstall,
     send_notification,
-    uninstall_hub_service,
     uninstall_hooks,
+    uninstall_hub_service,
 )
 
 # ---------------------------------------------------------------------------
@@ -273,9 +273,11 @@ class TestHubServiceGeneration:
 
         # Mock subprocess to avoid actually loading services
         calls = []
+
         def mock_run(cmd, **kwargs):
             calls.append(cmd)
             return MagicMock(returncode=0)
+
         monkeypatch.setattr("amaru.installer.subprocess.run", mock_run)
 
         ok, msg = install_hub_service(tmp_path)
@@ -304,9 +306,11 @@ class TestHubServiceGeneration:
         (launch_dir / f"{_HUB_LISTEN_LABEL}.plist").write_text("<plist/>")
 
         calls = []
+
         def mock_run(cmd, **kwargs):
             calls.append(cmd)
             return MagicMock(returncode=0)
+
         monkeypatch.setattr("amaru.installer.subprocess.run", mock_run)
 
         ok, msg = uninstall_hub_service()
@@ -393,9 +397,7 @@ class TestHooksInstaller:
         assert result["hooks"]["SessionStart"][0]["command"] == "echo custom"
 
     def test_uninstall_no_settings(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(
-            "amaru.installer._settings_path", lambda: tmp_path / "nonexistent.json"
-        )
+        monkeypatch.setattr("amaru.installer._settings_path", lambda: tmp_path / "nonexistent.json")
         modified, msg = uninstall_hooks()
         assert modified is False
 

@@ -107,7 +107,9 @@ def print_clan_status(
             print(f"Fingerprint: {fingerprint}")
         if hub_pid:
             hub_status = "running" if hub_alive else "stale"
-            print(f"Hub: {hub_status} (PID {hub_pid}, {_format_uptime(hub_uptime)}, {hub_msgs_routed} routed)")
+            print(
+                f"Hub: {hub_status} (PID {hub_pid}, {_format_uptime(hub_uptime)}, {hub_msgs_routed} routed)"
+            )
         else:
             print("Hub: not running")
         if daemon_pid:
@@ -167,8 +169,11 @@ def print_clan_status(
         hub_text = Text()
         if hub_alive:
             hub_text.append("● ", style=f"bold {TEAL}")
-            hub_text.append(f"running", style=TEAL)
-            hub_text.append(f" (PID {hub_pid}, up {_format_uptime(hub_uptime)}, {hub_msgs_routed} routed)", style=SLATE)
+            hub_text.append("running", style=TEAL)
+            hub_text.append(
+                f" (PID {hub_pid}, up {_format_uptime(hub_uptime)}, {hub_msgs_routed} routed)",
+                style=SLATE,
+            )
         else:
             hub_text.append("○ ", style=f"bold {CRIMSON}")
             hub_text.append(f"stale (PID {hub_pid})", style=CRIMSON)
@@ -181,12 +186,10 @@ def print_clan_status(
         daemon_text = Text()
         if daemon_alive:
             daemon_text.append("● ", style=f"bold {TEAL}")
-            daemon_text.append(f"running", style=TEAL)
+            daemon_text.append("running", style=TEAL)
             daemon_text.append(f" (PID {daemon_pid})", style=SLATE)
             if daemon_agents:
-                agent_names = ", ".join(
-                    f"{n}:{s}" for n, s in daemon_agents.items()
-                )
+                agent_names = ", ".join(f"{n}:{s}" for n, s in daemon_agents.items())
                 daemon_text.append(f"  [{agent_names}]", style=AMBER)
         else:
             daemon_text.append("○ ", style=f"bold {CRIMSON}")

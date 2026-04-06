@@ -1027,6 +1027,7 @@ class TestHubInboxLoop:
 
         # Verify message was bridged
         from amaru.bus import read_bus
+
         messages = read_bus(bus)
         assert len(messages) >= 1
         bridged = [m for m in messages if m.src == "jei"]
@@ -1040,8 +1041,22 @@ class TestHubInboxLoop:
         bus = hub_inbox_config.bus_path
 
         lines = [
-            json.dumps({"ts": "2026-04-04T01:00:00+00:00", "from": "HUB", "msg": "jei: online", "type": "presence"}),
-            json.dumps({"ts": "2026-04-04T01:00:01+00:00", "from": "HUB", "msg": "roster: 1", "type": "roster"}),
+            json.dumps(
+                {
+                    "ts": "2026-04-04T01:00:00+00:00",
+                    "from": "HUB",
+                    "msg": "jei: online",
+                    "type": "presence",
+                }
+            ),
+            json.dumps(
+                {
+                    "ts": "2026-04-04T01:00:01+00:00",
+                    "from": "HUB",
+                    "msg": "roster: 1",
+                    "type": "roster",
+                }
+            ),
         ]
         inbox.write_text("\n".join(lines) + "\n")
 
@@ -1062,6 +1077,7 @@ class TestHubInboxLoop:
         asyncio.run(run_once())
 
         from amaru.bus import read_bus
+
         messages = read_bus(bus)
         assert len(messages) == 0
 
@@ -1070,13 +1086,18 @@ class TestHubInboxLoop:
         inbox = hub_inbox_config.hub_inbox_path
         cursor_path = inbox.parent / "hub-inbox.daemon.cursor"
 
-        hub_msg = json.dumps({
-            "ts": "2026-04-04T01:00:00+00:00",
-            "from": "jei",
-            "msg": "test cursor",
-            "type": "event",
-            "dst": "momoshod",
-        }) + "\n"
+        hub_msg = (
+            json.dumps(
+                {
+                    "ts": "2026-04-04T01:00:00+00:00",
+                    "from": "jei",
+                    "msg": "test cursor",
+                    "type": "event",
+                    "dst": "momoshod",
+                }
+            )
+            + "\n"
+        )
         inbox.write_text(hub_msg)
 
         node = AgentNode(hub_inbox_config)
@@ -1104,13 +1125,18 @@ class TestHubInboxLoop:
         inbox = hub_inbox_config.hub_inbox_path
         bus = hub_inbox_config.bus_path
 
-        hub_msg = json.dumps({
-            "ts": "2026-04-04T01:00:00+00:00",
-            "from": "jei",
-            "msg": "unique-message-abc",
-            "type": "event",
-            "dst": "momoshod",
-        }) + "\n"
+        hub_msg = (
+            json.dumps(
+                {
+                    "ts": "2026-04-04T01:00:00+00:00",
+                    "from": "jei",
+                    "msg": "unique-message-abc",
+                    "type": "event",
+                    "dst": "momoshod",
+                }
+            )
+            + "\n"
+        )
         # Write same message twice
         inbox.write_text(hub_msg + hub_msg)
 
@@ -1131,6 +1157,7 @@ class TestHubInboxLoop:
         asyncio.run(run_once())
 
         from amaru.bus import read_bus
+
         messages = read_bus(bus)
         jei_msgs = [m for m in messages if m.src == "jei"]
         assert len(jei_msgs) == 1
@@ -1339,8 +1366,23 @@ class TestAutoPeerDiscovery:
         bus = peer_config.bus_path
 
         msgs = [
-            json.dumps({"ts": "2026-04-05T10:00:00+00:00", "from": "HUB", "msg": "jei: online", "type": "presence"}),
-            json.dumps({"ts": "2026-04-05T10:00:01+00:00", "from": "jei", "msg": "Hello from JEI", "type": "event", "dst": "momoshod"}),
+            json.dumps(
+                {
+                    "ts": "2026-04-05T10:00:00+00:00",
+                    "from": "HUB",
+                    "msg": "jei: online",
+                    "type": "presence",
+                }
+            ),
+            json.dumps(
+                {
+                    "ts": "2026-04-05T10:00:01+00:00",
+                    "from": "jei",
+                    "msg": "Hello from JEI",
+                    "type": "event",
+                    "dst": "momoshod",
+                }
+            ),
         ]
         inbox.write_text("\n".join(msgs) + "\n")
 

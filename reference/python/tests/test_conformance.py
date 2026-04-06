@@ -831,8 +831,13 @@ class TestLevel3Crypto:
 
     def test_l3_02_keys_not_derived_from_each_other(self):
         """L3-02: Two key pairs MUST be generated independently."""
+        from cryptography.hazmat.primitives.serialization import (
+            Encoding,
+            NoEncryption,
+            PrivateFormat,
+        )
+
         from amaru.crypto import ClanKeyPair
-        from cryptography.hazmat.primitives.serialization import Encoding, PrivateFormat, NoEncryption
 
         kp = ClanKeyPair.generate()
         sign_bytes = kp.sign_private.private_bytes(Encoding.Raw, PrivateFormat.Raw, NoEncryption())
@@ -842,6 +847,7 @@ class TestLevel3Crypto:
     def test_l3_03_private_key_permissions(self, tmp_path):
         """L3-03: Private keys MUST be stored with 0600 permissions."""
         import os
+
         from amaru.crypto import ClanKeyPair
 
         kp = ClanKeyPair.generate()
@@ -853,6 +859,7 @@ class TestLevel3Crypto:
     def test_l3_04_private_key_not_in_public_file(self, tmp_path):
         """L3-04: Private keys MUST NOT be transmitted (not in .pub file)."""
         import json
+
         from amaru.crypto import ClanKeyPair
 
         kp = ClanKeyPair.generate()
@@ -874,7 +881,7 @@ class TestLevel3Crypto:
 
     def test_l3_06_aes_256_gcm(self):
         """L3-06: MUST use AES-256-GCM for authenticated encryption."""
-        from amaru.crypto import ClanKeyPair, derive_shared_secret, encrypt_message, decrypt_message
+        from amaru.crypto import ClanKeyPair, decrypt_message, derive_shared_secret, encrypt_message
 
         a = ClanKeyPair.generate()
         b = ClanKeyPair.generate()
@@ -899,7 +906,7 @@ class TestLevel3Crypto:
 
     def test_l3_08_verify_signature_before_decrypt(self):
         """L3-08: MUST verify Ed25519 signature before attempting decryption."""
-        from amaru.crypto import ClanKeyPair, seal_bus_message, open_bus_message
+        from amaru.crypto import ClanKeyPair, open_bus_message, seal_bus_message
 
         a = ClanKeyPair.generate()
         b = ClanKeyPair.generate()
@@ -911,7 +918,7 @@ class TestLevel3Crypto:
 
     def test_l3_09_no_decrypt_on_sig_failure(self):
         """L3-09: If signature verification fails, MUST NOT attempt decryption."""
-        from amaru.crypto import ClanKeyPair, seal_bus_message, open_bus_message
+        from amaru.crypto import ClanKeyPair, open_bus_message, seal_bus_message
 
         a = ClanKeyPair.generate()
         b = ClanKeyPair.generate()
@@ -923,7 +930,7 @@ class TestLevel3Crypto:
 
     def test_l3_10_ecdhe_for_inter_clan(self):
         """L3-10: Inter-clan messages MUST use ECDHE with ephemeral X25519."""
-        from amaru.crypto import ClanKeyPair, seal_bus_message_ecdhe, open_bus_message
+        from amaru.crypto import ClanKeyPair, open_bus_message, seal_bus_message_ecdhe
 
         a = ClanKeyPair.generate()
         b = ClanKeyPair.generate()
@@ -935,8 +942,9 @@ class TestLevel3Crypto:
 
     def test_l3_11_ecdhe_hkdf_info(self):
         """L3-11: ECDHE MUST use HKDF-SHA256 with info=b'HERMES-ARC8446-ECDHE-v1'."""
-        from amaru.crypto import derive_shared_secret_ecdhe
         from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
+
+        from amaru.crypto import derive_shared_secret_ecdhe
 
         eph = X25519PrivateKey.generate()
         peer = X25519PrivateKey.generate()
@@ -963,6 +971,7 @@ class TestLevel3Crypto:
     def test_l3_13_aad_includes_eph_pub(self):
         """L3-13: AAD for ECDHE MUST include the ephemeral public key."""
         import json
+
         from amaru.crypto import ClanKeyPair, seal_bus_message_ecdhe
 
         a = ClanKeyPair.generate()
@@ -975,7 +984,7 @@ class TestLevel3Crypto:
 
     def test_l3_14_sealed_static_for_intra_clan(self):
         """L3-14: SHOULD support sealed bus messages (static DH) for intra-clan."""
-        from amaru.crypto import ClanKeyPair, seal_bus_message, open_bus_message
+        from amaru.crypto import ClanKeyPair, open_bus_message, seal_bus_message
 
         a = ClanKeyPair.generate()
         b = ClanKeyPair.generate()
@@ -987,12 +996,12 @@ class TestLevel3Crypto:
     def test_l3_15_compact_sealed_envelopes(self):
         """L3-15: SHOULD support compact sealed envelopes (ARC-5322 §14)."""
         from amaru.crypto import (
+            COMPACT_SEALED_ECDHE_LEN,
+            COMPACT_SEALED_STATIC_LEN,
             ClanKeyPair,
+            open_bus_message_compact,
             seal_bus_message_compact,
             seal_bus_message_ecdhe_compact,
-            open_bus_message_compact,
-            COMPACT_SEALED_STATIC_LEN,
-            COMPACT_SEALED_ECDHE_LEN,
         )
 
         a = ClanKeyPair.generate()
@@ -1011,7 +1020,7 @@ class TestLevel3Crypto:
 
     def test_l3_16_migration_window(self):
         """L3-16: MAY implement 30-day migration window for crypto param changes."""
-        from amaru.crypto import ClanKeyPair, seal_bus_message_ecdhe, open_bus_message
+        from amaru.crypto import ClanKeyPair, open_bus_message, seal_bus_message_ecdhe
 
         a = ClanKeyPair.generate()
         b = ClanKeyPair.generate()
@@ -1174,7 +1183,7 @@ class TestLevel3AgentNode:
 
     def test_l3_29_no_dual_mode(self):
         """L3-29: Single process MUST NOT run both local-daemon and hub-mode."""
-        from amaru.agent import AgentNode, AgentNodeConfig
+        from amaru.agent import AgentNode
         from amaru.hub import HubServer
 
         # AgentNode and HubServer are separate classes — cannot be same process
@@ -1189,7 +1198,7 @@ class TestLevel3HubMode:
 
     def test_l3_30_websocket_support(self):
         """L3-30: Hub MUST support WebSocket protocol (RFC 6455) over TLS."""
-        from amaru.hub import HubConfig, HubServer
+        from amaru.hub import HubConfig
 
         config = HubConfig(listen_port=8443)
         assert config.listen_port == 8443
@@ -1217,7 +1226,7 @@ class TestLevel3HubMode:
 
     def test_l3_32_e2e_passthrough(self):
         """L3-32: Hub MUST NOT inspect/modify/decrypt the msg field."""
-        from amaru.hub import MessageRouter, ConnectionTable, StoreForwardQueue
+        from amaru.hub import ConnectionTable, MessageRouter, StoreForwardQueue
 
         conns = ConnectionTable()
         queue = StoreForwardQueue()
@@ -1259,7 +1268,7 @@ class TestLevel3HubMode:
 
     def test_l3_34_broadcast_delivery(self):
         """L3-34: SHOULD support broadcast to all connected peers."""
-        from amaru.hub import MessageRouter, ConnectionTable, StoreForwardQueue
+        from amaru.hub import ConnectionTable, MessageRouter, StoreForwardQueue
 
         conns = ConnectionTable()
         queue = StoreForwardQueue()
@@ -1363,14 +1372,16 @@ class TestLevel3Bridge:
     def _make_hub_ws():
         """Create a minimal mock WebSocket for hub auth tests."""
         from unittest.mock import AsyncMock
+
         ws = AsyncMock()
         ws.close = AsyncMock()
         return ws
 
     def test_l3_40_hub_hello_frame_required(self, tmp_path):
         """L3-40: Hub MUST wait for client HELLO before sending CHALLENGE."""
-        from amaru.hub import HubServer, HubConfig
         import asyncio
+
+        from amaru.hub import HubConfig, HubServer
 
         (tmp_path / "hub-peers.json").write_text(json.dumps({"peers": {}}))
         config = HubConfig(listen_port=19443, auth_timeout=2)
@@ -1394,9 +1405,11 @@ class TestLevel3Bridge:
 
     def test_l3_41_hub_hello_with_capabilities(self, tmp_path):
         """L3-41: Hub MUST include server_version and server_capabilities in CHALLENGE."""
-        from amaru.hub import HubServer, HubConfig
-        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
         import asyncio
+
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+        from amaru.hub import HubConfig, HubServer
 
         privkey = Ed25519PrivateKey.generate()
         pubkey_hex = privkey.public_key().public_bytes_raw().hex()
@@ -1418,13 +1431,15 @@ class TestLevel3Bridge:
             nonlocal recv_count
             recv_count += 1
             if recv_count == 1:
-                return json.dumps({
-                    "type": "hello",
-                    "clan_id": "test_clan",
-                    "sign_pub": pubkey_hex,
-                    "protocol_version": "0.4.2a1",
-                    "capabilities": ["e2e_crypto"],
-                })
+                return json.dumps(
+                    {
+                        "type": "hello",
+                        "clan_id": "test_clan",
+                        "sign_pub": pubkey_hex,
+                        "protocol_version": "0.4.2a1",
+                        "capabilities": ["e2e_crypto"],
+                    }
+                )
             else:
                 # Sign the challenge nonce
                 challenge = sent_messages[-1]
@@ -1451,9 +1466,11 @@ class TestLevel3Bridge:
 
     def test_l3_42_hub_legacy_backward_compat(self, tmp_path):
         """L3-42: Hub MUST support legacy clients that send auth without hello."""
-        from amaru.hub import HubServer, HubConfig
-        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
         import asyncio
+
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+        from amaru.hub import HubConfig, HubServer
 
         privkey = Ed25519PrivateKey.generate()
         pubkey_hex = privkey.public_key().public_bytes_raw().hex()
@@ -1476,23 +1493,27 @@ class TestLevel3Bridge:
             recv_count += 1
             if recv_count == 1:
                 # Legacy client sends auth directly (no hello)
-                return json.dumps({
-                    "type": "auth",
-                    "clan_id": "legacy_clan",
-                    "nonce_response": "placeholder",
-                    "sign_pub": pubkey_hex,
-                })
+                return json.dumps(
+                    {
+                        "type": "auth",
+                        "clan_id": "legacy_clan",
+                        "nonce_response": "placeholder",
+                        "sign_pub": pubkey_hex,
+                    }
+                )
             else:
                 # Sign the challenge nonce from the server
                 challenge = sent_messages[-1]
                 nonce = challenge["nonce"]
                 sig = privkey.sign(bytes.fromhex(nonce)).hex()
-                return json.dumps({
-                    "type": "auth",
-                    "clan_id": "legacy_clan",
-                    "nonce_response": sig,
-                    "sign_pub": pubkey_hex,
-                })
+                return json.dumps(
+                    {
+                        "type": "auth",
+                        "clan_id": "legacy_clan",
+                        "nonce_response": sig,
+                        "sign_pub": pubkey_hex,
+                    }
+                )
 
         ws.send = mock_send
         ws.recv = mock_recv

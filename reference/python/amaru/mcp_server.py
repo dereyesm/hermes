@@ -61,6 +61,7 @@ def _msg_to_dict(m: Message) -> dict:
 
 # ---------- session cursor ----------
 
+
 class SessionCursor:
     """Tracks last-read line number for new_only support."""
 
@@ -72,7 +73,7 @@ class SessionCursor:
         if not bus_path.exists():
             return []
         lines = bus_path.read_text().splitlines()
-        new_lines = lines[self._last_line:]
+        new_lines = lines[self._last_line :]
         self._last_line = len(lines)
         results = []
         for line in new_lines:
@@ -82,6 +83,7 @@ class SessionCursor:
             try:
                 data = json.loads(line)
                 from amaru.message import validate_message
+
                 results.append(validate_message(data))
             except Exception:
                 continue
@@ -97,6 +99,7 @@ _cursor = SessionCursor()
 
 
 # ---------- tool implementations ----------
+
 
 def tool_bus_read(
     since_minutes: int | None = None,
@@ -170,6 +173,7 @@ def tool_bus_ack(
 def tool_syn(namespace: str) -> dict:
     """Execute SYN protocol — returns pending messages and session report."""
     from amaru.sync import syn, syn_report
+
     bp = _bus_path()
     if not bp.exists():
         return {"report": "No bus file found.", "pending": 0, "stale": 0}
@@ -188,6 +192,7 @@ def tool_syn(namespace: str) -> dict:
 def tool_fin(namespace: str, actions: list[dict] | None = None) -> dict:
     """Execute FIN protocol — write state changes, ACK consumed."""
     from amaru.sync import FinAction, fin
+
     bp = _bus_path()
     fin_actions = None
     if actions:
@@ -214,6 +219,7 @@ def tool_status() -> dict:
 
     try:
         from amaru.config import load_config
+
         cfg = load_config(str(_AMARU_DIR))
         result["clan_id"] = cfg.clan_id
         result["display_name"] = cfg.display_name
@@ -241,6 +247,7 @@ def tool_peers() -> list[dict]:
     """List known peers with status."""
     try:
         from amaru.config import load_config
+
         cfg = load_config(str(_AMARU_DIR))
         return [
             {
@@ -274,6 +281,7 @@ def tool_seal(peer_clan_id: str, msg: str, envelope_meta: dict | None = None) ->
 
     peer_data = json.loads(peer_pub_path.read_text())
     from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PublicKey
+
     peer_dh_pub = X25519PublicKey.from_public_bytes(bytes.fromhex(peer_data["dh_public"]))
 
     sealed = seal_bus_message_ecdhe(my_keys, peer_dh_pub, msg, envelope_meta=envelope_meta)
@@ -455,6 +463,7 @@ def tool_integrity_check() -> dict:
 
 # ---------- MCP server setup ----------
 
+
 def create_server():
     """Create and configure the MCP server with all Amaru tools and resources."""
     try:
@@ -477,11 +486,28 @@ def create_server():
                 inputSchema={
                     "type": "object",
                     "properties": {
-                        "since_minutes": {"type": "integer", "description": "Only messages from last N minutes"},
-                        "namespace": {"type": "string", "description": "Filter by destination namespace"},
-                        "type_filter": {"type": "string", "description": "Filter by message type (state/event/alert/dispatch)"},
-                        "pending_only": {"type": "boolean", "description": "Only unACKed messages", "default": False},
-                        "new_only": {"type": "boolean", "description": "Only messages since last read (per-session cursor)", "default": False},
+                        "since_minutes": {
+                            "type": "integer",
+                            "description": "Only messages from last N minutes",
+                        },
+                        "namespace": {
+                            "type": "string",
+                            "description": "Filter by destination namespace",
+                        },
+                        "type_filter": {
+                            "type": "string",
+                            "description": "Filter by message type (state/event/alert/dispatch)",
+                        },
+                        "pending_only": {
+                            "type": "boolean",
+                            "description": "Only unACKed messages",
+                            "default": False,
+                        },
+                        "new_only": {
+                            "type": "boolean",
+                            "description": "Only messages since last read (per-session cursor)",
+                            "default": False,
+                        },
                     },
                 },
             ),
@@ -492,10 +518,28 @@ def create_server():
                     "type": "object",
                     "properties": {
                         "src": {"type": "string", "description": "Source namespace"},
-                        "dst": {"type": "string", "description": "Destination namespace (* for broadcast)"},
-                        "type": {"type": "string", "enum": ["state", "event", "alert", "dispatch", "data_cross", "dojo_event"], "description": "Message type"},
+                        "dst": {
+                            "type": "string",
+                            "description": "Destination namespace (* for broadcast)",
+                        },
+                        "type": {
+                            "type": "string",
+                            "enum": [
+                                "state",
+                                "event",
+                                "alert",
+                                "dispatch",
+                                "data_cross",
+                                "dojo_event",
+                            ],
+                            "description": "Message type",
+                        },
                         "msg": {"type": "string", "description": "Message payload (max 120 chars)"},
-                        "ttl": {"type": "integer", "description": "Time-to-live in days", "default": 7},
+                        "ttl": {
+                            "type": "integer",
+                            "description": "Time-to-live in days",
+                            "default": 7,
+                        },
                     },
                     "required": ["src", "dst", "type", "msg"],
                 },
@@ -507,7 +551,10 @@ def create_server():
                     "type": "object",
                     "properties": {
                         "namespace": {"type": "string", "description": "ACKing namespace"},
-                        "src_filter": {"type": "string", "description": "Only ACK from this source"},
+                        "src_filter": {
+                            "type": "string",
+                            "description": "Only ACK from this source",
+                        },
                         "type_filter": {"type": "string", "description": "Only ACK this type"},
                     },
                     "required": ["namespace"],
@@ -567,7 +614,10 @@ def create_server():
                     "properties": {
                         "peer_clan_id": {"type": "string", "description": "Target peer clan ID"},
                         "msg": {"type": "string", "description": "Plaintext message"},
-                        "envelope_meta": {"type": "object", "description": "Optional envelope metadata for AAD"},
+                        "envelope_meta": {
+                            "type": "object",
+                            "description": "Optional envelope metadata for AAD",
+                        },
                     },
                     "required": ["peer_clan_id", "msg"],
                 },
@@ -578,9 +628,15 @@ def create_server():
                 inputSchema={
                     "type": "object",
                     "properties": {
-                        "sealed_json": {"type": "object", "description": "The sealed envelope dict"},
+                        "sealed_json": {
+                            "type": "object",
+                            "description": "The sealed envelope dict",
+                        },
                         "sender_clan_id": {"type": "string", "description": "Sender peer clan ID"},
-                        "envelope_meta": {"type": "object", "description": "Optional envelope metadata for AAD verification"},
+                        "envelope_meta": {
+                            "type": "object",
+                            "description": "Optional envelope metadata for AAD verification",
+                        },
                     },
                     "required": ["sealed_json", "sender_clan_id"],
                 },
@@ -596,10 +652,28 @@ def create_server():
                 inputSchema={
                     "type": "object",
                     "properties": {
-                        "dst": {"type": "string", "description": "Destination clan ID (* for broadcast)"},
-                        "type": {"type": "string", "enum": ["state", "event", "alert", "dispatch", "data_cross", "dojo_event"], "description": "Message type"},
+                        "dst": {
+                            "type": "string",
+                            "description": "Destination clan ID (* for broadcast)",
+                        },
+                        "type": {
+                            "type": "string",
+                            "enum": [
+                                "state",
+                                "event",
+                                "alert",
+                                "dispatch",
+                                "data_cross",
+                                "dojo_event",
+                            ],
+                            "description": "Message type",
+                        },
                         "msg": {"type": "string", "description": "Message payload"},
-                        "ttl": {"type": "integer", "description": "Time-to-live in days", "default": 14},
+                        "ttl": {
+                            "type": "integer",
+                            "description": "Time-to-live in days",
+                            "default": 14,
+                        },
                     },
                     "required": ["dst", "type", "msg"],
                 },
@@ -617,7 +691,11 @@ def create_server():
                 new_only=a.get("new_only", False),
             ),
             "amaru_bus_write": lambda a: tool_bus_write(
-                src=a["src"], dst=a["dst"], type=a["type"], msg=a["msg"], ttl=a.get("ttl", 7),
+                src=a["src"],
+                dst=a["dst"],
+                type=a["type"],
+                msg=a["msg"],
+                ttl=a.get("ttl", 7),
             ),
             "amaru_bus_ack": lambda a: tool_bus_ack(
                 namespace=a["namespace"],
@@ -629,11 +707,13 @@ def create_server():
             "amaru_status": lambda _: tool_status(),
             "amaru_peers": lambda _: tool_peers(),
             "amaru_seal": lambda a: tool_seal(
-                peer_clan_id=a["peer_clan_id"], msg=a["msg"],
+                peer_clan_id=a["peer_clan_id"],
+                msg=a["msg"],
                 envelope_meta=a.get("envelope_meta"),
             ),
             "amaru_open": lambda a: tool_open(
-                sealed_json=a["sealed_json"], sender_clan_id=a["sender_clan_id"],
+                sealed_json=a["sealed_json"],
+                sender_clan_id=a["sender_clan_id"],
                 envelope_meta=a.get("envelope_meta"),
             ),
             "amaru_integrity_check": lambda _: tool_integrity_check(),
@@ -648,7 +728,9 @@ def create_server():
                     msg=arguments["msg"],
                     ttl=arguments.get("ttl", 14),
                 )
-                return [types.TextContent(type="text", text=json.dumps(result, indent=2, default=str))]
+                return [
+                    types.TextContent(type="text", text=json.dumps(result, indent=2, default=str))
+                ]
             except Exception as e:
                 return [types.TextContent(type="text", text=json.dumps({"error": str(e)}))]
 
@@ -690,21 +772,21 @@ def create_server():
     @server.read_resource()
     async def read_resource(uri: str) -> str:
         if uri == "amaru://protocol/version":
-            return json.dumps({
-                "version": __version__,
-                "specs": 21,
-                "tests": "1451+",
-                "modules": 19,
-                "adapters": 4,
-                "adapters_list": ["Claude Code", "Cursor", "OpenCode", "Gemini CLI"],
-            })
+            return json.dumps(
+                {
+                    "version": __version__,
+                    "specs": 21,
+                    "tests": "1451+",
+                    "modules": 19,
+                    "adapters": 4,
+                    "adapters_list": ["Claude Code", "Cursor", "OpenCode", "Gemini CLI"],
+                }
+            )
         elif uri == "amaru://bus/stats":
             return json.dumps(tool_status().get("bus", {}))
         elif uri == "amaru://config/clan":
             status = tool_status()
-            return json.dumps({
-                k: v for k, v in status.items() if k != "bus"
-            })
+            return json.dumps({k: v for k, v in status.items() if k != "bus"})
         return json.dumps({"error": f"Unknown resource: {uri}"})
 
     return server
@@ -722,6 +804,7 @@ async def run_server():
 def main():
     """Entry point for python -m amaru.mcp_server."""
     import asyncio
+
     asyncio.run(run_server())
 
 

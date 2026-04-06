@@ -280,8 +280,9 @@ cd /d "{clan_dir}"
 # ---------------------------------------------------------------------------
 
 
-def _generate_hub_plist(label: str, clan_dir: str, subcommand: list[str],
-                        log_prefix: str) -> tuple[Path, str]:
+def _generate_hub_plist(
+    label: str, clan_dir: str, subcommand: list[str], log_prefix: str
+) -> tuple[Path, str]:
     """Generate a macOS LaunchAgent plist for a hub service."""
     amaru_exe = amaru_executable_path()
     parts = amaru_exe.split()
@@ -321,8 +322,9 @@ def _generate_hub_plist(label: str, clan_dir: str, subcommand: list[str],
     return target, plist
 
 
-def _generate_hub_systemd(name: str, description: str, clan_dir: str,
-                          subcommand: list[str]) -> tuple[Path, str]:
+def _generate_hub_systemd(
+    name: str, description: str, clan_dir: str, subcommand: list[str]
+) -> tuple[Path, str]:
     """Generate a systemd user unit for a hub service."""
     amaru_exe = amaru_executable_path()
     cmd = f"{amaru_exe} {' '.join(subcommand)} --dir {clan_dir}"
@@ -355,25 +357,39 @@ def generate_hub_service(clan_dir: str | Path) -> list[tuple[Path, str]]:
     results: list[tuple[Path, str]] = []
 
     if plat == Platform.MACOS:
-        results.append(_generate_hub_plist(
-            _HUB_LABEL, clan_dir,
-            ["hub", "start", "--foreground"],
-            "hub",
-        ))
-        results.append(_generate_hub_plist(
-            _HUB_LISTEN_LABEL, clan_dir,
-            ["hub", "listen"],
-            "hub-listen",
-        ))
+        results.append(
+            _generate_hub_plist(
+                _HUB_LABEL,
+                clan_dir,
+                ["hub", "start", "--foreground"],
+                "hub",
+            )
+        )
+        results.append(
+            _generate_hub_plist(
+                _HUB_LISTEN_LABEL,
+                clan_dir,
+                ["hub", "listen"],
+                "hub-listen",
+            )
+        )
     elif plat == Platform.LINUX:
-        results.append(_generate_hub_systemd(
-            "amaru-hub", "Amaru Hub Server (ARC-4601)", clan_dir,
-            ["hub", "start", "--foreground"],
-        ))
-        results.append(_generate_hub_systemd(
-            "amaru-hub-listen", "Amaru Hub Listener", clan_dir,
-            ["hub", "listen"],
-        ))
+        results.append(
+            _generate_hub_systemd(
+                "amaru-hub",
+                "Amaru Hub Server (ARC-4601)",
+                clan_dir,
+                ["hub", "start", "--foreground"],
+            )
+        )
+        results.append(
+            _generate_hub_systemd(
+                "amaru-hub-listen",
+                "Amaru Hub Listener",
+                clan_dir,
+                ["hub", "listen"],
+            )
+        )
 
     return results
 
@@ -398,17 +414,20 @@ def install_hub_service(clan_dir: Path) -> tuple[bool, str]:
             if plat == Platform.MACOS:
                 subprocess.run(
                     ["launchctl", "load", "-w", str(target)],
-                    capture_output=True, check=True,
+                    capture_output=True,
+                    check=True,
                 )
             elif plat == Platform.LINUX:
                 subprocess.run(
                     ["systemctl", "--user", "daemon-reload"],
-                    capture_output=True, check=True,
+                    capture_output=True,
+                    check=True,
                 )
                 unit_name = target.stem
                 subprocess.run(
                     ["systemctl", "--user", "enable", "--now", unit_name],
-                    capture_output=True, check=True,
+                    capture_output=True,
+                    check=True,
                 )
             installed.append(target.name)
 

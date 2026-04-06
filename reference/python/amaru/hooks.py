@@ -32,6 +32,7 @@ def _get_clan_id(clan_dir: Path) -> str:
         toml = clan_dir / "config.toml"
         if toml.exists():
             import tomllib
+
             with open(toml, "rb") as f:
                 return tomllib.load(f).get("clan", {}).get("id", "")
     except Exception:
@@ -43,6 +44,7 @@ def _write_dojo_event(clan_dir: Path, namespace: str, msg: str) -> None:
     """Write a dojo_event to the bus (best-effort, never blocks)."""
     try:
         from datetime import date
+
         bus_path = clan_dir / "bus.jsonl"
         event = {
             "ts": str(date.today()),
@@ -161,6 +163,7 @@ def cmd_hook_dojo_register() -> None:
     namespace = _get_clan_id(clan_dir)
     if namespace:
         import os
+
         cwd = os.environ.get("AMARU_CWD", os.getcwd())
         dim = Path(cwd).name if cwd else "unknown"
         _write_dojo_event(

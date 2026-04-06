@@ -27,7 +27,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from datetime import date
+from datetime import UTC, date
 from pathlib import Path
 
 from .agora import AgoraDirectory
@@ -260,16 +260,14 @@ def cmd_status(args: argparse.Namespace) -> int:
                         state = state.split("|")[0].strip()
                         peer_presence[peer_id.lower()] = state
 
-                elif msg_type == "roster" and msg_from == "HUB":
-                    # Format: "roster: momoshod, jei-hub (2 online)"
-                    if text.startswith("roster: "):
-                        roster_part = text[len("roster: "):]
-                        if "(" in roster_part:
-                            roster_part = roster_part[:roster_part.rfind("(")].strip()
-                        for name in roster_part.split(","):
-                            name = name.strip().lower()
-                            if name:
-                                peer_presence[name] = "online"
+                elif msg_type == "roster" and msg_from == "HUB" and text.startswith("roster: "):
+                    roster_part = text[len("roster: ") :]
+                    if "(" in roster_part:
+                        roster_part = roster_part[: roster_part.rfind("(")].strip()
+                    for name in roster_part.split(","):
+                        name = name.strip().lower()
+                        if name:
+                            peer_presence[name] = "online"
         except (ValueError, OSError):
             pass
 
@@ -529,6 +527,7 @@ def cmd_peer_accept(args: argparse.Namespace) -> int:
 
     # Add peer to config
     from amaru.config import PeerConfig
+
     new_peer = PeerConfig(
         clan_id=peer_clan_id,
         public_key_file=f"keys/peers/{peer_clan_id}.pub",
@@ -545,6 +544,7 @@ def cmd_peer_accept(args: argparse.Namespace) -> int:
     config.peers.append(new_peer)
 
     from amaru.config import save_config
+
     config_path = clan_dir / "config.toml"
     if not config_path.exists():
         config_path = clan_dir / "gateway.json"
@@ -564,7 +564,7 @@ def cmd_send(args: argparse.Namespace) -> int:
     using ws_uri from federation-peers.json.
     """
     import asyncio
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     clan_dir = _resolve_clan_dir(args)
     try:
@@ -587,9 +587,7 @@ def cmd_send(args: argparse.Namespace) -> int:
         key_data = json.loads(key_path.read_text())
         from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-        sign_priv = Ed25519PrivateKey.from_private_bytes(
-            bytes.fromhex(key_data["sign_private"])
-        )
+        sign_priv = Ed25519PrivateKey.from_private_bytes(bytes.fromhex(key_data["sign_private"]))
         sign_pub_hex = key_data.get("sign_public", "")
         if not sign_pub_hex:
             sign_pub_hex = sign_priv.public_key().public_bytes_raw().hex()
@@ -614,7 +612,7 @@ def cmd_send(args: argparse.Namespace) -> int:
         "src": config.clan_id,
         "dst": target,
         "type": msg_type,
-        "ts": datetime.now(timezone.utc).isoformat(),
+        "ts": datetime.now(UTC).isoformat(),
         "msg": msg_text,
     }
 
@@ -649,13 +647,11 @@ def cmd_send(args: argparse.Namespace) -> int:
                         await asyncio.wait_for(ws.recv(), timeout=5)
                     try:
                         await asyncio.wait_for(ws.recv(), timeout=2)
-                    except asyncio.TimeoutError:
+                    except TimeoutError:
                         pass
 
                     # Send
-                    await ws.send(
-                        json.dumps({"type": "msg", "payload": payload})
-                    )
+                    await ws.send(json.dumps({"type": "msg", "payload": payload}))
                     via = "local hub" if "127.0.0.1" in uri else f"direct ({uri})"
                     return f"delivered via {via}"
             except Exception:
@@ -1239,15 +1235,21 @@ def build_parser() -> argparse.ArgumentParser:
     p_peer_invite = peer_sub.add_parser("invite", help="Generate a shareable invite for peering")
     _add_dir_arg(p_peer_invite)
     p_peer_accept = peer_sub.add_parser("accept", help="Accept a peer invite")
-    p_peer_accept.add_argument("invite_token", help="Base64 invite token or path to invite JSON file")
+    p_peer_accept.add_argument(
+        "invite_token", help="Base64 invite token or path to invite JSON file"
+    )
     _add_dir_arg(p_peer_accept)
 
     # send
     p_send = sub.add_parser("send", help="Send message to peer via hub")
     p_send.add_argument("target_clan", help="Target clan ID")
     p_send.add_argument("message", help="Message text")
-    p_send.add_argument("--type", default="event", choices=["event", "dispatch", "alert", "state"],
-                        help="Message type (default: event)")
+    p_send.add_argument(
+        "--type",
+        default="event",
+        choices=["event", "dispatch", "alert", "state"],
+        help="Message type (default: event)",
+    )
     _add_dir_arg(p_send)
 
     # inbox
@@ -1407,11 +1409,15 @@ def build_parser() -> argparse.ArgumentParser:
     p_hub_peers = hub_sub.add_parser("peers", help="List registered peers")
     _add_dir_arg(p_hub_peers)
 
-    p_hub_listen = hub_sub.add_parser("listen", help="Listen for hub messages (writes to hub-inbox.jsonl)")
+    p_hub_listen = hub_sub.add_parser(
+        "listen", help="Listen for hub messages (writes to hub-inbox.jsonl)"
+    )
     p_hub_listen.add_argument("--daemon", action="store_true", help="Run as background daemon")
     _add_dir_arg(p_hub_listen)
 
-    p_hub_install = hub_sub.add_parser("install", help="Install hub + listener as persistent OS services")
+    p_hub_install = hub_sub.add_parser(
+        "install", help="Install hub + listener as persistent OS services"
+    )
     _add_dir_arg(p_hub_install)
 
     p_hub_uninstall = hub_sub.add_parser("uninstall", help="Remove hub OS services")
@@ -1421,8 +1427,12 @@ def build_parser() -> argparse.ArgumentParser:
     _add_dir_arg(p_hub_roster)
 
     p_hub_ready = hub_sub.add_parser("ready", help="Announce readiness for quests")
-    p_hub_ready.add_argument("--domains", type=str, default="", help="Comma-separated capability domains")
-    p_hub_ready.add_argument("--message", type=str, default="", help="Status message (max 120 chars)")
+    p_hub_ready.add_argument(
+        "--domains", type=str, default="", help="Comma-separated capability domains"
+    )
+    p_hub_ready.add_argument(
+        "--message", type=str, default="", help="Status message (max 120 chars)"
+    )
     p_hub_ready.add_argument("--slots", type=int, default=1, help="Available quest slots")
     _add_dir_arg(p_hub_ready)
 
@@ -1456,9 +1466,7 @@ def build_parser() -> argparse.ArgumentParser:
     mcp_sub = p_mcp.add_subparsers(dest="mcp_command")
 
     p_mcp_serve = mcp_sub.add_parser("serve", help="Start the amaru-bus MCP server (stdio)")
-    p_mcp_serve.add_argument(
-        "--amaru-dir", default=None, help="Clan directory (default: ~/.amaru)"
-    )
+    p_mcp_serve.add_argument("--amaru-dir", default=None, help="Clan directory (default: ~/.amaru)")
 
     return parser
 
@@ -1532,9 +1540,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "mcp":
         if getattr(args, "mcp_command", None) == "serve":
             import os
+
             if args.amaru_dir:
                 os.environ["AMARU_DIR"] = args.amaru_dir
             from .mcp_server import main as mcp_main
+
             mcp_main()
             return 0
         parser.parse_args(["mcp", "--help"])
@@ -1554,12 +1564,14 @@ def main(argv: list[str] | None = None) -> int:
 
         def _hub_install() -> int:
             from .installer import install_hub_service
+
             ok, msg = install_hub_service(hub_dir)
             print(msg)
             return 0 if ok else 1
 
         def _hub_uninstall() -> int:
             from .installer import uninstall_hub_service
+
             ok, msg = uninstall_hub_service()
             print(msg)
             return 0 if ok else 1
@@ -1580,20 +1592,33 @@ def main(argv: list[str] | None = None) -> int:
             key_path = hub_dir / gw.keys_private
             key_data = json.loads(key_path.read_text())
             from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
             priv = Ed25519PrivateKey.from_private_bytes(bytes.fromhex(key_data["sign_private"]))
             pub_hex = key_data.get("sign_public", "")
 
             domains_raw = getattr(args, "domains", "")
-            domains = [d.strip() for d in domains_raw.split(",") if d.strip()] if domains_raw else []
+            domains = (
+                [d.strip() for d in domains_raw.split(",") if d.strip()] if domains_raw else []
+            )
             message = getattr(args, "message", "") or ""
             slots = getattr(args, "slots", 1)
 
             async def _set() -> int:
                 import websockets
+
                 uri = f"ws://127.0.0.1:{hub_config.listen_port}"
                 async with websockets.connect(uri) as ws:
-                    await ws.send(json.dumps({"type": "hello", "clan_id": gw.clan_id,
-                                              "sign_pub": pub_hex, "protocol_version": "0.4.2a1", "capabilities": []}))
+                    await ws.send(
+                        json.dumps(
+                            {
+                                "type": "hello",
+                                "clan_id": gw.clan_id,
+                                "sign_pub": pub_hex,
+                                "protocol_version": "0.4.2a1",
+                                "capabilities": [],
+                            }
+                        )
+                    )
                     ch = json.loads(await asyncio.wait_for(ws.recv(), 10))
                     if ch.get("type") != "challenge":
                         print(f"Unexpected: {ch.get('type')}")
@@ -1643,15 +1668,26 @@ def main(argv: list[str] | None = None) -> int:
             key_path = hub_dir / gw.keys_private
             key_data = json.loads(key_path.read_text())
             from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
             priv = Ed25519PrivateKey.from_private_bytes(bytes.fromhex(key_data["sign_private"]))
             pub_hex = key_data.get("sign_public", "")
 
             async def _query() -> int:
                 import websockets
+
                 uri = f"ws://127.0.0.1:{hub_config.listen_port}"
                 async with websockets.connect(uri) as ws:
-                    await ws.send(json.dumps({"type": "hello", "clan_id": gw.clan_id,
-                                              "sign_pub": pub_hex, "protocol_version": "0.4.2a1", "capabilities": []}))
+                    await ws.send(
+                        json.dumps(
+                            {
+                                "type": "hello",
+                                "clan_id": gw.clan_id,
+                                "sign_pub": pub_hex,
+                                "protocol_version": "0.4.2a1",
+                                "capabilities": [],
+                            }
+                        )
+                    )
                     ch = json.loads(await asyncio.wait_for(ws.recv(), 10))
                     if ch.get("type") != "challenge":
                         print(f"Unexpected: {ch.get('type')}")

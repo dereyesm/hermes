@@ -8,9 +8,9 @@ from unittest.mock import AsyncMock
 import pytest
 
 from amaru.hub import (
+    VALID_READINESS,
     AuthHandler,
     ConnectionTable,
-    FederationLink,
     FederationTable,
     HubConfig,
     HubServer,
@@ -19,7 +19,6 @@ from amaru.hub import (
     PeerInfo,
     QueuedMessage,
     StoreForwardQueue,
-    VALID_READINESS,
     cmd_hub_init,
     load_hub_config,
     load_peers,
@@ -300,6 +299,7 @@ class TestPresence:
     def test_presence_dict_serializable(self):
         """presence_dict() must produce JSON-serializable output."""
         import json as _json
+
         ct = ConnectionTable()
         entry = ct.add("test", _make_ws_mock())
         entry.readiness = "in_quest"
@@ -741,22 +741,26 @@ class TestHubServer:
             recv_call_count += 1
             if recv_call_count == 1:
                 # Step 1: Client sends HELLO
-                return json.dumps({
-                    "type": "hello",
-                    "clan_id": "test_clan",
-                    "sign_pub": pubkey_hex,
-                    "protocol_version": "0.4.2a1",
-                    "capabilities": [],
-                })
+                return json.dumps(
+                    {
+                        "type": "hello",
+                        "clan_id": "test_clan",
+                        "sign_pub": pubkey_hex,
+                        "protocol_version": "0.4.2a1",
+                        "capabilities": [],
+                    }
+                )
             else:
                 # Step 3: Client sends AUTH (sign the challenge nonce)
                 challenge_frame = json.loads(ws.send.call_args[0][0])
                 nonce = challenge_frame["nonce"]
                 sig = privkey.sign(bytes.fromhex(nonce)).hex()
-                return json.dumps({
-                    "type": "auth",
-                    "nonce_response": sig,
-                })
+                return json.dumps(
+                    {
+                        "type": "auth",
+                        "nonce_response": sig,
+                    }
+                )
 
         ws.recv = mock_recv
 

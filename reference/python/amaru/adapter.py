@@ -1123,9 +1123,7 @@ class ContinueAdapter(AdapterBase):
             written = self._generate_mcp_config()
             if written:
                 result.steps.append("MCP server config generated")
-                result.files_written.append(
-                    str(self.target_dir / "mcpServers" / "amaru.yaml")
-                )
+                result.files_written.append(str(self.target_dir / "mcpServers" / "amaru.yaml"))
             else:
                 result.steps.append("MCP config unchanged")
         except Exception as e:
@@ -1166,9 +1164,7 @@ class ContinueAdapter(AdapterBase):
             existing = target.read_text(encoding="utf-8")
             if self.HEADER_MARKER in existing and self.FOOTER_MARKER in existing:
                 before = existing[: existing.index(self.HEADER_MARKER)]
-                after = existing[
-                    existing.index(self.FOOTER_MARKER) + len(self.FOOTER_MARKER) :
-                ]
+                after = existing[existing.index(self.FOOTER_MARKER) + len(self.FOOTER_MARKER) :]
                 new_content = before + content + after.lstrip("\n")
                 return _write_file_if_changed(target, new_content)
 

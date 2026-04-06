@@ -1,12 +1,10 @@
 """Tests for Amaru MCP server — tool functions + cursor + resources."""
 
-import json
-import os
-from datetime import date
 from pathlib import Path
 
 import pytest
 
+from amaru.bus import read_bus, write_message
 from amaru.mcp_server import (
     SessionCursor,
     _msg_to_dict,
@@ -16,14 +14,15 @@ from amaru.mcp_server import (
     tool_integrity_check,
     tool_status,
 )
-from amaru.bus import read_bus, write_message
 from amaru.message import create_message
+
 
 # Use a temp bus for all tests
 @pytest.fixture(autouse=True)
 def setup_amaru_dir(tmp_path, monkeypatch):
     """Set up a temp HERMES dir for each test."""
     import amaru.mcp_server as mcp_mod
+
     monkeypatch.setattr(mcp_mod, "_AMARU_DIR", tmp_path)
     # Reset cursor
     mcp_mod._cursor = SessionCursor()
@@ -184,11 +183,13 @@ class TestSynFin:
 
     def test_syn_empty_bus(self, setup_amaru_dir):
         from amaru.mcp_server import tool_syn
+
         result = tool_syn(namespace="eng")
         assert result["pending"] == 0
 
     def test_syn_with_messages(self, setup_amaru_dir):
         from amaru.mcp_server import tool_syn
+
         bus = setup_amaru_dir / "bus.jsonl"
         write_message(str(bus), create_message(src="ops", dst="eng", type="event", msg="hey eng"))
 
@@ -198,6 +199,7 @@ class TestSynFin:
 
     def test_fin_writes_state(self, setup_amaru_dir):
         from amaru.mcp_server import tool_fin
+
         result = tool_fin(
             namespace="eng",
             actions=[{"dst": "*", "type": "state", "msg": "session ended cleanly"}],
@@ -259,7 +261,6 @@ class TestCrossSessionSync:
 
     def test_session_a_writes_session_b_reads(self, setup_amaru_dir):
         """The core use case: real-time sync between sessions."""
-        import amaru.mcp_server as mcp_mod
 
         bus = setup_amaru_dir / "bus.jsonl"
 
@@ -280,7 +281,7 @@ class TestCrossSessionSync:
         tool_bus_write(src="session-b", dst="session-a", type="event", msg="hello from B")
 
         # Session A reads (using the module cursor which was advanced during bus_read)
-        result = tool_bus_read(new_only=True)
+        tool_bus_read(new_only=True)
         # Module cursor was advanced when we called tool_bus_write, so we may or may not see it
         # What matters: the message is in the bus
         all_msgs = tool_bus_read()
