@@ -616,6 +616,31 @@ def cmd_send(args: argparse.Namespace) -> int:
         "msg": msg_text,
     }
 
+    # Durable bus write (ARC-5322). Runs BEFORE the live send so the
+    # record survives even if the hub is unreachable — the bus is the
+    # source of truth for intent, delivery is a separate concern
+    # (see ATR-Q.931 §8 delivery receipts). Write failures are logged
+    # but do not abort the send.
+    bus_path = clan_dir / "bus.jsonl"
+    bus_write_ok = False
+    try:
+        from .bus import write_message
+        from .message import Message
+
+        bus_msg = Message(
+            ts=datetime.now(UTC).date(),
+            src=config.clan_id,
+            dst=target,
+            type=msg_type,
+            msg=msg_text,
+            ttl=7,
+            ack=[],
+        )
+        write_message(bus_path, bus_msg)
+        bus_write_ok = True
+    except Exception as e:
+        print(f"Warning: bus write failed: {e}", file=sys.stderr)
+
     async def _send() -> str:
         import websockets
 
@@ -659,7 +684,8 @@ def cmd_send(args: argparse.Namespace) -> int:
         return "failed — no hub reachable"
 
     result = asyncio.run(_send())
-    print(f"[{msg_type}] {config.clan_id} → {target}: {result}")
+    bus_tag = "bus ok" if bus_write_ok else "bus FAILED"
+    print(f"[{msg_type}] {config.clan_id} → {target}: {result} ({bus_tag})")
     return 0 if "delivered" in result else 1
 
 

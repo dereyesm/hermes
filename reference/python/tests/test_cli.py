@@ -163,6 +163,71 @@ class TestSend:
         )
         assert rc == 1
 
+    def test_send_writes_to_bus_even_without_hub(self, tmp_path):
+        """Durable bus record MUST exist even when live delivery fails.
+
+        Regression guard: before this fix, `amaru send` was pure
+        WebSocket — no hub reachable meant zero trace of the attempt.
+        The bus is the source of truth for intent; delivery is a
+        separate concern (ATR-Q.931 §8 delivery receipts).
+        """
+        from amaru.bus import read_bus
+
+        main(["init", "sender", "Sender", "--dir", str(tmp_path)])
+        bus_path = tmp_path / "bus.jsonl"
+        # Clean slate — init may or may not touch bus.jsonl
+        if bus_path.exists():
+            bus_path.unlink()
+
+        rc = main(
+            [
+                "send",
+                "receiver",
+                "persistent hello",
+                "--type",
+                "alert",
+                "--dir",
+                str(tmp_path),
+            ]
+        )
+        # Live send still fails (no hub), but bus write MUST have happened.
+        assert rc == 1
+        assert bus_path.exists(), "bus.jsonl should be created even without hub"
+
+        msgs = read_bus(bus_path)
+        assert len(msgs) == 1
+        m = msgs[0]
+        assert m.src == "sender"
+        assert m.dst == "receiver"
+        assert m.type == "alert"
+        assert m.msg == "persistent hello"
+        assert m.ttl == 7
+        assert m.ack == []
+
+    def test_send_default_type_is_event_on_bus(self, tmp_path):
+        """When --type is omitted, the bus record MUST use 'event'."""
+        from amaru.bus import read_bus
+
+        main(["init", "sender", "Sender", "--dir", str(tmp_path)])
+        bus_path = tmp_path / "bus.jsonl"
+        if bus_path.exists():
+            bus_path.unlink()
+
+        main(["send", "receiver", "default type test", "--dir", str(tmp_path)])
+
+        msgs = read_bus(bus_path)
+        assert len(msgs) == 1
+        assert msgs[0].type == "event"
+
+    def test_send_bus_output_tag(self, tmp_path, capsys):
+        """Stdout MUST reflect bus write outcome alongside delivery result."""
+        main(["init", "sender", "Sender", "--dir", str(tmp_path)])
+        main(["send", "receiver", "tagline test", "--dir", str(tmp_path)])
+        out = capsys.readouterr().out
+        assert "bus ok" in out
+        # no hub → failed — no hub reachable
+        assert "failed" in out
+
 
 class TestInbox:
     def test_inbox_empty(self, tmp_path, capsys):
