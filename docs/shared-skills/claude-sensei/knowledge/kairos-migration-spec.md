@@ -22,7 +22,7 @@ Especificación técnica:
 
 | # | Evento | Source | Trigger | Acción KAIROS |
 |---|--------|--------|---------|---------------|
-| E01 | Email urgente | Gmail MCP | heraldo classify → urgencia:alta | PushNotification + dispatch HERMES bus |
+| E01 | Email urgente | Gmail MCP | heraldo classify → urgencia:alta | PushNotification + dispatch Amaru bus |
 | E02 | PR review solicitado | GitHub | SubscribePR en repos Nymyka (sprints activos) | PushNotification con diff summary |
 | E03 | Deploy fallido | Vercel/Render webhook | Build error en main | PushNotification + SendUserFile (log) |
 | E04 | Bus TTL crítico | bus.jsonl | Mensaje con TTL < 24h sin ACK | PushNotification warning + auto-ACK si expired |

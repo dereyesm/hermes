@@ -77,7 +77,7 @@ class GeminiAdapter(LLMAdapter):
             from google import genai
         except ImportError as exc:
             raise ImportError(
-                "google-genai SDK not installed. Run: pip install 'hermes-protocol[llm]'"
+                "google-genai SDK not installed. Run: pip install 'amaru-protocol[llm]'"
             ) from exc
 
         self._client = genai.Client(api_key=key)
@@ -141,7 +141,7 @@ class ClaudeAdapter(LLMAdapter):
             import anthropic
         except ImportError as exc:
             raise ImportError(
-                "anthropic SDK not installed. Run: pip install 'hermes-protocol[llm]'"
+                "anthropic SDK not installed. Run: pip install 'amaru-protocol[llm]'"
             ) from exc
 
         self._client = anthropic.Anthropic(api_key=key)
@@ -177,7 +177,7 @@ class ClaudeAdapter(LLMAdapter):
 class AdapterManager:
     """Manages LLM backends with priority-ordered fallback.
 
-    Optionally integrates with :class:`~hermes.llm.telemetry.TokenTracker`
+    Optionally integrates with :class:`~amaru.llm.telemetry.TokenTracker`
     to automatically record token usage from every LLM call.
     """
 

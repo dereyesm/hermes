@@ -46,7 +46,7 @@
 - PQ readiness: 5.0 — Migration path mentioned (FIPS 203-205), not implemented
 
 ### D5: Community & Adoption (6.2)
-- Onboarding friction: 6.5 — `hermes install` works but pip 404, no video demo
+- Onboarding friction: 6.5 — `amaru install` works but pip 404, no video demo
 - Documentation: 8.0 — 30+ docs, comprehensive specs, architecture guides
 - Contribution path: 7.0 — CONTRIBUTING.md with ARC proposal template
 - Distribution: 4.5 — No PyPI, no npm, GitHub clone only
@@ -95,7 +95,7 @@
 - **D2**: Hub/agent at 52% coverage = untested crash/recovery paths in production code
 - **D3**: "Why not just use A2A?" — A2A has structured tasks, streaming, Google backing
 - **D4**: Plaintext private keys on disk + Python can't securely zeroize ephemeral keys
-- **D5**: Developer finds repo, tries `pip install hermes-protocol`, gets 404, closes tab
+- **D5**: Developer finds repo, tries `pip install amaru-protocol`, gets 404, closes tab
 - **D6**: Google adds offline+E2E to A2A at I/O 2026 → HERMES loses differentiators
 - **D7**: Inherit codebase tomorrow: 11 silent exception swallowers + 52% hub coverage = scary
 

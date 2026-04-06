@@ -130,7 +130,7 @@ CONTEXT:
 - Wire format: JSON, compact mode 76.9% efficient
 
 TASK: Evaluate real-world interoperability:
-1. Can a non-HERMES agent send/receive messages today? How much work?
+1. Can a non-Amaru agent send/receive messages today? How much work?
 2. Bridge quality: is A2A/MCP translation lossy? What's lost?
 3. Adapter coverage: do the 4 adapters cover >80% of the market?
 4. Wire format: is JSON the right choice vs CBOR/Protobuf/MsgPack?

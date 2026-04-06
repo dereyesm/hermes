@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from hermes.integrity import (
+from amaru.integrity import (
     BusGC,
     BusIntegrityChecker,
     BusSnapshot,
@@ -19,7 +19,7 @@ from hermes.integrity import (
     WriteVector,
     WriteVectorTracker,
 )
-from hermes.message import Message, create_message
+from amaru.message import Message, create_message
 
 # ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -410,13 +410,13 @@ class TestMessageSeqField:
         assert "seq" not in d
 
     def test_seq_validation_rejects_negative(self):
-        from hermes.message import ValidationError
+        from amaru.message import ValidationError
 
         with pytest.raises(ValidationError, match="positive"):
             create_message(src="eng", dst="*", type="state", msg="test", seq=0)
 
     def test_seq_validation_rejects_bool(self):
-        from hermes.message import ValidationError, validate_message
+        from amaru.message import ValidationError, validate_message
 
         data = {
             "ts": "2026-03-20",
@@ -438,7 +438,7 @@ class TestMessageSeqField:
         line = msg.to_jsonl()
         data = json.loads(line)
         assert data["seq"] == 10
-        from hermes.message import validate_message
+        from amaru.message import validate_message
 
         msg2 = validate_message(data)
         assert msg2.seq == 10
@@ -448,7 +448,7 @@ class TestBusWriteWithSeqTracker:
     """write_message with seq_tracker integration."""
 
     def test_auto_assigns_seq(self, tmp_path):
-        from hermes.bus import read_bus, write_message
+        from amaru.bus import read_bus, write_message
 
         bus = tmp_path / "bus.jsonl"
         t = SequenceTracker()
@@ -465,7 +465,7 @@ class TestBusWriteWithSeqTracker:
         assert messages[1].seq == 2
 
     def test_preserves_explicit_seq(self, tmp_path):
-        from hermes.bus import write_message
+        from amaru.bus import write_message
 
         bus = tmp_path / "bus.jsonl"
         t = SequenceTracker()
@@ -475,7 +475,7 @@ class TestBusWriteWithSeqTracker:
         assert t.get_state("eng").last_seq == 42
 
     def test_no_tracker_no_seq(self, tmp_path):
-        from hermes.bus import read_bus, write_message
+        from amaru.bus import read_bus, write_message
 
         bus = tmp_path / "bus.jsonl"
         msg = _msg("eng")
@@ -489,7 +489,7 @@ class TestReadBusWithIntegrity:
     """read_bus_with_integrity function."""
 
     def test_reads_and_validates(self, tmp_path):
-        from hermes.bus import read_bus_with_integrity, write_message
+        from amaru.bus import read_bus_with_integrity, write_message
 
         bus = tmp_path / "bus.jsonl"
         t = SequenceTracker()
@@ -500,7 +500,7 @@ class TestReadBusWithIntegrity:
         assert anomalies == []
 
     def test_detects_gap(self, tmp_path):
-        from hermes.bus import read_bus_with_integrity, write_message
+        from amaru.bus import read_bus_with_integrity, write_message
 
         bus = tmp_path / "bus.jsonl"
         write_message(bus, _msg("eng", seq=1))
@@ -919,7 +919,7 @@ class TestBusWriteWithWriteVector:
     """write_message() with wv_tracker."""
 
     def test_auto_assigns_w(self, tmp_path):
-        from hermes.bus import write_message
+        from amaru.bus import write_message
 
         bus = tmp_path / "bus.jsonl"
         st = SequenceTracker()
@@ -931,7 +931,7 @@ class TestBusWriteWithWriteVector:
         assert written.seq == 1
 
     def test_preserves_explicit_w(self, tmp_path):
-        from hermes.bus import write_message
+        from amaru.bus import write_message
 
         bus = tmp_path / "bus.jsonl"
         st = SequenceTracker()
@@ -941,7 +941,7 @@ class TestBusWriteWithWriteVector:
         assert written.w == {"ops": 5}
 
     def test_w_roundtrip_json(self, tmp_path):
-        from hermes.bus import read_bus, write_message
+        from amaru.bus import read_bus, write_message
 
         bus = tmp_path / "bus.jsonl"
         st = SequenceTracker()
@@ -955,7 +955,7 @@ class TestBusWriteWithWriteVector:
         assert msgs[0].seq == 1
 
     def test_w_not_in_compact(self, tmp_path):
-        from hermes.bus import read_bus, write_message
+        from amaru.bus import read_bus, write_message
 
         bus = tmp_path / "bus.jsonl"
         st = SequenceTracker()
@@ -972,7 +972,7 @@ class TestBusWriteWithWriteVector:
         assert msgs[0].w is None
 
     def test_records_in_tracker(self, tmp_path):
-        from hermes.bus import write_message
+        from amaru.bus import write_message
 
         bus = tmp_path / "bus.jsonl"
         st = SequenceTracker()
@@ -981,7 +981,7 @@ class TestBusWriteWithWriteVector:
         assert wvt.recent_count == 1
 
     def test_multiple_writes_build_vector(self, tmp_path):
-        from hermes.bus import read_bus, write_message
+        from amaru.bus import read_bus, write_message
 
         bus = tmp_path / "bus.jsonl"
         st = SequenceTracker()
@@ -994,7 +994,7 @@ class TestBusWriteWithWriteVector:
         assert msgs[1].seq == 1  # ops first write
 
     def test_without_tracker_no_w(self, tmp_path):
-        from hermes.bus import read_bus, write_message
+        from amaru.bus import read_bus, write_message
 
         bus = tmp_path / "bus.jsonl"
         st = SequenceTracker()
@@ -1008,7 +1008,7 @@ class TestBusReadWithMVCC:
     """read_bus_with_integrity() with wv_tracker and conflict_log."""
 
     def test_detects_concurrent_on_read(self, tmp_path):
-        from hermes.bus import read_bus_with_integrity, write_message
+        from amaru.bus import read_bus_with_integrity, write_message
 
         bus = tmp_path / "bus.jsonl"
         # Write two messages with concurrent write vectors manually
@@ -1027,7 +1027,7 @@ class TestBusReadWithMVCC:
         assert cl.count() == 1
 
     def test_no_concurrent_when_ordered(self, tmp_path):
-        from hermes.bus import read_bus_with_integrity, write_message
+        from amaru.bus import read_bus_with_integrity, write_message
 
         bus = tmp_path / "bus.jsonl"
         write_message(bus, _msg_w("eng", seq=1, w={}))
@@ -1038,7 +1038,7 @@ class TestBusReadWithMVCC:
         assert concurrent == []
 
     def test_conflict_log_created_on_first_conflict(self, tmp_path):
-        from hermes.bus import read_bus_with_integrity, write_message
+        from amaru.bus import read_bus_with_integrity, write_message
 
         bus = tmp_path / "bus.jsonl"
         cl_path = tmp_path / "conflicts.jsonl"
@@ -1080,7 +1080,7 @@ class TestMessageWField:
         assert "w" not in d
 
     def test_validate_rejects_bad_w_type(self):
-        from hermes.message import ValidationError, validate_message
+        from amaru.message import ValidationError, validate_message
 
         data = {
             "ts": "2026-03-22",
@@ -1096,7 +1096,7 @@ class TestMessageWField:
             validate_message(data)
 
     def test_validate_rejects_bad_w_value_type(self):
-        from hermes.message import ValidationError, validate_message
+        from amaru.message import ValidationError, validate_message
 
         data = {
             "ts": "2026-03-22",
@@ -1112,7 +1112,7 @@ class TestMessageWField:
             validate_message(data)
 
     def test_validate_rejects_negative_w_value(self):
-        from hermes.message import ValidationError, validate_message
+        from amaru.message import ValidationError, validate_message
 
         data = {
             "ts": "2026-03-22",
@@ -1273,7 +1273,7 @@ class TestBusGC:
         assert thresholds["eng"] == 91  # 100 - 10 + 1
 
     def test_collect_archives_old_messages(self, tmp_path):
-        from hermes.bus import write_message
+        from amaru.bus import write_message
 
         bus = tmp_path / "bus.jsonl"
         archive = tmp_path / "archive.jsonl"
@@ -1284,7 +1284,7 @@ class TestBusGC:
         count = BusGC.collect(bus, archive, {"eng": 4})
         assert count == 3
         # Verify bus has only 2 messages
-        from hermes.bus import read_bus
+        from amaru.bus import read_bus
 
         remaining = read_bus(bus)
         assert len(remaining) == 2
@@ -1295,7 +1295,7 @@ class TestBusGC:
         assert len(archived) == 3
 
     def test_collect_no_op_when_nothing_to_archive(self, tmp_path):
-        from hermes.bus import write_message
+        from amaru.bus import write_message
 
         bus = tmp_path / "bus.jsonl"
         archive = tmp_path / "archive.jsonl"
@@ -1304,7 +1304,7 @@ class TestBusGC:
         assert count == 0
 
     def test_collect_preserves_messages_without_seq(self, tmp_path):
-        from hermes.bus import write_message
+        from amaru.bus import write_message
 
         bus = tmp_path / "bus.jsonl"
         archive = tmp_path / "archive.jsonl"
@@ -1314,7 +1314,7 @@ class TestBusGC:
         write_message(bus, _msg("eng", seq=3))
         count = BusGC.collect(bus, archive, {"eng": 3})
         assert count == 1  # Only seq=1 archived
-        from hermes.bus import read_bus
+        from amaru.bus import read_bus
 
         remaining = read_bus(bus)
         assert len(remaining) == 2  # no-seq + seq=3
@@ -1327,7 +1327,7 @@ class TestBusGC:
 
     def test_collect_atomic_on_failure(self, tmp_path):
         """Bus file should remain intact if compaction fails mid-write."""
-        from hermes.bus import read_bus, write_message
+        from amaru.bus import read_bus, write_message
 
         bus = tmp_path / "bus.jsonl"
         archive = tmp_path / "archive.jsonl"
@@ -1341,7 +1341,7 @@ class TestBusGC:
         assert len(remaining) == 1
 
     def test_collect_multiple_sources(self, tmp_path):
-        from hermes.bus import read_bus, write_message
+        from amaru.bus import read_bus, write_message
 
         bus = tmp_path / "bus.jsonl"
         archive = tmp_path / "archive.jsonl"
@@ -1358,7 +1358,7 @@ class TestBusGC:
 
     def test_conflict_log_untouched(self, tmp_path):
         """Verify that GC does not affect conflict log."""
-        from hermes.bus import write_message
+        from amaru.bus import write_message
 
         bus = tmp_path / "bus.jsonl"
         archive = tmp_path / "archive.jsonl"

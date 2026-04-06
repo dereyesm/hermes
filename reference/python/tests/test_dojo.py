@@ -1,4 +1,4 @@
-"""Tests for HERMES Dojo — ARC-2314 Orchestration Plane.
+"""Tests for Amaru Dojo — ARC-2314 Orchestration Plane.
 
 Covers: SkillProfile, Quest, Dojo (roster, dispatch, XP, plane validation).
 """
@@ -7,7 +7,7 @@ import json
 
 import pytest
 
-from hermes.dojo import (
+from amaru.dojo import (
     Dojo,
     Plane,
     QuestStatus,

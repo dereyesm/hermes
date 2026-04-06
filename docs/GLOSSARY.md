@@ -17,7 +17,7 @@ A secondary JSONL file (`bus-archive.jsonl`) where expired messages are moved. M
 A group of agents organized under a single HERMES instance. A clan may have multiple namespaces, a controller, and a routing table. Analogous to an autonomous system (AS) in internet routing.
 
 ### Controller
-A special namespace with read access to all other namespaces. The controller can detect desyncs, propose fixes, and route messages, but it cannot execute actions in other namespaces. The controller is the "router" of the HERMES network.
+A special namespace with read access to all other namespaces. The controller can detect desyncs, propose fixes, and route messages, but it cannot execute actions in other namespaces. The controller is the "router" of the Amaru network.
 
 ### Data Cross
 A permitted transfer of data between namespaces, carried via `data_cross` message type. Data crosses are governed by explicit firewall rules and require human approval. Only data moves — never credentials or tool access.
@@ -32,7 +32,7 @@ A message type (`dispatch`) where a controller or coordination agent assigns one
 The set of rules that govern namespace isolation. Firewalls define which external tools each namespace can access, which data crosses are permitted, and which credentials belong to which namespace. See [ARC-1918](../spec/ARC-1918.md).
 
 ### Instance
-A single deployment of the HERMES protocol — one bus, one routing table, one set of namespaces. Analogous to an ISP or autonomous system. Multiple instances can peer through inter-instance transport (future spec).
+A single deployment of the Amaru protocol — one bus, one routing table, one set of namespaces. Analogous to an ISP or autonomous system. Multiple instances can peer through inter-instance transport (future spec).
 
 ## Protocol Terms
 
@@ -46,7 +46,7 @@ The session-end protocol. When an agent's session ends, it must: (1) write any s
 A single JSONL object on the bus. Each message has a timestamp, source, destination, type, payload, TTL, and ACK array. See [ARC-5322](../spec/ARC-5322.md).
 
 ### Namespace
-An isolated workspace within a HERMES instance. Each namespace has its own configuration, memory, agents, and external tool permissions. Namespaces communicate only through the bus — never directly. Analogous to a private IP range.
+An isolated workspace within an Amaru instance. Each namespace has its own configuration, memory, agents, and external tool permissions. Namespaces communicate only through the bus — never directly. Analogous to a private IP range.
 
 ### Routing Table
 A file (`routes.md` or equivalent) that maps namespace identifiers to their file system paths, head agents, tool permissions, and permitted data crosses. See [ARC-0791](../spec/ARC-0791.md).
@@ -100,7 +100,7 @@ Implementation and interoperability standards. Lineage: IEEE Standards. Format: 
 ## Inter-Clan Concepts (L5: The Agora)
 
 ### Agora
-The public inter-clan network where HERMES clans discover each other, exchange profiles, propose quests, and issue attestations. Named after the ancient Greek public assembly — a place of meeting, not of control. The Agora connects but never commands.
+The public inter-clan network where Amaru clans discover each other, exchange profiles, propose quests, and issue attestations. Named after the ancient Greek public assembly — a place of meeting, not of control. The Agora connects but never commands.
 
 ### Attestation
 A signed statement from Clan A certifying that an agent from Clan B delivered measurable value during a cross-clan interaction. Attestations are asymmetric (A attests for B's agent, not vice versa), append-only, and cryptographically signed. They are the building blocks of Resonance. See [ARC-3022](../spec/ARC-3022.md).

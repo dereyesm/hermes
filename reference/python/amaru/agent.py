@@ -1,6 +1,6 @@
-"""HERMES Agent Node — ARC-4601 Reference Implementation.
+"""Amaru Agent Node — ARC-4601 Reference Implementation.
 
-A persistent local daemon that observes the HERMES bus continuously,
+A persistent local daemon that observes the Amaru bus continuously,
 maintains a bidirectional link with a remote gateway, and dispatches
 sub-agent processes with defined guardrails.
 
@@ -22,14 +22,14 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
 from .bus import filter_for_namespace, read_bus, write_message
 from .message import Message, ValidationError, create_message, validate_message
 
-logger = logging.getLogger("hermes.agent")
+logger = logging.getLogger("amaru.agent")
 
 
 def _sanitize_payload(text: str) -> str:
@@ -824,7 +824,7 @@ class MessageEvaluator:
 # LLM Triage Evaluator
 # ---------------------------------------------------------------------------
 
-_TRIAGE_PROMPT = """You are a HERMES message triage agent. Classify the incoming bus message.
+_TRIAGE_PROMPT = """You are a Amaru message triage agent. Classify the incoming bus message.
 
 Respond with EXACTLY one word:
 - DISPATCH — actionable task, should be executed autonomously
@@ -853,8 +853,10 @@ class LLMTriageEvaluator(MessageEvaluator):
         action = super().evaluate(message)
 
         # Only use LLM for broadcast messages that static rules would ignore
-        if action == Action.IGNORE and message.dst == "*" and message.type not in (
-            "state", "dojo_event"
+        if (
+            action == Action.IGNORE
+            and message.dst == "*"
+            and message.type not in ("state", "dojo_event")
         ):
             llm_action = self._llm_triage(message)
             if llm_action is not None:
@@ -1470,7 +1472,7 @@ class AgentNode:
                         from .installer import send_notification
 
                         send_notification(
-                            f"HERMES — {msg.type}",
+                            f"Amaru — {msg.type}",
                             msg.msg[:120],
                         )
                         self.asp_throttler.record(msg.src)
@@ -1478,7 +1480,7 @@ class AgentNode:
                         from .installer import send_notification
 
                         send_notification(
-                            "HERMES",
+                            "Amaru",
                             f"[{msg.type}] from {msg.src}: {msg.msg[:60]}",
                         )
                     break  # One notification per batch
@@ -1533,7 +1535,7 @@ class AgentNode:
     # Hub inbox bridge (Quest-006: Autonomous Cross-Clan Dispatch)
     # ------------------------------------------------------------------
 
-    _HUB_TYPE_MAP = {
+    _HUB_TYPE_MAP: ClassVar[dict[str, str]] = {
         "status": "state",
         "event": "event",
         "alert": "alert",
@@ -1543,7 +1545,7 @@ class AgentNode:
         "dojo_event": "dojo_event",
     }
 
-    _HUB_SKIP_TYPES = {"presence", "roster", "ping", "pong", "auth_ok", "error"}
+    _HUB_SKIP_TYPES: ClassVar[set[str]] = {"presence", "roster", "ping", "pong", "auth_ok", "error"}
 
     def _auto_peer_from_presence(self, hub_msg: dict) -> None:
         """Auto-register unknown peers discovered via hub presence (TOFU).
@@ -1576,10 +1578,10 @@ class AgentNode:
         elif msg_type == "roster" and src == "hub":
             # Format: "roster: momoshod, jei-hub (2 online)"
             if msg_text.startswith("roster: "):
-                roster_part = msg_text[len("roster: "):]
+                roster_part = msg_text[len("roster: ") :]
                 # Strip the "(N online)" suffix
                 if "(" in roster_part:
-                    roster_part = roster_part[:roster_part.rfind("(")].strip()
+                    roster_part = roster_part[: roster_part.rfind("(")].strip()
                 for name in roster_part.split(","):
                     name = name.strip().lower()
                     if name:
@@ -1604,7 +1606,6 @@ class AgentNode:
         # Batch registration: load config once, register all, save once
         try:
             from .config import (
-                PeerConfig,
                 load_config,
                 resolve_config_path,
                 save_config,
@@ -1633,7 +1634,10 @@ class AgentNode:
             if peer_id in known:
                 # Upgrade pending_ack → active if we receive a direct message
                 upgraded += self._upgrade_peer_status(
-                    peer_id, config, hub_peers, msg_type,
+                    peer_id,
+                    config,
+                    hub_peers,
+                    msg_type,
                 )
                 continue
             self._register_peer(peer_id, config, hub_peers)
@@ -1643,9 +1647,7 @@ class AgentNode:
         if added or upgraded:
             save_config(config, config_path)
             # Update active peers cache
-            self._active_peers_cache = {
-                p.clan_id for p in config.peers if p.status == "active"
-            }
+            self._active_peers_cache = {p.clan_id for p in config.peers if p.status == "active"}
 
     def _store_peer_key(self, peer_id: str, sign_pub: str) -> None:
         """Store a peer's public key if not already stored."""
@@ -1659,7 +1661,11 @@ class AgentNode:
             logger.info("Auto-peer: stored pub key for %s", peer_id)
 
     def _upgrade_peer_status(
-        self, peer_id: str, config: Any, hub_peers: dict, msg_type: str,
+        self,
+        peer_id: str,
+        config: Any,
+        hub_peers: dict,
+        msg_type: str,
     ) -> int:
         """Upgrade a peer from pending_ack to active when bilateral is confirmed.
 
@@ -1678,14 +1684,14 @@ class AgentNode:
             self._store_peer_key(peer_id, sign_pub)
             logger.info(
                 "Auto-peer: upgraded %s: %s -> active (trigger: %s)",
-                peer_id, old_status, "direct_msg" if is_direct_msg else "key_found",
+                peer_id,
+                old_status,
+                "direct_msg" if is_direct_msg else "key_found",
             )
             return 1
         return 0
 
-    def _register_peer(
-        self, peer_id: str, config: Any, hub_peers: dict
-    ) -> None:
+    def _register_peer(self, peer_id: str, config: Any, hub_peers: dict) -> None:
         """Register a single peer in the config object (caller saves)."""
         from .config import PeerConfig
 
@@ -1778,7 +1784,9 @@ class AgentNode:
                 file_size = self.config.hub_inbox_path.stat().st_size
                 if file_size < offset:
                     # File was truncated/cleaned — reset cursor to read from start
-                    logger.info("Hub inbox truncated (%d < %d), resetting cursor", file_size, offset)
+                    logger.info(
+                        "Hub inbox truncated (%d < %d), resetting cursor", file_size, offset
+                    )
                     offset = 0
                 if file_size <= offset:
                     await asyncio.sleep(self.config.hub_inbox_poll_interval)
@@ -1792,9 +1800,7 @@ class AgentNode:
                 bridged = 0
                 # Cache bus messages once per poll cycle (not per message)
                 existing = read_bus(self.config.bus_path)
-                dedup_keys = {
-                    (m.src, str(m.ts), m.msg) for m in existing
-                }
+                dedup_keys = {(m.src, str(m.ts), m.msg) for m in existing}
 
                 for line in new_data.strip().splitlines():
                     line = line.strip()
@@ -1833,7 +1839,10 @@ class AgentNode:
                     except Exception as we:
                         logger.warning(
                             "Hub bridge write failed (src=%s, msg=%s): %s",
-                            msg.src, msg.msg[:40], we, exc_info=True,
+                            msg.src,
+                            msg.msg[:40],
+                            we,
+                            exc_info=True,
                         )
 
                 # Persist cursor
@@ -1871,6 +1880,7 @@ class AgentNode:
 
         try:
             from .mcp_server import tool_hub_send
+
             result = await tool_hub_send(msg.dst, msg.type, msg.msg)
             if result.get("sent"):
                 logger.info("Forwarded response to %s via hub", msg.dst)

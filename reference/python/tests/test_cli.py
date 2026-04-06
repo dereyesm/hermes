@@ -1,9 +1,9 @@
-"""Tests for HERMES CLI — hermes init, status, publish, peer, send, inbox, discover, bus."""
+"""Tests for Amaru CLI — amaru init, status, publish, peer, send, inbox, discover, bus."""
 
 from __future__ import annotations
 
-from hermes.cli import main
-from hermes.message import create_message
+from amaru.cli import main
+from amaru.message import create_message
 
 
 class TestInit:
@@ -33,13 +33,13 @@ class TestInit:
                 "url-clan",
                 "URL Clan",
                 "--agora-url",
-                "https://github.com/hermes-agora/directory",
+                "https://github.com/amaru-agora/directory",
                 "--dir",
                 str(tmp_path),
             ]
         )
         config = json.loads((tmp_path / "gateway.json").read_text())
-        assert config["agora"]["url"] == "https://github.com/hermes-agora/directory"
+        assert config["agora"]["url"] == "https://github.com/amaru-agora/directory"
 
 
 class TestStatus:
@@ -93,7 +93,7 @@ class TestPeer:
         shutil.rmtree(clan_a / ".agora")
         shutil.rmtree(clan_b / ".agora")
         shared_agora.mkdir()
-        from hermes.agora import AgoraDirectory
+        from amaru.agora import AgoraDirectory
 
         agora = AgoraDirectory(shared_agora)
         agora.ensure_structure()
@@ -113,7 +113,7 @@ class TestPeer:
         assert rc == 0
 
         # Alpha should have hello in inbox
-        from hermes.agora import AgoraDirectory
+        from amaru.agora import AgoraDirectory
 
         agora = AgoraDirectory(clan_a / ".agora")
         messages = agora.read_inbox("alpha")
@@ -144,7 +144,7 @@ class TestPeer:
 
 class TestSend:
     def test_send_no_hub_returns_error(self, tmp_path):
-        """hermes send fails gracefully when no hub is reachable."""
+        """amaru send fails gracefully when no hub is reachable."""
         main(["init", "sender", "Sender", "--dir", str(tmp_path)])
         rc = main(["send", "receiver", "Hello from sender!", "--dir", str(tmp_path)])
         # Should fail (rc=1) because no hub is running
@@ -175,7 +175,7 @@ class TestInbox:
     def test_inbox_with_messages(self, tmp_path, capsys):
         main(["init", "recv", "Receiver", "--dir", str(tmp_path)])
         # Drop a message manually
-        from hermes.agora import AgoraDirectory
+        from amaru.agora import AgoraDirectory
 
         agora = AgoraDirectory(tmp_path / ".agora")
         agora.send_message(
@@ -217,7 +217,7 @@ class TestDiscover:
         main(["publish", "--dir", str(tmp_path)])
 
         # Discover
-        from hermes.agora import AgoraDirectory
+        from amaru.agora import AgoraDirectory
 
         agora = AgoraDirectory(tmp_path / ".agora")
         matches = agora.discover("finance")
@@ -226,7 +226,7 @@ class TestDiscover:
 
 
 class TestBusCommand:
-    """Tests for hermes bus command with --compact and --expand flags."""
+    """Tests for amaru bus command with --compact and --expand flags."""
 
     def _setup_clan_with_bus(self, tmp_path, capsys):
         """Create a clan dir with gateway.json and a bus with test messages."""
@@ -247,7 +247,7 @@ class TestBusCommand:
         return bus_path
 
     def test_bus_compact_output(self, tmp_path, capsys):
-        """hermes bus --compact should output compact JSONL."""
+        """amaru bus --compact should output compact JSONL."""
         self._setup_clan_with_bus(tmp_path, capsys)
         rc = main(["bus", "--compact", "--dir", str(tmp_path)])
         assert rc == 0
@@ -255,7 +255,7 @@ class TestBusCommand:
         assert out.startswith("[")  # compact format starts with [
 
     def test_bus_expand_output(self, tmp_path, capsys):
-        """hermes bus --expand should output verbose JSONL."""
+        """amaru bus --expand should output verbose JSONL."""
         self._setup_clan_with_bus(tmp_path, capsys)
         rc = main(["bus", "--expand", "--dir", str(tmp_path)])
         assert rc == 0
@@ -263,13 +263,13 @@ class TestBusCommand:
         assert out.startswith("{")  # verbose format starts with {
 
     def test_bus_default_output(self, tmp_path, capsys):
-        """hermes bus (no flags) should use print_bus_messages."""
+        """amaru bus (no flags) should use print_bus_messages."""
         self._setup_clan_with_bus(tmp_path, capsys)
         rc = main(["bus", "--dir", str(tmp_path)])
         assert rc == 0
 
     def test_bus_compact_reads_mixed_format(self, tmp_path, capsys):
-        """hermes bus --compact should handle mixed verbose+compact input."""
+        """amaru bus --compact should handle mixed verbose+compact input."""
         from datetime import date
 
         self._setup_clan_with_bus(tmp_path, capsys)
@@ -399,7 +399,7 @@ class TestAdaptCommand:
         assert "cursor" in output
 
     def test_adapt_unknown_adapter(self, tmp_path):
-        rc = main(["adapt", "nonexistent", "--hermes-dir", str(tmp_path)])
+        rc = main(["adapt", "nonexistent", "--amaru-dir", str(tmp_path)])
         assert rc == 1
 
 
@@ -428,7 +428,7 @@ class TestEndToEnd:
     def test_first_contact(self, tmp_path):
         import shutil
 
-        from hermes.agora import AgoraDirectory
+        from amaru.agora import AgoraDirectory
 
         # Shared Agora
         shared = tmp_path / "agora"

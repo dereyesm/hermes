@@ -1,4 +1,4 @@
-"""Tests for HERMES message validation and bus operations."""
+"""Tests for Amaru message validation and bus operations."""
 
 import json
 from datetime import date, timedelta
@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from hermes.bus import (
+from amaru.bus import (
     ack_message,
     archive_expired,
     filter_for_namespace,
@@ -15,7 +15,7 @@ from hermes.bus import (
     read_bus,
     write_message,
 )
-from hermes.message import (
+from amaru.message import (
     COMPACT_EPOCH,
     INT_TO_TYPE,
     MAX_MSG_LENGTH,
@@ -28,7 +28,7 @@ from hermes.message import (
     validate_message,
     validate_namespace,
 )
-from hermes.sync import FinAction, SynResult, fin, syn, syn_report
+from amaru.sync import FinAction, SynResult, fin, syn, syn_report
 
 # ─── Namespace Validation ───────────────────────────────────────────
 
@@ -561,7 +561,7 @@ class TestSynProtocol:
             total_bus_messages=1,
         )
         report = syn_report(result, "engineering")
-        assert "[HERMES]" in report
+        assert "[Amaru]" in report
         assert "1 pending" in report
         assert "deadline" in report
 
@@ -615,7 +615,7 @@ def _epoch_day(d: date) -> int:
 class TestCompactConstants:
     def test_type_enum_coverage(self):
         """All valid types have an integer mapping."""
-        from hermes.message import VALID_TYPES
+        from amaru.message import VALID_TYPES
 
         for t in VALID_TYPES:
             assert t in TYPE_TO_INT, f"Type '{t}' missing from TYPE_TO_INT"

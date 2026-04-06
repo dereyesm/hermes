@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from hermes.llm.skill import SkillContext, SkillLoader
+from amaru.llm.skill import SkillLoader
 
 
 @pytest.fixture
@@ -129,7 +129,9 @@ def test_quoted_values_stripped(tmp_path, loader):
 
 
 def test_colon_in_value(tmp_path, loader):
-    (tmp_path / "SKILL.md").write_text("---\nname: colon\ndescription: Has: colons: here\n---\nBody.")
+    (tmp_path / "SKILL.md").write_text(
+        "---\nname: colon\ndescription: Has: colons: here\n---\nBody."
+    )
     ctx = loader.load(tmp_path)
     assert ctx.description == "Has: colons: here"
 
@@ -164,7 +166,9 @@ def test_body_only(tmp_path, loader):
 
 
 def test_to_system_prompt_basic(tmp_path, loader):
-    (tmp_path / "SKILL.md").write_text("---\nname: prompt-test\ndescription: Desc\n---\nInstructions here.")
+    (tmp_path / "SKILL.md").write_text(
+        "---\nname: prompt-test\ndescription: Desc\n---\nInstructions here."
+    )
     ctx = loader.load(tmp_path)
     prompt = loader.to_system_prompt(ctx)
     assert "# Role: prompt-test" in prompt
@@ -175,10 +179,10 @@ def test_to_system_prompt_basic(tmp_path, loader):
 def test_to_system_prompt_with_context(tmp_path, loader):
     (tmp_path / "SKILL.md").write_text("---\nname: ctx\n---\nBody.")
     ctx = loader.load(tmp_path)
-    prompt = loader.to_system_prompt(ctx, context={"date": "2026-03-31", "dim": "hermes"})
+    prompt = loader.to_system_prompt(ctx, context={"date": "2026-03-31", "dim": "amaru"})
     assert "## Context" in prompt
     assert "- date: 2026-03-31" in prompt
-    assert "- dim: hermes" in prompt
+    assert "- dim: amaru" in prompt
 
 
 def test_to_system_prompt_no_context(tmp_path, loader):

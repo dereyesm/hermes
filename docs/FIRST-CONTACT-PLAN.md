@@ -43,7 +43,7 @@ Clan Momosho D. (Daniel)              Clan JEI (Jeimmy)
 
 **1. Clonar HERMES**
 ```bash
-git clone https://github.com/dereyesm/hermes.git ~/hermes
+git clone https://github.com/amaru-protocol/amaru.git ~/hermes
 cd ~/hermes/reference/python
 python -m venv .venv
 source .venv/bin/activate
@@ -166,7 +166,7 @@ python -m hermes inbox --dir ~/daniel-clan
 
 Jeimmy define los nombres finales. Estos son roles sugeridos basados en su perfil.
 
-**13. Contribucion directa a HERMES (repo publico)**
+**13. Contribucion directa an Amaru (repo publico)**
 
 Jeimmy puede ser la primera contribuidora externa de HERMES:
 - **ARC-8446** (Message Signing): Liderar el diseno de crypto identity (Ed25519, PQC)

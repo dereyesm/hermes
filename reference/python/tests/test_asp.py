@@ -1,11 +1,11 @@
-"""Tests for HERMES Agent Service Platform — ARC-0369 F1 + F2 + F3 + F4 + F5."""
+"""Tests for Amaru Agent Service Platform — ARC-0369 F1 + F2 + F3 + F4 + F5."""
 
 import json
 from datetime import date, datetime, timedelta
 
 import pytest
 
-from hermes.asp import (
+from amaru.asp import (
     AgentProfile,
     AgentProfileError,
     AgentRegistry,
@@ -26,7 +26,7 @@ from hermes.asp import (
     ResourceLimits,
     _trigger_matches,
 )
-from hermes.message import Message
+from amaru.message import Message
 
 # ─── Helpers ──────────────────────────────────────────────────────
 

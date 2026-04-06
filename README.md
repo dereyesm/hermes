@@ -1,43 +1,43 @@
-# HERMES — Local-first messaging for AI agents
+# Amaru — Local-first messaging for AI agents
 
-[![Tests](https://github.com/dereyesm/hermes/actions/workflows/ci.yml/badge.svg)](https://github.com/dereyesm/hermes/actions/workflows/ci.yml)
-[![PyPI](https://img.shields.io/badge/pypi-hermes--protocol-blue.svg)](https://pypi.org/project/hermes-protocol/)
+[![Tests](https://github.com/amaru-protocol/amaru/actions/workflows/ci.yml/badge.svg)](https://github.com/amaru-protocol/amaru/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/badge/pypi-amaru--protocol-blue.svg)](https://pypi.org/project/amaru-protocol/)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-Your AI agents can't talk to each other. HERMES fixes that -- no servers, no cloud, no API keys. Just a local message bus that works offline.
+Your AI agents can't talk to each other. Amaru fixes that -- no servers, no cloud, no API keys. Just a local message bus that works offline.
 
 ## Quick Start
 
 ```bash
-pip install hermes-protocol        # 1. Install
-hermes init --clan-id my-team      # 2. Initialize (creates ~/.hermes/)
-hermes adapt claude-code           # 3. Connect your AI agent
+pip install amaru-protocol        # 1. Install
+amaru init --clan-id my-team      # 2. Initialize (creates ~/.amaru/)
+amaru adapt claude-code           # 3. Connect your AI agent
 ```
 
-That's it. Your agent can now read and write messages through the HERMES bus.
+That's it. Your agent can now read and write messages through the Amaru bus.
 
 ### Send your first message
 
 From Claude Code (or any MCP-enabled agent):
 
 ```
-"Send a HERMES message to cursor: Backend API ready at /api/todos"
+"Send an Amaru message to cursor: Backend API ready at /api/todos"
 ```
 
 Or from the command line:
 
 ```bash
-echo '{"ts":"2026-04-03","src":"backend","dst":"frontend","type":"dispatch","msg":"API ready: GET/POST /api/todos","ttl":7,"ack":[]}' >> ~/.hermes/bus.jsonl
+echo '{"ts":"2026-04-03","src":"backend","dst":"frontend","type":"dispatch","msg":"API ready: GET/POST /api/todos","ttl":7,"ack":[]}' >> ~/.amaru/bus.jsonl
 ```
 
 Or from Python:
 
 ```python
-from hermes.bus import write_message
-from hermes.message import create_message
+from amaru.bus import write_message
+from amaru.message import create_message
 
-write_message("~/.hermes/bus.jsonl", create_message(
+write_message("~/.amaru/bus.jsonl", create_message(
     src="backend", dst="frontend", type="dispatch",
     msg="API ready: GET/POST /api/todos",
 ))
@@ -46,19 +46,19 @@ write_message("~/.hermes/bus.jsonl", create_message(
 ### Connect multiple agents
 
 ```bash
-hermes adapt claude-code           # Claude Code (MCP tools + hooks)
-hermes adapt cursor                # Cursor (.cursorrules + bus symlink)
-hermes adapt gemini-cli            # Gemini CLI (GEMINI.md + settings)
-hermes adapt opencode              # OpenCode (AGENTS.md + config)
-hermes adapt continue              # Continue.dev (.continuerc.json + rules)
-hermes adapt --all                 # All detected agents at once
+amaru adapt claude-code           # Claude Code (MCP tools + hooks)
+amaru adapt cursor                # Cursor (.cursorrules + bus symlink)
+amaru adapt gemini-cli            # Gemini CLI (GEMINI.md + settings)
+amaru adapt opencode              # OpenCode (AGENTS.md + config)
+amaru adapt continue              # Continue.dev (.continuerc.json + rules)
+amaru adapt --all                 # All detected agents at once
 ```
 
-Every agent reads the same `~/.hermes/bus.jsonl`. Messages are just JSON lines -- `cat`, `grep`, and `jq` all work.
+Every agent reads the same `~/.amaru/bus.jsonl`. Messages are just JSON lines -- `cat`, `grep`, and `jq` all work.
 
 ---
 
-## Why HERMES?
+## Why Amaru?
 
 - **Zero infrastructure** -- no servers, no Docker, no cloud. Works offline with `cat >> bus.jsonl`.
 - **E2E encrypted** -- Ed25519 + AES-256-GCM per message. Even the relay can't read your data.
@@ -71,15 +71,15 @@ Every agent reads the same `~/.hermes/bus.jsonl`. Messages are just JSON lines -
 ```
   Claude Code                    Cursor
       │                            │
-      │ hermes_bus_write()         │ reads .cursor/bus.jsonl
+      │ amaru_bus_write()         │ reads .cursor/bus.jsonl
       │                            │
-      └──────► ~/.hermes/bus.jsonl ◄──────┘
+      └──────► ~/.amaru/bus.jsonl ◄──────┘
                     │
               Just a file.
          grep it. git it. own it.
 ```
 
-HERMES messages have 7 fields. That's the whole protocol:
+Amaru messages have 7 fields. That's the whole protocol:
 
 ```json
 {"ts":"2026-04-03","src":"backend","dst":"frontend","type":"dispatch","msg":"API ready","ttl":7,"ack":[]}
@@ -91,20 +91,20 @@ HERMES messages have 7 fields. That's the whole protocol:
 
 | Feature | Command | What it does |
 |---------|---------|-------------|
-| **Real-time P2P** | `hermes hub install` | WebSocket hub for live messaging between machines |
-| **Peer encryption** | `hermes peer invite` | One-command bilateral key exchange |
+| **Real-time P2P** | `amaru hub install` | WebSocket hub for live messaging between machines |
+| **Peer encryption** | `amaru peer invite` | One-command bilateral key exchange |
 | **Hub federation** | Built-in (S2S) | Your hub talks to other hubs (BGP-style routing) |
-| **Token telemetry** | `hermes llm usage` | Track AI token costs across backends |
-| **Full setup** | `hermes install` | OS service + hooks + keys in one command |
+| **Token telemetry** | `amaru llm usage` | Track AI token costs across backends |
+| **Full setup** | `amaru install` | OS service + hooks + keys in one command |
 
 ---
 
 ## Deep Dive
 
-Everything below is for the curious. You don't need any of it to use HERMES.
+Everything below is for the curious. You don't need any of it to use Amaru.
 
 <details>
-<summary><strong>Where HERMES Fits (vs MCP, A2A, NLIP)</strong></summary>
+<summary><strong>Where Amaru Fits (vs MCP, A2A, NLIP)</strong></summary>
 
 | Protocol | Scope | Transport | Infrastructure Required |
 |----------|-------|-----------|------------------------|
@@ -113,9 +113,9 @@ Everything below is for the curious. You don't need any of it to use HERMES.
 | **Ecma NLIP** (TC56) | Envelope protocol, multimodal | HTTP, WebSocket, AMQP | Network transport layer |
 | **SLIM** (IETF draft) | Real-time agent messaging | gRPC + MLS | gRPC infrastructure |
 | **ANP** | Discovery + DIDs | HTTP, JSON-LD | HTTP + DID resolver |
-| **HERMES** | Sovereign + Hosted dual-mode | **File system / HTTPS** | **None** (Sovereign) or **Hub** (Hosted) |
+| **Amaru** | Sovereign + Hosted dual-mode | **File system / HTTPS** | **None** (Sovereign) or **Hub** (Hosted) |
 
-**HERMES complements, does not replace, existing protocols.** Use MCP for tool binding. Use A2A for real-time agent-to-agent RPC. Use HERMES for the coordination layer that works without infrastructure.
+**Amaru complements, does not replace, existing protocols.** Use MCP for tool binding. Use A2A for real-time agent-to-agent RPC. Use Amaru for the coordination layer that works without infrastructure.
 
 See [docs/POSITIONING.md](docs/POSITIONING.md) for the full technical positioning paper.
 
@@ -158,15 +158,15 @@ See [ARC-5322](spec/ARC-5322.md) for the full message format specification.
 
 ## Supported Agents
 
-HERMES is agent-agnostic. The `hermes adapt` command generates the configuration each AI coding assistant expects from a single canonical source (`~/.hermes/`).
+Amaru is agent-agnostic. The `amaru adapt` command generates the configuration each AI coding assistant expects from a single canonical source (`~/.amaru/`).
 
 | Agent | Command | Output | Skills Format |
 |-------|---------|--------|---------------|
-| [Claude Code](https://claude.ai/code) | `hermes adapt claude-code` | `~/.claude/` (CLAUDE.md + symlinks) | SKILL.md (native) |
-| [Cursor](https://cursor.com) | `hermes adapt cursor` | `.cursorrules` (compiled markdown) | Compiled into rules |
-| [OpenCode](https://opencode.ai) | `hermes adapt opencode` | `~/.config/opencode/` (AGENTS.md + JSON) | SKILL.md (symlinks) |
-| [Gemini CLI](https://github.com/google-gemini/gemini-cli) | `hermes adapt gemini-cli` | `GEMINI.md` + settings | Compiled into markdown |
-| [Continue.dev](https://continue.dev) | `hermes adapt continue` | `.continuerc.json` + rules | SKILL.md (symlinks) |
+| [Claude Code](https://claude.ai/code) | `amaru adapt claude-code` | `~/.claude/` (CLAUDE.md + symlinks) | SKILL.md (native) |
+| [Cursor](https://cursor.com) | `amaru adapt cursor` | `.cursorrules` (compiled markdown) | Compiled into rules |
+| [OpenCode](https://opencode.ai) | `amaru adapt opencode` | `~/.config/opencode/` (AGENTS.md + JSON) | SKILL.md (symlinks) |
+| [Gemini CLI](https://github.com/google-gemini/gemini-cli) | `amaru adapt gemini-cli` | `GEMINI.md` + settings | Compiled into markdown |
+| [Continue.dev](https://continue.dev) | `amaru adapt continue` | `.continuerc.json` + rules | SKILL.md (symlinks) |
 
 Skills follow the [Agent Skills Open Standard](https://agentskills.io), making them portable across Claude Code, Gemini CLI, Cursor, OpenCode, and 30+ tools without modification. See [installable-model.md](docs/architecture/installable-model.md) for architecture details.
 
@@ -175,29 +175,29 @@ Skills follow the [Agent Skills Open Standard](https://agentskills.io), making t
 ## Architecture
 
 <p align="center">
-  <img src="docs/diagrams/excalidraw/hero-clan-topology.svg" alt="HERMES Protocol — Clan topology with sovereign agents, encrypted relay, and cross-clan quest dispatch" width="800"/>
+  <img src="docs/diagrams/excalidraw/hero-clan-topology.svg" alt="Amaru Protocol — Clan topology with sovereign agents, encrypted relay, and cross-clan quest dispatch" width="800"/>
   <br/>
   <em>Sovereign clans communicate through encrypted relay channels. Each clan owns its agents, bus, and firewall. The Agora provides public discovery without surrendering sovereignty.</em>
 </p>
 
 <p align="center">
-  <img src="docs/diagrams/d2/five-layer-stack.svg" alt="HERMES 5-layer protocol stack" width="600"/>
+  <img src="docs/diagrams/d2/five-layer-stack.svg" alt="Amaru 5-layer protocol stack" width="600"/>
 </p>
 
 <p align="center">
-  <img src="docs/diagrams/d2/namespace-topology.svg" alt="HERMES star topology with controller hub" width="600"/>
+  <img src="docs/diagrams/d2/namespace-topology.svg" alt="Amaru star topology with controller hub" width="600"/>
 </p>
 
 The **Compact Wire Format** ([ARC-5322 §14](spec/ARC-5322.md)) reduces wrapper overhead by 66% while remaining valid JSON:
 
 <p align="center">
-  <img src="docs/diagrams/d2/compact-wire-format.svg" alt="HERMES compact wire format — verbose vs compact comparison" width="800"/>
+  <img src="docs/diagrams/d2/compact-wire-format.svg" alt="Amaru compact wire format — verbose vs compact comparison" width="800"/>
 </p>
 
 The **Skill Gateway** ([ARC-2314](spec/ARC-2314.md)) separates operations into three planes:
 
 <p align="center">
-  <img src="docs/diagrams/d2/cups-three-planes.svg" alt="HERMES CUPS triple-plane architecture" width="700"/>
+  <img src="docs/diagrams/d2/cups-three-planes.svg" alt="Amaru CUPS triple-plane architecture" width="700"/>
 </p>
 
 - **Namespaces** are isolated workspaces with their own agents, configuration, and credentials
@@ -209,7 +209,7 @@ The **Skill Gateway** ([ARC-2314](spec/ARC-2314.md)) separates operations into t
 Inter-clan communication uses the **Gateway** ([ARC-3022](spec/ARC-3022.md)) as a NAT at the boundary:
 
 <p align="center">
-  <img src="docs/diagrams/d2/gateway-clan-boundary.svg" alt="HERMES inter-clan gateway with NAT and Agora" width="700"/>
+  <img src="docs/diagrams/d2/gateway-clan-boundary.svg" alt="Amaru inter-clan gateway with NAT and Agora" width="700"/>
 </p>
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full architecture document.
@@ -230,7 +230,7 @@ Highlights:
 
 ## The Standards System
 
-HERMES uses a formal, RFC-like standards process with three tracks, each tracing its lineage to a real-world standards body:
+Amaru uses a formal, RFC-like standards process with three tracks, each tracing its lineage to a real-world standards body:
 
 | Track | Lineage | Domain | Example |
 |-------|---------|--------|---------|
@@ -242,7 +242,7 @@ HERMES uses a formal, RFC-like standards process with three tracks, each tracing
 
 | Standard | Title | Tier | IETF/ITU-T Lineage |
 |----------|-------|------|---------------------|
-| [ARC-0001](spec/ARC-0001.md) | HERMES Architecture | Core | Original (cf. RFC 791, 793) |
+| [ARC-0001](spec/ARC-0001.md) | Amaru Architecture | Core | Original (cf. RFC 791, 793) |
 | [ARC-0768](spec/ARC-0768.md) | Datagram & Reliable Message Semantics | Core | RFC 768 (UDP) |
 | [ARC-0791](spec/ARC-0791.md) | Addressing & Routing | Core | RFC 791 (IP) |
 | [ARC-0793](spec/ARC-0793.md) | Reliable Transport | Core | RFC 793 (TCP) |
@@ -290,7 +290,7 @@ Modules:
 - `dojo.py` -- orchestration plane: quest dispatch, skill matching, XP tracking per ARC-2314
 - `config.py` -- clan configuration and peer management
 - `agora.py` -- Agora directory client for clan discovery
-- `adapter.py` -- agent-agnostic adapter bridge (generates agent configs from `~/.hermes/`)
+- `adapter.py` -- agent-agnostic adapter bridge (generates agent configs from `~/.amaru/`)
 - `asp.py` -- Agent Service Platform: bus convergence + agent registration per ARC-0369
 - `cli.py` -- command-line interface for clan operations
 - `installer.py` -- cross-platform one-command setup
@@ -306,11 +306,11 @@ See [reference/python/](reference/python/) for details.
 Run a local hub for real-time message routing between clans:
 
 ```bash
-hermes hub init                  # generate hub-peers.json from peer registry
-hermes hub install               # install as persistent OS service (macOS/Linux)
-hermes hub status                # check hub health
-hermes hub peers                 # list connected peers
-hermes hub uninstall             # stop and remove services
+amaru hub init                  # generate hub-peers.json from peer registry
+amaru hub install               # install as persistent OS service (macOS/Linux)
+amaru hub status                # check hub health
+amaru hub peers                 # list connected peers
+amaru hub uninstall             # stop and remove services
 ```
 
 The hub provides WebSocket-based routing (port 8443), store-and-forward for offline peers, Ed25519 challenge-response auth, and S2S federation between hubs. See the [Hub Operations Guide](docs/hub-operations.md).
@@ -319,7 +319,7 @@ The hub provides WebSocket-based routing (port 8443), store-and-forward for offl
 
 ## Standards References
 
-HERMES design traces to established telecom, internet, and industry standards:
+Amaru design traces to established telecom, internet, and industry standards:
 
 **IETF**:
 RFC 768 (UDP), RFC 791 (IP), RFC 793 (TCP), RFC 1918 (Private Address Allocation), RFC 2119 (Requirement Levels), RFC 3022 (NAT), RFC 5322 (Internet Message Format), RFC 7231 (HTTP Semantics), RFC 7519 (JWT), RFC 8446 (TLS 1.3), RFC 8949 (CBOR), draft-rosenberg-ai-protocols (Framework for AI Protocols)
@@ -343,7 +343,7 @@ TR-369 (USP -- User Services Platform), TR-181 (Device Data Model)
 
 ## Roadmap
 
-HERMES follows a 5-phase evolution plan from file-based prototype to industry-grade protocol suite:
+Amaru follows a 5-phase evolution plan from file-based prototype to industry-grade protocol suite:
 
 | Phase | Period | Focus |
 |-------|--------|-------|
@@ -360,7 +360,7 @@ Full plan: **[docs/EVOLUTION-PLAN.md](docs/EVOLUTION-PLAN.md)**
 ## Project Structure
 
 ```
-hermes/
+amaru/
 ├── spec/              # Formal standards (20 specs, 30 planned)
 │   ├── ARC-0001.md    #   Architecture (meta-standard)
 │   ├── ARC-0768.md    #   Datagram & Reliable Message Semantics
@@ -402,7 +402,7 @@ hermes/
 
 ## Contributing
 
-HERMES is built by and for the community. See [CONTRIBUTING.md](CONTRIBUTING.md) for:
+Amaru is built by and for the community. See [CONTRIBUTING.md](CONTRIBUTING.md) for:
 
 - How to propose new standards (ARC/ATR/AES)
 - Contributing code or documentation

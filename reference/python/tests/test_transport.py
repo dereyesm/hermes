@@ -9,7 +9,7 @@ from datetime import date, timedelta
 
 import pytest
 
-from hermes.bus import (
+from amaru.bus import (
     correlate,
     find_expired_unresolved,
     find_unresolved,
@@ -17,7 +17,7 @@ from hermes.bus import (
     read_bus,
     write_message,
 )
-from hermes.message import (
+from amaru.message import (
     RELIABLE_TYPES,
     Message,
     create_message,
@@ -25,7 +25,7 @@ from hermes.message import (
     extract_re,
     transport_mode,
 )
-from hermes.sync import SynResult, syn, syn_report
+from amaru.sync import SynResult, syn, syn_report
 
 # ─── Fixtures ──────────────────────────────────────────────────────
 
@@ -276,7 +276,7 @@ class TestSynUnresolved:
         msg = create_message(src="ops", dst="eng", type="dispatch", msg="review pr [CID:ops-pr01]")
         write_message(bus_file, msg)
         # Manually ACK it
-        from hermes.bus import ack_message
+        from amaru.bus import ack_message
 
         ack_message(bus_file, "eng", lambda m: True)
 
@@ -319,7 +319,7 @@ class TestLifecycleIntegration:
         assert len(result.pending) == 1
 
         # 3. ACK: eng acknowledges
-        from hermes.bus import ack_message
+        from amaru.bus import ack_message
 
         ack_message(bus_file, "eng", lambda m: True)
 

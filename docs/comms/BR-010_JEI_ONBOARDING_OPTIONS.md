@@ -17,7 +17,7 @@ The goal: she runs one command and Daniel is already there, waiting.
 
 ### How it works
 
-Daniel writes a HERMES quest message to the relay before March 22.
+Daniel writes an Amaru quest message to the relay before March 22.
 When JEI opens her Claude Code session that morning, the SYN hook picks
 it up. Huitaca surfaces it in Quest Board format. She doesn't get an
 email — she gets a **mission**.
@@ -25,7 +25,7 @@ email — she gets a **mission**.
 ### Relay message (append to `dani_outbox.jsonl`)
 
 ```json
-{"ts":"2026-03-22","src":"dani","dst":"jei","type":"quest","msg":"QUEST-003 Phase 2: You are cleared for live connection. Install HERMES on your machine in 3 commands. DANI agent node is running and listening for your handshake. Instructions: https://github.com/dereyesm/hermes/blob/main/docs/GETTING-STARTED.md#install — Expected: fingerprint exchange + bilateral ECDHE ping. Timeline: today.","ttl":3,"ack":[]}
+{"ts":"2026-03-22","src":"dani","dst":"jei","type":"quest","msg":"QUEST-003 Phase 2: You are cleared for live connection. Install HERMES on your machine in 3 commands. DANI agent node is running and listening for your handshake. Instructions: https://github.com/amaru-protocol/amaru/blob/main/docs/GETTING-STARTED.md#install — Expected: fingerprint exchange + bilateral ECDHE ping. Timeline: today.","ttl":3,"ack":[]}
 ```
 
 ### What JEI sees (Quest Board, via Huitaca)
@@ -37,7 +37,7 @@ From: Clan DANI | Priority: high | Expires: 3 days
 You are cleared for live connection.
 DANI agent node is already running, listening for your handshake.
 
-Step 1: pip install hermes-protocol
+Step 1: pip install amaru-protocol
 Step 2: hermes install --clan-id jei --display-name "Clan JEI"
 Step 3: hermes status   ← confirm you're online
 
@@ -51,9 +51,9 @@ exchange and you'll receive a sealed test message within minutes.
 2. March 22 morning: Huitaca surfaces quest on JEI's session start.
 3. JEI runs 3 commands. Installer runs in ~30 seconds.
 4. On JEI's Mac: desktop notification fires — *"Agent Node running. You're connected as jei!"*
-5. Her daemon starts polling. Her first `hermes status` shows `peers: []`.
+5. Her daemon starts polling. Her first `amaru status` shows `peers: []`.
 6. JEI sends fingerprint to Daniel (relay or direct).
-7. Daniel runs `hermes peer add jei` — JEI's status flips to `peers: [dani]`.
+7. Daniel runs `amaru peer add jei` — JEI's status flips to `peers: [dani]`.
 8. Daniel's daemon detects new peer registration → **desktop notification fires on Daniel's Mac**.
 9. Daniel sends a sealed ECDHE message via relay.
 10. JEI's daemon receives it, decrypts, surfaces via Huitaca.
@@ -82,14 +82,14 @@ and listening for your handshake.
 Run this on your Mac:
 
 ```bash
-pip install hermes-protocol
+pip install amaru-protocol
 hermes install --clan-id jei --display-name "Clan JEI"
 hermes status
 ```
 
 That's it. ~30 seconds.
 
-When `hermes install` finishes, you'll get a desktop notification:
+When `amaru install` finishes, you'll get a desktop notification:
 *"Agent Node running. You're connected as jei!"*
 
 Then send me your key fingerprint (shown during install) so I can add
@@ -102,7 +102,7 @@ See you on the other side.
 
 ---
 
-### What JEI sees when `hermes install` runs
+### What JEI sees when `amaru install` runs
 
 ```
   ╔══════════════════════════════════════╗
@@ -134,7 +134,7 @@ Desktop notification (macOS Glass chime):
 3. JEI replies with fingerprint.
 4. Daniel adds JEI as peer. Daniel's Mac fires notification.
 5. Daniel sends sealed ECDHE test message via relay.
-6. JEI opens it: `hermes inbox`. Phase 2 complete.
+6. JEI opens it: `amaru inbox`. Phase 2 complete.
 
 ### The "uala" moment (Option B)
 
@@ -161,11 +161,11 @@ JEI is actively following instructions and expects it. Option B is
 ## What needs to be ready before sending (either option)
 
 1. QUEST-003 Phase 2 commit pushed (bus.py + message.py + test_bus.py — currently pending).
-2. Daniel's daemon running: `hermes daemon start` (or LaunchAgent loaded).
+2. Daniel's daemon running: `amaru daemon start` (or LaunchAgent loaded).
 3. JEI's fingerprints pre-loaded in Daniel's gateway as a pending peer
    entry — so her connection auto-completes when she appears.
 4. Relay channel JEI-HERMES-011 stable.
-5. `pip install hermes-protocol` works from JEI's machine OR she clones
+5. `pip install amaru-protocol` works from JEI's machine OR she clones
    the repo and installs from source (confirm which before sending).
 
 ---

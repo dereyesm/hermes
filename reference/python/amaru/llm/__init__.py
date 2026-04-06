@@ -1,9 +1,9 @@
-"""HERMES LLM — Multi-backend adapter layer.
+"""Amaru LLM — Multi-backend adapter layer.
 
 Provides a unified interface for LLM backends (Claude, Gemini, etc.)
-so that HERMES skills can execute on any provider.
+so that Amaru skills can execute on any provider.
 
-The adapters are optional — core HERMES works without any LLM SDK installed.
+The adapters are optional — core Amaru works without any LLM SDK installed.
 """
 
 from __future__ import annotations

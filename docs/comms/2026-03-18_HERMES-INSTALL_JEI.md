@@ -22,7 +22,7 @@ HERMES install esta listo. Mi Agent Node ya esta corriendo y escuchando.
 ### Que hacer
 
 ```bash
-git clone https://github.com/dereyesm/hermes.git
+git clone https://github.com/amaru-protocol/amaru.git
 cd hermes/reference/python
 pip install -e .
 hermes install --clan-id jei --display-name "Clan JEI"
@@ -32,7 +32,7 @@ hermes install --clan-id jei --display-name "Clan JEI"
 
 ### Que va a pasar
 
-1. Se crea `~/.hermes/` con tu configuracion y bus
+1. Se crea `~/.amaru/` con tu configuracion y bus
 2. Se generan tus llaves Ed25519 + X25519 (criptografia E2E)
 3. Se instala un LaunchAgent que mantiene tu daemon vivo
 4. Se registran 3 hooks en Claude Code (mensajes pendientes al abrir sesion, refresh en comandos /hermes, recordatorio al salir)

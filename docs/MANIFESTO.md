@@ -75,7 +75,7 @@ The human builds systems that protect and sustain. Financial literacy. Health tr
 
 The human connects with others. Joins or creates a clan. Collaborates on shared quests. The AI facilitates communication but does not replace human connection.
 
-**Quest examples**: Join a HERMES clan. Complete a quest with a partner. Teach someone one thing you learned in Realm 1.
+**Quest examples**: Join an Amaru clan. Complete a quest with a partner. Teach someone one thing you learned in Realm 1.
 
 **Level up signal**: "I am part of something bigger than myself, and I contribute to it."
 
@@ -126,7 +126,7 @@ HERMES is not a game. It is communication infrastructure that happens to map nat
 
 ### The Protocol is the Platform
 
-HERMES does not run on a server you don't control. It runs on your filesystem. Your data is yours. Your clan is yours. Your growth record is yours. You can verify every message with `cat bus.jsonl`. You can move your entire identity to a new computer with `cp -r ~/.hermes/ /new/machine/`.
+HERMES does not run on a server you don't control. It runs on your filesystem. Your data is yours. Your clan is yours. Your growth record is yours. You can verify every message with `cat bus.jsonl`. You can move your entire identity to a new computer with `cp -r ~/.amaru/ /new/machine/`.
 
 This is sovereignty. Not as ideology — as architecture.
 

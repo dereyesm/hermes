@@ -1,6 +1,6 @@
 # ARCH-01: 5-Layer Protocol Stack
 
-> The HERMES protocol stack from physical storage (L0) to application logic (L4), inspired by the OSI model.
+> The Amaru protocol stack from physical storage (L0) to application logic (L4), inspired by the OSI model.
 
 ## Architecture Diagram
 

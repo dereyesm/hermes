@@ -1,11 +1,11 @@
-"""Tests for HERMES Gateway Configuration — ARC-3022 Section 16."""
+"""Tests for Amaru Gateway Configuration — ARC-3022 Section 16."""
 
 import json
 import tomllib
 
 import pytest
 
-from hermes.config import (
+from amaru.config import (
     CONFIG_SCHEMA_VERSION,
     GatewayConfig,
     PeerConfig,

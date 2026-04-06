@@ -1,4 +1,4 @@
-"""HERMES Agora Directory Client — Git-based clan discovery.
+"""Amaru Agora Directory Client — Git-based clan discovery.
 
 Reference implementation for the Agora directory per ARC-2606.
 Uses a local folder structure for profiles, inboxes, and attestations.

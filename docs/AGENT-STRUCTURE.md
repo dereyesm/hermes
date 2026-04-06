@@ -98,7 +98,7 @@ Anything not in this table is **blocked by default**. An agent in `sales` can't 
 
 ### For your own company/team:
 
-1. **Clone HERMES**: `git clone https://github.com/dereyesm/hermes`
+1. **Clone HERMES**: `git clone https://github.com/amaru-protocol/amaru`
 2. **Run init**: `bash scripts/init_hermes.sh sales engineering ops finance`
 3. **Configure namespaces**: Edit each `config.md` with your agents and tools
 4. **Define routing**: Edit `routes.md` with permitted data flows
@@ -119,7 +119,7 @@ Each namespace maps to a directory with its own `.claude/skills/`:
 │   └── devops/SKILL.md
 ├── sales/.claude/skills/
 │   └── proposal-writer/SKILL.md
-└── .claude/sync/          # HERMES bus lives here
+└── .claude/sync/          # Amaru bus lives here
     ├── bus.jsonl
     └── routes.md
 ```

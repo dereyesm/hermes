@@ -13,7 +13,7 @@ Nymyka as a **skill factory**: building specialized Claude skills for domain exp
 ## Flow
 
 1. Expert in domain X (doctor, lawyer, engineer, trader...)
-2. HERMES protocol connects expert with Nymyka team
+2. Amaru protocol connects expert with Nymyka team
 3. Nymyka builds personalized skill (calibrated with expert's knowledge)
 4. Expert uses their skill daily in Claude
 5. Revenue model: combo (consulting fee + subscription + marketplace cut)
@@ -37,7 +37,7 @@ Nymyka as a **skill factory**: building specialized Claude skills for domain exp
 | Ventaja | Evidencia |
 |---------|-----------|
 | 33 skills built | Metodologia probada, no teoria |
-| HERMES protocol | Unico inter-skill communication (ningun competidor tiene esto) |
+| Amaru protocol | Unico inter-skill communication (ningun competidor tiene esto) |
 | CCA-F certification | Credibilidad ante Anthropic y clientes |
 | Partner Network | Canal de distribucion oficial |
 | Dojo + Arena system | Quality assurance y evolucion continua |
@@ -54,11 +54,11 @@ Nymyka as a **skill factory**: building specialized Claude skills for domain exp
 ## Prerequisites
 
 - [x] 33 skills built (methodology proven)
-- [x] HERMES protocol operational
+- [x] Amaru protocol operational
 - [ ] CCA-F certification (primera semana Abr)
 - [ ] Partner Network approval (~Abr 6-13)
 - [ ] Formalize skill creation methodology (SOP)
-- [ ] Test with 1-2 external experts via HERMES
+- [ ] Test with 1-2 external experts vian Amaru
 - [ ] Package as Nymyka service offering
 - [ ] Pricing model validation
 
@@ -66,6 +66,6 @@ Nymyka as a **skill factory**: building specialized Claude skills for domain exp
 
 1. Complete CCA-F certification
 2. Formalize skill creation methodology into repeatable SOP
-3. Test with 1-2 external experts via HERMES
+3. Test with 1-2 external experts vian Amaru
 4. Package as Nymyka service offering
 5. Define pricing tiers

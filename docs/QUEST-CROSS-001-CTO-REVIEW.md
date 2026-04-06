@@ -91,7 +91,7 @@ The reviewer should evaluate `hermes/spec/ARC-4601.md` and optionally
 
 ## Bus Message
 
-Dispatch via HERMES bus (`~/.claude/sync/bus.jsonl`):
+Dispatch vian Amaru bus (`~/.claude/sync/bus.jsonl`):
 
 ```json
 {"ts":"2026-03-16","src":"momoshod/protocol-architect","dst":"nymyka/cto-advisor","type":"quest_ping","msg":"QUEST-CROSS-001: CTO review ARC-4601 Agent Node. Scope: arch+security+scalability+ops. Spec: hermes/spec/ARC-4601.md","ttl":14,"ack":[]}

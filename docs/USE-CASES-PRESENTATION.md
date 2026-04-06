@@ -1,4 +1,4 @@
-# HERMES Protocol — Use Cases & Strategic Positioning
+# Amaru Protocol — Use Cases & Strategic Positioning
 
 > *Where the industry is going, and why HERMES matters.*
 
@@ -90,7 +90,7 @@ Key figures shaping the agentic AI landscape whose work validates HERMES design 
 | Voice | Role | Relevant Statement | HERMES Connection |
 |-------|------|-------------------|-------------------|
 | **Dario Amodei** | CEO, Anthropic | "Machines of Loving Grace" (2024): AI agents need to coordinate safely. MCP is the tool layer; horizontal agent communication is the unsolved problem. | HERMES = the horizontal layer MCP doesn't address |
-| **Jeff Dean** | Chief Scientist, Google | A2A v0.3.0 (2025): "Agents need a common language." Donated A2A to Linux Foundation — signaling that interop > vendor control. | HERMES bridges to A2A (ARC-7231), serves sovereign use cases A2A can't |
+| **Jeff Dean** | Chief Scientist, Google | A2A v0.3.0 (2025): "Agents need a common language." Donated A2A to Linux Foundation — signaling that interop > vendor control. | Amaru bridges to A2A (ARC-7231), serves sovereign use cases A2A can't |
 | **Yann LeCun** | Chief AI Scientist, Meta | Advocates for open AI infrastructure. "Proprietary AI protocols will fragment the ecosystem the way proprietary networking did in the 80s." | HERMES is MIT-licensed, open-spec, no vendor dependency |
 | **Andrew Ng** | Stanford / DeepLearning.AI | "AI Agentic Design Patterns" (2024): multi-agent workflows are the next paradigm. Identifies protocol standardization as key enabler. | HERMES provides the protocol layer Ng describes as missing |
 | **Demis Hassabis** | CEO, Google DeepMind | "Agents that can collaborate are exponentially more capable." DeepMind's SIMA project explores multi-agent coordination. | HERMES provides the communication backbone for collaborative agents |
@@ -129,7 +129,7 @@ Key figures shaping the agentic AI landscape whose work validates HERMES design 
 
 **Scenario**: A law firm uses AI agents for contract review, regulatory compliance checking, prior art research, and client communication drafting. These agents must coordinate without sending privileged client information to any external service.
 
-**Why HERMES**: Attorney-client privilege demands sovereign infrastructure. HERMES agents coordinate on local filesystems. The 120-char payload constraint forces agents to exchange references (file paths, section numbers) rather than full documents — a natural fit for legal workflows where precision > verbosity.
+**Why HERMES**: Attorney-client privilege demands sovereign infrastructure. Amaru agents coordinate on local filesystems. The 120-char payload constraint forces agents to exchange references (file paths, section numbers) rather than full documents — a natural fit for legal workflows where precision > verbosity.
 
 **Why not alternatives**: Any cloud-based protocol risks privilege waiver. File-based HERMES with E2E encryption preserves privilege while enabling agent coordination.
 
@@ -143,7 +143,7 @@ Key figures shaping the agentic AI landscape whose work validates HERMES design 
 
 **Why HERMES**: Sovereign mode works on a student's laptop without internet. When connectivity is available, agents sync via Hub mode. Student data stays on their device — no EdTech vendor has access. GDPR/FERPA compliant by architecture.
 
-**Why not alternatives**: Cloud-dependent protocols exclude offline learners. HERMES bridges the digital divide by design.
+**Why not alternatives**: Cloud-dependent protocols exclude offline learners. Amaru bridges the digital divide by design.
 
 **Market signal**: UNESCO recommends sovereign AI for education in developing regions. EdTech AI market $25B by 2027.
 
@@ -296,4 +296,4 @@ Three vectors converging in 2026:
 
 ---
 
-*Document prepared by Protocol Architect. HERMES Protocol, MIT License.*
+*Document prepared by Protocol Architect. Amaru Protocol, MIT License.*

@@ -1,4 +1,4 @@
-"""Tests for HERMES Agent Gateway — ARC-3022 Reference Implementation.
+"""Tests for Amaru Agent Gateway — ARC-3022 Reference Implementation.
 
 Covers: TranslationTable, OutboundFilter, InboundValidator,
 AttestationStore, ResonanceCalculator, Gateway.
@@ -8,7 +8,7 @@ from datetime import date, timedelta
 
 import pytest
 
-from hermes.gateway import (
+from amaru.gateway import (
     AgentMapping,
     AttestationStore,
     Gateway,
@@ -17,7 +17,7 @@ from hermes.gateway import (
     ResonanceCalculator,
     TranslationTable,
 )
-from hermes.message import Message
+from amaru.message import Message
 
 # ─── Fixtures ──────────────────────────────────────────────────────
 

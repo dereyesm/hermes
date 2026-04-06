@@ -1,25 +1,25 @@
-"""HERMES CLI — Gateway management for inter-clan communication.
+"""Amaru CLI — Gateway management for inter-clan communication.
 
 Usage:
-    python -m hermes.cli init <clan-id> <display-name> [--agora-url URL] [--dir PATH]
-    python -m hermes.cli status [--dir PATH]
-    python -m hermes.cli publish [--dir PATH]
-    python -m hermes.cli peer add <clan-id> [--dir PATH]
-    python -m hermes.cli peer list [--dir PATH]
-    python -m hermes.cli send <target-clan> <message> [--dir PATH]
-    python -m hermes.cli inbox [--dir PATH]
-    python -m hermes.cli bus [--filter-type TYPE] [--pending] [--dir PATH]
-    python -m hermes.cli discover <capability> [--dir PATH]
-    python -m hermes.cli daemon start [--dir PATH] [--foreground]
-    python -m hermes.cli daemon stop [--dir PATH]
-    python -m hermes.cli daemon status [--dir PATH]
-    python -m hermes.cli install --clan-id <id> --display-name <name> [options]
-    python -m hermes.cli uninstall [--purge] [--keep-hooks] [--dir PATH]
-    python -m hermes.cli hook <pull-on-start|pull-on-prompt|exit-reminder>
-    python -m hermes.cli adapt <adapter-name> [--hermes-dir PATH] [--target-dir PATH]
-    python -m hermes.cli llm list [--dir PATH]
-    python -m hermes.cli llm status [--dir PATH]
-    python -m hermes.cli llm test [--backend NAME] [--dir PATH]
+    python -m amaru.cli init <clan-id> <display-name> [--agora-url URL] [--dir PATH]
+    python -m amaru.cli status [--dir PATH]
+    python -m amaru.cli publish [--dir PATH]
+    python -m amaru.cli peer add <clan-id> [--dir PATH]
+    python -m amaru.cli peer list [--dir PATH]
+    python -m amaru.cli send <target-clan> <message> [--dir PATH]
+    python -m amaru.cli inbox [--dir PATH]
+    python -m amaru.cli bus [--filter-type TYPE] [--pending] [--dir PATH]
+    python -m amaru.cli discover <capability> [--dir PATH]
+    python -m amaru.cli daemon start [--dir PATH] [--foreground]
+    python -m amaru.cli daemon stop [--dir PATH]
+    python -m amaru.cli daemon status [--dir PATH]
+    python -m amaru.cli install --clan-id <id> --display-name <name> [options]
+    python -m amaru.cli uninstall [--purge] [--keep-hooks] [--dir PATH]
+    python -m amaru.cli hook <pull-on-start|pull-on-prompt|exit-reminder>
+    python -m amaru.cli adapt <adapter-name> [--amaru-dir PATH] [--target-dir PATH]
+    python -m amaru.cli llm list [--dir PATH]
+    python -m amaru.cli llm status [--dir PATH]
+    python -m amaru.cli llm test [--backend NAME] [--dir PATH]
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from datetime import date
+from datetime import UTC, date
 from pathlib import Path
 
 from .agora import AgoraDirectory
@@ -51,14 +51,14 @@ from .gateway import (
 def _resolve_clan_dir(args: argparse.Namespace) -> Path:
     """Resolve the clan directory from CLI args.
 
-    Priority: --dir flag > ~/.hermes/ (if exists) > current directory.
+    Priority: --dir flag > ~/.amaru/ (if exists) > current directory.
     """
     explicit = getattr(args, "dir", None)
     if explicit and explicit != ".":
         return Path(explicit)
 
     # Check default clan dir before falling back to cwd
-    default = Path.home() / ".hermes"
+    default = Path.home() / ".amaru"
     if (default / "config.toml").exists() or (default / "gateway.json").exists():
         return default
 
@@ -137,8 +137,8 @@ def cmd_init(args: argparse.Namespace) -> int:
     print()
     print("Next steps:")
     print(f"  1. Add agents to {config_file}")
-    print("  2. Run: hermes publish    (publish profile to Agora)")
-    print("  3. Run: hermes peer add <clan-id>  (connect to peers)")
+    print("  2. Run: amaru publish    (publish profile to Agora)")
+    print("  3. Run: amaru peer add <clan-id>  (connect to peers)")
     return 0
 
 
@@ -153,11 +153,11 @@ def cmd_status(args: argparse.Namespace) -> int:
     try:
         config, gateway, agora = _load_gateway(clan_dir)
     except FileNotFoundError:
-        print("Error: No config found. Run 'hermes init' first.", file=sys.stderr)
+        print("Error: No config found. Run 'amaru init' first.", file=sys.stderr)
         return 1
 
     try:
-        from hermes import __version__
+        from amaru import __version__
     except (ImportError, AttributeError):
         __version__ = "0.4.2a1"
 
@@ -260,16 +260,14 @@ def cmd_status(args: argparse.Namespace) -> int:
                         state = state.split("|")[0].strip()
                         peer_presence[peer_id.lower()] = state
 
-                elif msg_type == "roster" and msg_from == "HUB":
-                    # Format: "roster: momoshod, jei-hub (2 online)"
-                    if text.startswith("roster: "):
-                        roster_part = text[len("roster: "):]
-                        if "(" in roster_part:
-                            roster_part = roster_part[:roster_part.rfind("(")].strip()
-                        for name in roster_part.split(","):
-                            name = name.strip().lower()
-                            if name:
-                                peer_presence[name] = "online"
+                elif msg_type == "roster" and msg_from == "HUB" and text.startswith("roster: "):
+                    roster_part = text[len("roster: ") :]
+                    if "(" in roster_part:
+                        roster_part = roster_part[: roster_part.rfind("(")].strip()
+                    for name in roster_part.split(","):
+                        name = name.strip().lower()
+                        if name:
+                            peer_presence[name] = "online"
         except (ValueError, OSError):
             pass
 
@@ -451,7 +449,7 @@ def cmd_peer_invite(args: argparse.Namespace) -> int:
     pub_data = json.loads(pub_path.read_text())
 
     invite = {
-        "hermes_invite": "1.0",
+        "amaru_invite": "1.0",
         "clan_id": config.clan_id,
         "display_name": config.display_name,
         "sign_pub": pub_data.get("ed25519_pub", pub_data.get("sign_public", "")),
@@ -462,10 +460,10 @@ def cmd_peer_invite(args: argparse.Namespace) -> int:
     invite_json = json.dumps(invite, separators=(",", ":"))
     invite_b64 = base64.urlsafe_b64encode(invite_json.encode()).decode()
 
-    print(f"HERMES Invite for {config.clan_id} ({config.display_name})")
+    print(f"Amaru Invite for {config.clan_id} ({config.display_name})")
     print()
     print("Share this token with your peer:")
-    print(f"  hermes peer accept {invite_b64}")
+    print(f"  amaru peer accept {invite_b64}")
     print()
     print("Or share the JSON:")
     print(json.dumps(invite, indent=2))
@@ -507,7 +505,7 @@ def cmd_peer_accept(args: argparse.Namespace) -> int:
         except Exception:
             pass
 
-    if not invite or "hermes_invite" not in invite:
+    if not invite or "amaru_invite" not in invite:
         print("Error: Invalid invite token. Expected base64, file path, or JSON.", file=sys.stderr)
         return 1
 
@@ -528,7 +526,8 @@ def cmd_peer_accept(args: argparse.Namespace) -> int:
     pub_file.write_text(json.dumps(pub_data, indent=2))
 
     # Add peer to config
-    from hermes.config import PeerConfig
+    from amaru.config import PeerConfig
+
     new_peer = PeerConfig(
         clan_id=peer_clan_id,
         public_key_file=f"keys/peers/{peer_clan_id}.pub",
@@ -544,7 +543,8 @@ def cmd_peer_accept(args: argparse.Namespace) -> int:
 
     config.peers.append(new_peer)
 
-    from hermes.config import save_config
+    from amaru.config import save_config
+
     config_path = clan_dir / "config.toml"
     if not config_path.exists():
         config_path = clan_dir / "gateway.json"
@@ -564,7 +564,7 @@ def cmd_send(args: argparse.Namespace) -> int:
     using ws_uri from federation-peers.json.
     """
     import asyncio
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     clan_dir = _resolve_clan_dir(args)
     try:
@@ -587,9 +587,7 @@ def cmd_send(args: argparse.Namespace) -> int:
         key_data = json.loads(key_path.read_text())
         from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-        sign_priv = Ed25519PrivateKey.from_private_bytes(
-            bytes.fromhex(key_data["sign_private"])
-        )
+        sign_priv = Ed25519PrivateKey.from_private_bytes(bytes.fromhex(key_data["sign_private"]))
         sign_pub_hex = key_data.get("sign_public", "")
         if not sign_pub_hex:
             sign_pub_hex = sign_priv.public_key().public_bytes_raw().hex()
@@ -614,7 +612,7 @@ def cmd_send(args: argparse.Namespace) -> int:
         "src": config.clan_id,
         "dst": target,
         "type": msg_type,
-        "ts": datetime.now(timezone.utc).isoformat(),
+        "ts": datetime.now(UTC).isoformat(),
         "msg": msg_text,
     }
 
@@ -649,13 +647,11 @@ def cmd_send(args: argparse.Namespace) -> int:
                         await asyncio.wait_for(ws.recv(), timeout=5)
                     try:
                         await asyncio.wait_for(ws.recv(), timeout=2)
-                    except asyncio.TimeoutError:
+                    except TimeoutError:
                         pass
 
                     # Send
-                    await ws.send(
-                        json.dumps({"type": "msg", "payload": payload})
-                    )
+                    await ws.send(json.dumps({"type": "msg", "payload": payload}))
                     via = "local hub" if "127.0.0.1" in uri else f"direct ({uri})"
                     return f"delivered via {via}"
             except Exception:
@@ -692,7 +688,7 @@ def cmd_bus(args: argparse.Namespace) -> int:
     try:
         config, _, _ = _load_gateway(clan_dir)
     except FileNotFoundError:
-        print("Error: No config found. Run 'hermes init' first.", file=sys.stderr)
+        print("Error: No config found. Run 'amaru init' first.", file=sys.stderr)
         return 1
 
     bus_path = clan_dir / "bus.jsonl"
@@ -752,7 +748,7 @@ def cmd_discover(args: argparse.Namespace) -> int:
 
 
 def cmd_install(args: argparse.Namespace) -> int:
-    """Run the full HERMES install sequence."""
+    """Run the full Amaru install sequence."""
     from .installer import run_install
 
     clan_dir = None
@@ -772,7 +768,7 @@ def cmd_install(args: argparse.Namespace) -> int:
 
 
 def cmd_uninstall(args: argparse.Namespace) -> int:
-    """Run the HERMES uninstall sequence."""
+    """Run the Amaru uninstall sequence."""
     from .installer import run_uninstall
 
     clan_dir = None
@@ -803,7 +799,7 @@ def _detect_installed_agents() -> list[str]:
 
 
 def cmd_adapt(args: argparse.Namespace) -> int:
-    """Run an adapter to generate agent-specific config from ~/.hermes/."""
+    """Run an adapter to generate agent-specific config from ~/.amaru/."""
     from .adapter import list_adapters, run_adapter
 
     # --list: show available adapters with detection status
@@ -813,23 +809,23 @@ def cmd_adapt(args: argparse.Namespace) -> int:
         for name in list_adapters():
             status = " (detected)" if name in detected else ""
             print(f"    {name}{status}")
-        print("\n  Usage: hermes adapt <name>")
-        print("         hermes adapt --all  (adapt all detected agents)")
+        print("\n  Usage: amaru adapt <name>")
+        print("         amaru adapt --all  (adapt all detected agents)")
         return 0
 
     # --all: adapt all detected agents
     if getattr(args, "adapt_all", False):
         detected = _detect_installed_agents()
         if not detected:
-            print("  No AI agents detected. Install one first, then run hermes adapt --all.")
+            print("  No AI agents detected. Install one first, then run amaru adapt --all.")
             return 1
 
-        hermes_dir = Path(args.hermes_dir) if getattr(args, "hermes_dir", None) else None
+        amaru_dir = Path(args.amaru_dir) if getattr(args, "amaru_dir", None) else None
         failed = False
         for name in detected:
             print(f"\n  ── {name} ──")
             try:
-                result = run_adapter(name, hermes_dir=hermes_dir, target_dir=None)
+                result = run_adapter(name, amaru_dir=amaru_dir, target_dir=None)
                 for step in result.steps:
                     marker = "[OK]" if result.success or "error" not in step.lower() else "[!!]"
                     print(f"  {marker} {step}")
@@ -848,18 +844,18 @@ def cmd_adapt(args: argparse.Namespace) -> int:
     adapter_name = getattr(args, "adapter_name", None)
     if adapter_name is None:
         print(f"Available adapters: {', '.join(list_adapters())}", file=sys.stderr)
-        print("Usage: hermes adapt <name> | --list | --all", file=sys.stderr)
+        print("Usage: amaru adapt <name> | --list | --all", file=sys.stderr)
         return 1
 
-    hermes_dir = None
+    amaru_dir = None
     target_dir = None
-    if getattr(args, "hermes_dir", None):
-        hermes_dir = Path(args.hermes_dir)
+    if getattr(args, "amaru_dir", None):
+        amaru_dir = Path(args.amaru_dir)
     if getattr(args, "target_dir", None):
         target_dir = Path(args.target_dir)
 
     try:
-        result = run_adapter(adapter_name, hermes_dir=hermes_dir, target_dir=target_dir)
+        result = run_adapter(adapter_name, amaru_dir=amaru_dir, target_dir=target_dir)
     except KeyError as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1
@@ -924,7 +920,7 @@ def cmd_agent(args: argparse.Namespace) -> int:
     elif agent_cmd == "show":
         agent_id = getattr(args, "agent_id", None)
         if not agent_id:
-            print("Usage: hermes agent show <agent-id>", file=sys.stderr)
+            print("Usage: amaru agent show <agent-id>", file=sys.stderr)
             return 1
 
         reg = AgentRegistry(agents_dir)
@@ -975,7 +971,7 @@ def cmd_agent(args: argparse.Namespace) -> int:
         return 0
 
     else:
-        print("Usage: hermes agent <list|show|validate|dispatch-status>", file=sys.stderr)
+        print("Usage: amaru agent <list|show|validate|dispatch-status>", file=sys.stderr)
         return 1
 
 
@@ -995,7 +991,7 @@ def cmd_config_migrate(args: argparse.Namespace) -> int:
     toml_path = migrate_json_to_toml(json_path)
     print(f"Migrated: {json_path} -> {toml_path}")
     print("  gateway.json kept as backup.")
-    print("  HERMES will now use config.toml (preferred over gateway.json).")
+    print("  Amaru will now use config.toml (preferred over gateway.json).")
     return 0
 
 
@@ -1015,7 +1011,7 @@ def cmd_hook(args: argparse.Namespace) -> int:
 
     hook_cmd = getattr(args, "hook_command", None)
     if hook_cmd is None:
-        print("Usage: hermes hook <pull-on-start|pull-on-prompt|exit-reminder>", file=sys.stderr)
+        print("Usage: amaru hook <pull-on-start|pull-on-prompt|exit-reminder>", file=sys.stderr)
         return 1
 
     hook_commands[hook_cmd]()
@@ -1028,7 +1024,7 @@ def cmd_llm(args: argparse.Namespace) -> int:
 
     llm_cmd = getattr(args, "llm_command", None)
     if llm_cmd is None:
-        print("Usage: hermes llm <list|status|test|usage>", file=sys.stderr)
+        print("Usage: amaru llm <list|status|test|usage>", file=sys.stderr)
         return 1
 
     clan_dir = _resolve_clan_dir(args)
@@ -1106,7 +1102,7 @@ def cmd_llm(args: argparse.Namespace) -> int:
 
         print(f"Testing {selected.name()}...")
         resp = selected.complete(
-            "You are a HERMES protocol test bot. Respond briefly.",
+            "You are a Amaru protocol test bot. Respond briefly.",
             "What protocol are you part of?",
             max_tokens=100,
         )
@@ -1198,16 +1194,16 @@ def _add_dir_arg(parser: argparse.ArgumentParser) -> None:
 def build_parser() -> argparse.ArgumentParser:
     """Build the CLI argument parser."""
     try:
-        from hermes import __version__
+        from amaru import __version__
     except (ImportError, AttributeError):
-        # Fallback when ~/hermes/ namespace shadows the installed package
+        # Fallback when ~/amaru/ namespace shadows the installed package
         __version__ = "0.4.2a1"
 
     parser = argparse.ArgumentParser(
-        prog="hermes",
-        description="HERMES Gateway CLI — Inter-clan communication",
+        prog="amaru",
+        description="Amaru Gateway CLI — Inter-clan communication",
     )
-    parser.add_argument("--version", action="version", version=f"hermes {__version__}")
+    parser.add_argument("--version", action="version", version=f"amaru {__version__}")
     sub = parser.add_subparsers(dest="command")
 
     # init
@@ -1239,15 +1235,21 @@ def build_parser() -> argparse.ArgumentParser:
     p_peer_invite = peer_sub.add_parser("invite", help="Generate a shareable invite for peering")
     _add_dir_arg(p_peer_invite)
     p_peer_accept = peer_sub.add_parser("accept", help="Accept a peer invite")
-    p_peer_accept.add_argument("invite_token", help="Base64 invite token or path to invite JSON file")
+    p_peer_accept.add_argument(
+        "invite_token", help="Base64 invite token or path to invite JSON file"
+    )
     _add_dir_arg(p_peer_accept)
 
     # send
     p_send = sub.add_parser("send", help="Send message to peer via hub")
     p_send.add_argument("target_clan", help="Target clan ID")
     p_send.add_argument("message", help="Message text")
-    p_send.add_argument("--type", default="event", choices=["event", "dispatch", "alert", "state"],
-                        help="Message type (default: event)")
+    p_send.add_argument(
+        "--type",
+        default="event",
+        choices=["event", "dispatch", "alert", "state"],
+        help="Message type (default: event)",
+    )
     _add_dir_arg(p_send)
 
     # inbox
@@ -1277,7 +1279,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_dir_arg(p_discover)
 
     # adapt
-    p_adapt = sub.add_parser("adapt", help="Generate agent config from ~/.hermes/")
+    p_adapt = sub.add_parser("adapt", help="Generate agent config from ~/.amaru/")
     p_adapt.add_argument(
         "adapter_name", nargs="?", default=None, help="Adapter name (e.g. claude-code, gemini)"
     )
@@ -1288,10 +1290,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--all", action="store_true", dest="adapt_all", help="Adapt all detected agents"
     )
     p_adapt.add_argument(
-        "--hermes-dir",
+        "--amaru-dir",
         default=None,
-        dest="hermes_dir",
-        help="HERMES directory (default: ~/.hermes/)",
+        dest="amaru_dir",
+        help="Amaru directory (default: ~/.amaru/)",
     )
     p_adapt.add_argument(
         "--target-dir",
@@ -1307,7 +1309,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_dir_arg(p_config_migrate)
 
     # install
-    p_install = sub.add_parser("install", help="One-command HERMES setup")
+    p_install = sub.add_parser("install", help="One-command Amaru setup")
     p_install.add_argument(
         "--clan-id", required=True, dest="clan_id", help="Unique clan identifier"
     )
@@ -1335,7 +1337,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_dir_arg(p_install)
 
     # uninstall
-    p_uninstall = sub.add_parser("uninstall", help="Remove HERMES installation")
+    p_uninstall = sub.add_parser("uninstall", help="Remove Amaru installation")
     p_uninstall.add_argument(
         "--purge", action="store_true", help="Delete clan directory and all data"
     )
@@ -1407,11 +1409,15 @@ def build_parser() -> argparse.ArgumentParser:
     p_hub_peers = hub_sub.add_parser("peers", help="List registered peers")
     _add_dir_arg(p_hub_peers)
 
-    p_hub_listen = hub_sub.add_parser("listen", help="Listen for hub messages (writes to hub-inbox.jsonl)")
+    p_hub_listen = hub_sub.add_parser(
+        "listen", help="Listen for hub messages (writes to hub-inbox.jsonl)"
+    )
     p_hub_listen.add_argument("--daemon", action="store_true", help="Run as background daemon")
     _add_dir_arg(p_hub_listen)
 
-    p_hub_install = hub_sub.add_parser("install", help="Install hub + listener as persistent OS services")
+    p_hub_install = hub_sub.add_parser(
+        "install", help="Install hub + listener as persistent OS services"
+    )
     _add_dir_arg(p_hub_install)
 
     p_hub_uninstall = hub_sub.add_parser("uninstall", help="Remove hub OS services")
@@ -1421,8 +1427,12 @@ def build_parser() -> argparse.ArgumentParser:
     _add_dir_arg(p_hub_roster)
 
     p_hub_ready = hub_sub.add_parser("ready", help="Announce readiness for quests")
-    p_hub_ready.add_argument("--domains", type=str, default="", help="Comma-separated capability domains")
-    p_hub_ready.add_argument("--message", type=str, default="", help="Status message (max 120 chars)")
+    p_hub_ready.add_argument(
+        "--domains", type=str, default="", help="Comma-separated capability domains"
+    )
+    p_hub_ready.add_argument(
+        "--message", type=str, default="", help="Status message (max 120 chars)"
+    )
     p_hub_ready.add_argument("--slots", type=int, default=1, help="Available quest slots")
     _add_dir_arg(p_hub_ready)
 
@@ -1455,10 +1465,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_mcp = sub.add_parser("mcp", help="MCP server for Claude Code integration")
     mcp_sub = p_mcp.add_subparsers(dest="mcp_command")
 
-    p_mcp_serve = mcp_sub.add_parser("serve", help="Start the hermes-bus MCP server (stdio)")
-    p_mcp_serve.add_argument(
-        "--hermes-dir", default=None, help="Clan directory (default: ~/.hermes)"
-    )
+    p_mcp_serve = mcp_sub.add_parser("serve", help="Start the amaru-bus MCP server (stdio)")
+    p_mcp_serve.add_argument("--amaru-dir", default=None, help="Clan directory (default: ~/.amaru)")
 
     return parser
 
@@ -1532,9 +1540,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "mcp":
         if getattr(args, "mcp_command", None) == "serve":
             import os
-            if args.hermes_dir:
-                os.environ["HERMES_DIR"] = args.hermes_dir
+
+            if args.amaru_dir:
+                os.environ["AMARU_DIR"] = args.amaru_dir
             from .mcp_server import main as mcp_main
+
             mcp_main()
             return 0
         parser.parse_args(["mcp", "--help"])
@@ -1554,12 +1564,14 @@ def main(argv: list[str] | None = None) -> int:
 
         def _hub_install() -> int:
             from .installer import install_hub_service
+
             ok, msg = install_hub_service(hub_dir)
             print(msg)
             return 0 if ok else 1
 
         def _hub_uninstall() -> int:
             from .installer import uninstall_hub_service
+
             ok, msg = uninstall_hub_service()
             print(msg)
             return 0 if ok else 1
@@ -1580,20 +1592,33 @@ def main(argv: list[str] | None = None) -> int:
             key_path = hub_dir / gw.keys_private
             key_data = json.loads(key_path.read_text())
             from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
             priv = Ed25519PrivateKey.from_private_bytes(bytes.fromhex(key_data["sign_private"]))
             pub_hex = key_data.get("sign_public", "")
 
             domains_raw = getattr(args, "domains", "")
-            domains = [d.strip() for d in domains_raw.split(",") if d.strip()] if domains_raw else []
+            domains = (
+                [d.strip() for d in domains_raw.split(",") if d.strip()] if domains_raw else []
+            )
             message = getattr(args, "message", "") or ""
             slots = getattr(args, "slots", 1)
 
             async def _set() -> int:
                 import websockets
+
                 uri = f"ws://127.0.0.1:{hub_config.listen_port}"
                 async with websockets.connect(uri) as ws:
-                    await ws.send(json.dumps({"type": "hello", "clan_id": gw.clan_id,
-                                              "sign_pub": pub_hex, "protocol_version": "0.4.2a1", "capabilities": []}))
+                    await ws.send(
+                        json.dumps(
+                            {
+                                "type": "hello",
+                                "clan_id": gw.clan_id,
+                                "sign_pub": pub_hex,
+                                "protocol_version": "0.4.2a1",
+                                "capabilities": [],
+                            }
+                        )
+                    )
                     ch = json.loads(await asyncio.wait_for(ws.recv(), 10))
                     if ch.get("type") != "challenge":
                         print(f"Unexpected: {ch.get('type')}")
@@ -1643,15 +1668,26 @@ def main(argv: list[str] | None = None) -> int:
             key_path = hub_dir / gw.keys_private
             key_data = json.loads(key_path.read_text())
             from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
             priv = Ed25519PrivateKey.from_private_bytes(bytes.fromhex(key_data["sign_private"]))
             pub_hex = key_data.get("sign_public", "")
 
             async def _query() -> int:
                 import websockets
+
                 uri = f"ws://127.0.0.1:{hub_config.listen_port}"
                 async with websockets.connect(uri) as ws:
-                    await ws.send(json.dumps({"type": "hello", "clan_id": gw.clan_id,
-                                              "sign_pub": pub_hex, "protocol_version": "0.4.2a1", "capabilities": []}))
+                    await ws.send(
+                        json.dumps(
+                            {
+                                "type": "hello",
+                                "clan_id": gw.clan_id,
+                                "sign_pub": pub_hex,
+                                "protocol_version": "0.4.2a1",
+                                "capabilities": [],
+                            }
+                        )
+                    )
                     ch = json.loads(await asyncio.wait_for(ws.recv(), 10))
                     if ch.get("type") != "challenge":
                         print(f"Unexpected: {ch.get('type')}")

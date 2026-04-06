@@ -1,4 +1,4 @@
-"""Tests for HERMES crypto module — Ed25519 + X25519 + AES-256-GCM."""
+"""Tests for Amaru crypto module — Ed25519 + X25519 + AES-256-GCM."""
 
 import json
 import os
@@ -12,7 +12,7 @@ from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
-from hermes.crypto import (
+from amaru.crypto import (
     COMPACT_SEALED_ECDHE_LEN,
     COMPACT_SEALED_STATIC_LEN,
     ClanKeyPair,
@@ -292,7 +292,7 @@ class TestFullFlow:
             assert jei_loaded.fingerprint() == jei.fingerprint()
 
             # 5. DANI sends hello
-            hello = seal_bus_message(dani, jei_dh_pub, "HELLO:momoshod:hermes_relay_operational")
+            hello = seal_bus_message(dani, jei_dh_pub, "HELLO:momoshod:amaru_relay_operational")
             relay_line = {
                 "ts": "2026-03-08",
                 "src": "momoshod",
@@ -305,7 +305,7 @@ class TestFullFlow:
             # 6. JEI reads from relay, opens message
             relay_received = json.loads(relay_json)
             plaintext = open_bus_message(jei, dani_sign_pub, dani_dh_pub, relay_received["secure"])
-            assert plaintext == "HELLO:momoshod:hermes_relay_operational"
+            assert plaintext == "HELLO:momoshod:amaru_relay_operational"
 
             # 7. JEI responds with hello_ack
             ack = seal_bus_message(jei, dani_dh_pub, "HELLO_ACK:jei:ready")

@@ -1,6 +1,6 @@
 # UC-03: Bridge from A2A/MCP to HERMES
 
-> How an external A2A agent or MCP client interacts with a HERMES clan through the Gateway Bridge.
+> How an external A2A agent or MCP client interacts with an Amaru clan through the Gateway Bridge.
 
 HERMES doesn't replace A2A or MCP — it bridges to them. The Gateway translates protocol semantics bidirectionally.
 
@@ -117,12 +117,12 @@ flowchart LR
 
 ## Key Design Points
 
-- **Bidirectional** — external protocols can call HERMES agents AND HERMES agents can call external ones
+- **Bidirectional** — external protocols can call Amaru agents AND Amaru agents can call external ones
 - **Semantic preservation** — operation intent (Query, Invoke, Notify, etc.) is maintained across translation
 - **Identity isolation** — internal namespace names are NEVER exposed through bridge endpoints
 - **CID correlation** — bridge-generated CIDs track the full request/response lifecycle
 - **Rate limiting** — bridge has independent rate limits on top of gateway limits
-- **Optional** — a HERMES deployment without a bridge is fully functional
+- **Optional** — an Amaru deployment without a bridge is fully functional
 
 ## Referenced By
 

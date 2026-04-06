@@ -42,7 +42,7 @@ QUEST-000 is the universal entry point to HERMES. Every human starts here — re
    ```bash
    cat bus.jsonl
    ```
-   You just wrote and read a HERMES message. That's the entire protocol at its core — a line of JSON in a file. No server. No account. No API key.
+   You just wrote and read an Amaru message. That's the entire protocol at its core — a line of JSON in a file. No server. No account. No API key.
 
 5. **Add a second message** — this time, make it yours:
    ```bash
@@ -66,7 +66,7 @@ QUEST-000 is the universal entry point to HERMES. Every human starts here — re
 1. **Install HERMES**:
    ```bash
    cd /tmp
-   git clone https://github.com/dereyesm/hermes.git
+   git clone https://github.com/amaru-protocol/amaru.git
    cd hermes/reference/python
    pip install -e .
    ```
@@ -75,12 +75,12 @@ QUEST-000 is the universal entry point to HERMES. Every human starts here — re
    ```bash
    hermes install --clan-id my-clan --display-name "My First Clan"
    ```
-   This creates `~/.hermes/` with your config, generates cryptographic keys (Ed25519 + X25519), and sets up the agent daemon.
+   This creates `~/.amaru/` with your config, generates cryptographic keys (Ed25519 + X25519), and sets up the agent daemon.
 
 3. **Write a message using the Python API**:
    ```python
-   from hermes.message import create_message
-   from hermes.bus import write_message
+   from amaru.message import create_message
+   from amaru.bus import write_message
 
    msg = create_message(
        src="builder",
@@ -88,7 +88,7 @@ QUEST-000 is the universal entry point to HERMES. Every human starts here — re
        type="state",
        msg="QUEST-000 complete. Ready to build.",
    )
-   write_message("~/.hermes/bus/active.jsonl", msg)
+   write_message("~/.amaru/bus/active.jsonl", msg)
    ```
 
 4. **Verify with the CLI**:
@@ -100,9 +100,9 @@ QUEST-000 is the universal entry point to HERMES. Every human starts here — re
    ```bash
    hermes adapt claude-code    # or: hermes adapt opencode / hermes adapt cursor
    ```
-   Your AI assistant now reads your HERMES bus. You can coordinate.
+   Your AI assistant now reads your Amaru bus. You can coordinate.
 
-**You completed Door 2 when**: `hermes bus --pending` shows messages and `hermes adapt` succeeded for your preferred agent.
+**You completed Door 2 when**: `amaru bus --pending` shows messages and `amaru adapt` succeeded for your preferred agent.
 
 ---
 
@@ -114,17 +114,17 @@ QUEST-000 is the universal entry point to HERMES. Every human starts here — re
 
 **Steps**:
 
-1. **Find a partner.** This can be a friend, colleague, or someone from the HERMES community.
+1. **Find a partner.** This can be a friend, colleague, or someone from the Amaru community.
 
 2. **Both install HERMES** (follow Door 2, steps 1-2). Each of you gets your own clan.
 
 3. **Exchange public keys**:
    ```bash
    # Person A sends their public key to Person B
-   cat ~/.hermes/keys/gateway.pub
+   cat ~/.amaru/keys/gateway.pub
    # Person B saves it
-   mkdir -p ~/.hermes/keys/peers/
-   echo "<Person A's key>" > ~/.hermes/keys/peers/partner.pub
+   mkdir -p ~/.amaru/keys/peers/
+   echo "<Person A's key>" > ~/.amaru/keys/peers/partner.pub
    ```
 
 4. **Send your first cross-clan message**:
@@ -140,7 +140,7 @@ QUEST-000 is the universal entry point to HERMES. Every human starts here — re
 
 6. **Reflect together**: What did it feel like to communicate through a protocol you can both inspect? No platform in the middle. No algorithm deciding what you see. Just your words, cryptographically signed, on both your machines.
 
-**You completed Door 3 when**: Both partners have sent and received at least one message through the HERMES bus.
+**You completed Door 3 when**: Both partners have sent and received at least one message through the Amaru bus.
 
 ---
 
@@ -150,7 +150,7 @@ You are now Realm 1. Here's what's unlocked:
 
 | What | How |
 |------|-----|
-| **Your namespace** | You have an identity on the HERMES bus |
+| **Your namespace** | You have an identity on the Amaru bus |
 | **Your first XP** | 10 XP for completing QUEST-000 |
 | **QUEST-001 options** | Choose your path: automate a task (Stability), join a clan (Belonging), or create a skill (Mastery) |
 | **The reflection prompt** | Before moving on, answer: *"What problem in my life could this help me solve?"* |
@@ -179,7 +179,7 @@ A: Not for QUEST-000. The bus works without any AI. But HERMES becomes powerful 
 A: You can't fail QUEST-000. There is no timer, no score, no penalty. If something doesn't work, that's a bug in HERMES, not in you. File an issue — you're already contributing.
 
 **Q: Is my data private?**
-A: Your bus lives on YOUR machine. No server sees it unless you choose to connect to a hub. Your keys are yours. `ls -la ~/.hermes/keys/` — you can verify.
+A: Your bus lives on YOUR machine. No server sees it unless you choose to connect to a hub. Your keys are yours. `ls -la ~/.amaru/keys/` — you can verify.
 
 ---
 

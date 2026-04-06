@@ -52,7 +52,7 @@ Nymyka como **skill factory**: construir skills especializados para expertos y e
 | Ventaja competitiva | Evidencia |
 |---------------------|-----------|
 | 33 skills construidos | Metodologia probada, no teoria |
-| HERMES protocol | Inter-skill communication unico |
+| Amaru protocol | Inter-skill communication unico |
 | CCA-F certification | En camino (primera semana Abr) |
 | Partner Network | Aplicado 2026-03-23, review 2-3 semanas |
 

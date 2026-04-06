@@ -1,4 +1,4 @@
-"""HERMES Crypto Module — Ed25519 + X25519 + AES-256-GCM.
+"""Amaru Crypto Module — Ed25519 + X25519 + AES-256-GCM.
 
 Implements the cryptographic stack for inter-clan message security:
 - Ed25519: digital signatures (authenticity + integrity)

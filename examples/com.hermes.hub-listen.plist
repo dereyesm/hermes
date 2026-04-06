@@ -5,17 +5,17 @@
 <dict>
     <!-- HERMES Hub Listener — Real-time message delivery -->
     <!-- Connects to hub, writes incoming messages to hub-inbox.jsonl -->
-    <!-- Docs: https://github.com/dereyesm/hermes/blob/main/docs/hub-operations.md -->
+    <!-- Docs: https://github.com/dereyesm/amaru/blob/main/docs/hub-operations.md -->
 
     <key>Label</key>
-    <string>com.hermes.hub-listen</string>
+    <string>com.amaru.hub-listen</string>
 
     <key>ProgramArguments</key>
     <array>
         <!-- Replace with your Python path and clan directory -->
         <string>/path/to/python</string>
         <string>-m</string>
-        <string>hermes.cli</string>
+        <string>amaru.cli</string>
         <string>hub</string>
         <string>listen</string>
         <string>--dir</string>

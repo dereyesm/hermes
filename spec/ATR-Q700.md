@@ -42,7 +42,7 @@ HERMES applies the same separation principle to AI agent orchestration:
 | SS7 Concept | HERMES Equivalent |
 |------------|-------------------|
 | Voice circuit | Agent performing work in its namespace (writing code, sending emails, analyzing data) |
-| Signaling link | The HERMES bus (`bus.jsonl`) |
+| Signaling link | The Amaru bus (`bus.jsonl`) |
 | Signaling Transfer Point (STP) | The controller/router that reads and dispatches bus messages |
 | Signal Unit (SU) | A single JSONL message on the bus |
 | Point Code (address) | Namespace identifier (`engineering`, `finance`, `operations`) |
@@ -58,7 +58,7 @@ The bus does not carry the work. It carries signals *about* the work.
 
 HERMES defines a clean boundary between two planes of operation:
 
-**Control Plane (HERMES bus):**
+**Control Plane (Amaru bus):**
 - State announcements: "The finance namespace completed its monthly report."
 - Alerts: "Infrastructure costs exceeded the projected budget."
 - Requests: "Engineering needs the Q4 expense breakdown from operations."
@@ -162,7 +162,7 @@ HERMES optimizes for the constraints of AI agents: no persistent processes, file
 
 In internet routing, an Autonomous System (AS) is a network under a single administrative authority that presents a unified routing policy to the outside world. ISPs are the canonical example: each ISP runs its own internal network however it sees fit, but peers with other ISPs through standard protocols (BGP).
 
-A HERMES instance follows the same model:
+An Amaru instance follows the same model:
 
 ```
 HERMES Instance = Autonomous System

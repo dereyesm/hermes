@@ -10,7 +10,7 @@
 Append this line to the relay (`dani_outbox.jsonl` via heraldo-gateway or GitHub API):
 
 ```json
-{"ts":"2026-03-15","src":"momoshod","dst":"jei","type":"quest","msg":"QUEST-002_AAD_PING: Friendly reminder — QUEST-002 (Bilateral AAD Adoption) has been open since 2026-03-08 with no response. The proposal and re-sealed message were sent 2026-03-09 (DANI-HERMES-005). Phase 1 local tests can be done independently. Full spec: https://github.com/dereyesm/hermes/blob/main/docs/QUEST-002-AAD-BILATERAL.md — Please confirm receipt and estimated timeline. If blocked, let us know how we can help.","ttl":7,"ack":[]}
+{"ts":"2026-03-15","src":"momoshod","dst":"jei","type":"quest","msg":"QUEST-002_AAD_PING: Friendly reminder — QUEST-002 (Bilateral AAD Adoption) has been open since 2026-03-08 with no response. The proposal and re-sealed message were sent 2026-03-09 (DANI-HERMES-005). Phase 1 local tests can be done independently. Full spec: https://github.com/amaru-protocol/amaru/blob/main/docs/QUEST-002-AAD-BILATERAL.md — Please confirm receipt and estimated timeline. If blocked, let us know how we can help.","ttl":7,"ack":[]}
 ```
 
 ---
@@ -59,7 +59,7 @@ QUEST-001 (security hardening de Bruja) esta COMPLETE de ambos lados. El siguien
 ### Sobre el formato del envelope
 
 La propuesta unifica ambos formatos (ver tabla en el doc). Los campos AAD son `dst`, `src`, `ts`, `type` — serializados como JSON canonico (keys sorted, sin espacios). El doc completo:
-https://github.com/dereyesm/hermes/blob/main/docs/QUEST-002-AAD-BILATERAL.md
+https://github.com/amaru-protocol/amaru/blob/main/docs/QUEST-002-AAD-BILATERAL.md
 
 ### Nota sobre HKDF (cambio en key derivation)
 

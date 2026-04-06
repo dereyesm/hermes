@@ -1,4 +1,4 @@
-"""Tests for HERMES Hub Mode (ARC-4601 §15)."""
+"""Tests for Amaru Hub Mode (ARC-4601 §15)."""
 
 import asyncio
 import json
@@ -7,10 +7,10 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from hermes.hub import (
+from amaru.hub import (
+    VALID_READINESS,
     AuthHandler,
     ConnectionTable,
-    FederationLink,
     FederationTable,
     HubConfig,
     HubServer,
@@ -19,7 +19,6 @@ from hermes.hub import (
     PeerInfo,
     QueuedMessage,
     StoreForwardQueue,
-    VALID_READINESS,
     cmd_hub_init,
     load_hub_config,
     load_peers,
@@ -300,6 +299,7 @@ class TestPresence:
     def test_presence_dict_serializable(self):
         """presence_dict() must produce JSON-serializable output."""
         import json as _json
+
         ct = ConnectionTable()
         entry = ct.add("test", _make_ws_mock())
         entry.readiness = "in_quest"
@@ -741,22 +741,26 @@ class TestHubServer:
             recv_call_count += 1
             if recv_call_count == 1:
                 # Step 1: Client sends HELLO
-                return json.dumps({
-                    "type": "hello",
-                    "clan_id": "test_clan",
-                    "sign_pub": pubkey_hex,
-                    "protocol_version": "0.4.2a1",
-                    "capabilities": [],
-                })
+                return json.dumps(
+                    {
+                        "type": "hello",
+                        "clan_id": "test_clan",
+                        "sign_pub": pubkey_hex,
+                        "protocol_version": "0.4.2a1",
+                        "capabilities": [],
+                    }
+                )
             else:
                 # Step 3: Client sends AUTH (sign the challenge nonce)
                 challenge_frame = json.loads(ws.send.call_args[0][0])
                 nonce = challenge_frame["nonce"]
                 sig = privkey.sign(bytes.fromhex(nonce)).hex()
-                return json.dumps({
-                    "type": "auth",
-                    "nonce_response": sig,
-                })
+                return json.dumps(
+                    {
+                        "type": "auth",
+                        "nonce_response": sig,
+                    }
+                )
 
         ws.recv = mock_recv
 
@@ -820,14 +824,14 @@ class TestHubServer:
 
 class TestCLIHub:
     def test_hub_status_no_state(self, tmp_path, capsys):
-        from hermes.hub import cmd_hub_status
+        from amaru.hub import cmd_hub_status
 
         ret = cmd_hub_status(tmp_path)
         assert ret == 1
         assert "No Hub state" in capsys.readouterr().out
 
     def test_hub_status_with_state(self, tmp_path, capsys):
-        from hermes.hub import cmd_hub_status
+        from amaru.hub import cmd_hub_status
 
         state = HubState(pid=9999, started_at="2026-03-23", total_msgs_routed=42)
         state.save(tmp_path / "hub-state.json")
@@ -838,7 +842,7 @@ class TestCLIHub:
         assert "42" in out
 
     def test_hub_peers_empty(self, tmp_path, capsys):
-        from hermes.hub import cmd_hub_peers
+        from amaru.hub import cmd_hub_peers
 
         (tmp_path / "hub-peers.json").write_text('{"peers":{}}')
         (tmp_path / "gateway.json").write_text("{}")
@@ -847,7 +851,7 @@ class TestCLIHub:
         assert "No peers" in capsys.readouterr().out
 
     def test_hub_peers_list(self, tmp_hub, capsys):
-        from hermes.hub import cmd_hub_peers
+        from amaru.hub import cmd_hub_peers
 
         (tmp_hub / "gateway.json").write_text("{}")
         ret = cmd_hub_peers(tmp_hub)

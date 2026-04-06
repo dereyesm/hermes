@@ -27,7 +27,7 @@
 - **WAN (S2S federation)**: hub-to-hub with proper signaling plane. Only for cross-network routing.
 
 **Implementation**:
-1. `hermes hub listen --peer ws://192.168.68.101:8443` — connect to a peer hub directly
+1. `amaru hub listen --peer ws://192.168.68.101:8443` — connect to a peer hub directly
 2. Multi-hub listener support in `cmd_hub_listen` (connect to N hubs from config)
 3. Federation config: `mode: "direct"` (LAN) vs `mode: "s2s"` (WAN)
 
@@ -87,7 +87,7 @@ Add to `_auto_peer_from_presence()` or new method `_upgrade_peer_status()`.
 **Solution**:
 1. Test fixtures: add `atexit` or `finally` cleanup for daemon processes
 2. Hub: handle SIGTERM properly (graceful shutdown)
-3. `hermes daemon stop` should fallback to SIGKILL after timeout
+3. `amaru daemon stop` should fallback to SIGKILL after timeout
 
 **Skill**: /protocol-architect
 **Effort**: <1 session
@@ -107,7 +107,7 @@ clan  ←──│ session setup,      │──── LAN ────→│ re
 
 ## Verification Checklist
 
-- [x] `hermes status` shows peer as `● online` on both sides (Apr 5)
+- [x] `amaru status` shows peer as `● online` on both sides (Apr 5)
 - [x] Send message from DANI → JEI receives within 30s (Apr 5, DANI-HERMES-059)
 - [x] Send message from JEI → DANI receives within 30s (Apr 5, QUEST-006-FINAL)
 - [x] Quest dispatch → daemon auto-processes → response auto-forwards (Apr 4, P3 RESOLVED)

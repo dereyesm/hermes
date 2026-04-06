@@ -96,4 +96,4 @@ See [AES-2040](../../spec/INDEX.md) for the Protocol Explorer specification (in 
 
 ---
 
-*Part of the [HERMES](https://github.com/dereyesm/hermes) project. MIT License.*
+*Part of the [HERMES](https://github.com/amaru-protocol/amaru) project. MIT License.*
