@@ -1,7 +1,9 @@
 # Amaru — Local-first messaging for AI agents
 
-[![Tests](https://github.com/amaru-protocol/amaru/actions/workflows/ci.yml/badge.svg)](https://github.com/amaru-protocol/amaru/actions/workflows/ci.yml)
-[![PyPI](https://img.shields.io/badge/pypi-amaru--protocol-blue.svg)](https://pypi.org/project/amaru-protocol/)
+> *Formerly known as HERMES. Renamed to Amaru (Quechua: cosmic serpent connecting worlds) in April 2026.*
+
+[![Tests](https://github.com/dereyesm/amaru-protocol/actions/workflows/ci.yml/badge.svg)](https://github.com/dereyesm/amaru-protocol/actions/workflows/ci.yml)
+[![TestPyPI](https://img.shields.io/badge/TestPyPI-amaru--protocol-blue.svg)](https://test.pypi.org/project/amaru-protocol/)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 

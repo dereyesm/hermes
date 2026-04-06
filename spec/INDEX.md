@@ -1,6 +1,8 @@
-# HERMES Standards Index
+# Amaru Standards Index
 
-Master index of all HERMES standards across the three tracks: ARC, ATR, and AES.
+> *Formerly HERMES. Standard IDs (ARC/ATR/AES) are permanent and unchanged.*
+
+Master index of all Amaru standards across the three tracks: ARC, ATR, and AES.
 
 ## Status Legend
 
