@@ -1,4 +1,4 @@
-# Research Agenda — HERMES Protocol Evolution
+# Research Agenda — Amaru Protocol Evolution
 
 > From file-based signaling to next-generation inter-agent communication.
 
@@ -49,7 +49,7 @@ For curated analysis of industry frameworks (McKinsey, Gartner, etc.) that valid
 
 **Key question**: What compression ratio can we achieve without losing inspectability?
 
-**Datasets**: HERMES bus archive (anonymized), FIPA ACL spec archive, JSON compression benchmarks
+**Datasets**: Amaru bus archive (anonymized), FIPA ACL spec archive, JSON compression benchmarks
 
 ### L3: Channel Efficiency Model
 
@@ -99,7 +99,7 @@ For curated analysis of industry frameworks (McKinsey, Gartner, etc.) that valid
 
 ### L5: Social Topology & Agent Reputation (The Agora)
 
-**Problem**: HERMES clans operate in isolation. Each clan has internal agents, metrics (Bounty/XP), and a private bus — but no mechanism exists for clans to discover each other, verify capabilities, collaborate on cross-clan tasks, or build verifiable reputation. The agent ecosystem is a collection of islands with no ocean.
+**Problem**: Amaru clans operate in isolation. Each clan has internal agents, metrics (Bounty/XP), and a private bus — but no mechanism exists for clans to discover each other, verify capabilities, collaborate on cross-clan tasks, or build verifiable reputation. The agent ecosystem is a collection of islands with no ocean.
 
 Meanwhile, the AI agent landscape is fragmenting: proprietary platforms lock agents into walled gardens, agent marketplaces commoditize capabilities without attribution, and no open standard exists for inter-clan social interaction. The result is a world where AI agents serve corporations but not communities.
 
@@ -152,9 +152,9 @@ L5 answers: **How do sovereign clans meet, trust, collaborate, and build shared 
      - Pros: balances scale and governance, mirrors DNS hierarchy
      - Cons: requires coordination between registry operators
    - **Recommendation**: Start with Git (Option A), design migration path to C (federated)
-4. Prototype: Python ref impl of `hermes.gateway` module
+4. Prototype: Python ref impl of `amaru.gateway` module
    - `Gateway` class with NAT, filter, validator components
-   - CLI: `hermes gateway init`, `hermes gateway publish`, `hermes gateway discover`
+   - CLI: `amaru gateway init`, `amaru gateway publish`, `amaru gateway discover`
    - Integration tests: two mock clans exchanging profiles via Git directory
 
 **Key questions**:

@@ -5,7 +5,7 @@ Two AI agents collaborate on the same project through HERMES -- no cloud, no API
 ## What you'll see
 
 1. **Claude Code** writes a backend API
-2. Claude Code sends a HERMES message describing the API to Cursor
+2. Claude Code sends an Amaru message describing the API to Cursor
 3. **Cursor** reads the message and builds the matching frontend
 4. All coordination happens through a local file (`bus.jsonl`)
 
@@ -21,7 +21,7 @@ Two AI agents collaborate on the same project through HERMES -- no cloud, no API
 ### 1. Install HERMES
 
 ```bash
-pip install hermes-protocol
+pip install amaru-protocol
 hermes init --clan-id my-team --display-name "My Team"
 ```
 
@@ -57,7 +57,7 @@ Open Claude Code in your project directory and say:
 
 ```
 Create a FastAPI backend for a todo app with GET /todos and POST /todos endpoints.
-When done, send a HERMES message to "cursor" with the API spec.
+When done, send an Amaru message to "cursor" with the API spec.
 ```
 
 Claude Code will:
@@ -66,10 +66,10 @@ Claude Code will:
 
 ### Terminal 2: Cursor
 
-Open Cursor in the same project directory. The HERMES message appears in Cursor's context (via `.cursorrules` or MCP). Say:
+Open Cursor in the same project directory. The Amaru message appears in Cursor's context (via `.cursorrules` or MCP). Say:
 
 ```
-Read the HERMES message from claude-code and build a React frontend for the todo API.
+Read the Amaru message from claude-code and build a React frontend for the todo API.
 ```
 
 Cursor builds the frontend based on the API spec it received through HERMES.
@@ -87,7 +87,7 @@ Claude Code                          Cursor
     |     msg: "API ready: ..."         |
     |          |                        |
     |          v                        |
-    |   ~/.hermes/bus.jsonl             |
+    |   ~/.amaru/bus.jsonl             |
     |          |                        |
     |          +------------------------> 3. Reads message
     |                                   |
@@ -100,10 +100,10 @@ No server. No cloud. No API keys. Just a JSON file on your disk that both agents
 
 ```bash
 # See all messages
-cat ~/.hermes/bus.jsonl | jq .
+cat ~/.amaru/bus.jsonl | jq .
 
 # See what cursor received
-cat ~/.hermes/bus.jsonl | grep '"dst":"cursor"'
+cat ~/.amaru/bus.jsonl | grep '"dst":"cursor"'
 
 # Check HERMES status
 hermes status
@@ -111,7 +111,7 @@ hermes status
 
 ## Next steps
 
-- **Add more agents**: `hermes adapt gemini` or `hermes adapt opencode`
-- **Encrypt messages**: `hermes peer invite` to set up E2E encryption with a collaborator
-- **Go real-time**: `hermes hub install` for WebSocket-based live messaging
-- **Monitor costs**: `hermes llm usage` to track token spend across AI backends
+- **Add more agents**: `amaru adapt gemini` or `amaru adapt opencode`
+- **Encrypt messages**: `amaru peer invite` to set up E2E encryption with a collaborator
+- **Go real-time**: `amaru hub install` for WebSocket-based live messaging
+- **Monitor costs**: `amaru llm usage` to track token spend across AI backends

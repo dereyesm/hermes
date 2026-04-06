@@ -13,7 +13,7 @@
 ## Objective
 
 Establish a structured, repeatable protocol for bilateral knowledge exchange
-between HERMES clans. Each clan runs a sovereign assessment in its own
+between Amaru clans. Each clan runs a sovereign assessment in its own
 environment, exports a structured artifact (never raw data), and exchanges
 findings via the encrypted relay. The result is a merged synthesis that captures:
 
@@ -38,7 +38,7 @@ Exchange Protocol** designed to scale to N clans.
    export.
 4. **Iterative scope** — Each exchange covers ONE knowledge domain per
    iteration. First iteration: **Prompt Engineering & Agent Orchestration**.
-5. **E2E encrypted transit** — All artifacts transit via HERMES relay with
+5. **E2E encrypted transit** — All artifacts transit vian Amaru relay with
    ECDHE v3 encryption (proven in QUEST-003).
 
 ## Phase 1: Close QUEST-004 Baseline (Week of 2026-03-22)
@@ -170,7 +170,7 @@ Domain: Prompt Engineering & Agent Orchestration
 - Suggested domain for Iteration 2: [...]
 ```
 
-The merge document is signed by both clans and stored in the HERMES repo
+The merge document is signed by both clans and stored in the Amaru repo
 as a public reference (with consent).
 
 ## Phase 5: Protocol Formalization (ARC/ATR)
@@ -217,7 +217,7 @@ knowing the content.
 2. Each clan identifies at least 2 actionable practices from the other
 3. The merge document is signed by both clans
 4. The process is documented well enough for a third clan to replicate
-5. ATR-KEP-001 is published in the HERMES spec index
+5. ATR-KEP-001 is published in the Amaru spec index
 
 ## References
 

@@ -1,6 +1,6 @@
 # HERMES Use Cases
 
-Real-world scenarios where HERMES solves coordination problems for AI agents. Each use case describes the problem, the HERMES solution, and the message patterns involved.
+Real-world scenarios where HERMES solves coordination problems for AI agents. Each use case describes the problem, the Amaru solution, and the message patterns involved.
 
 ---
 
@@ -189,7 +189,7 @@ An open-source project has multiple workstreams: core development, documentation
 
 ### HERMES Solution
 
-The HERMES bus in the project's Git repo serves as persistent coordination memory:
+The Amaru bus in the project's Git repo serves as persistent coordination memory:
 
 ```
 project/

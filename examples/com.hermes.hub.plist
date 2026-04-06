@@ -5,17 +5,17 @@
 <dict>
     <!-- HERMES Hub Server — ARC-4601 §15 -->
     <!-- WebSocket server that routes messages between clan peers -->
-    <!-- Docs: https://github.com/dereyesm/hermes/blob/main/docs/hub-operations.md -->
+    <!-- Docs: https://github.com/dereyesm/amaru/blob/main/docs/hub-operations.md -->
 
     <key>Label</key>
-    <string>com.hermes.hub</string>
+    <string>com.amaru.hub</string>
 
     <key>ProgramArguments</key>
     <array>
         <!-- Replace with your Python path and clan directory -->
         <string>/path/to/python</string>
         <string>-m</string>
-        <string>hermes.cli</string>
+        <string>amaru.cli</string>
         <string>hub</string>
         <string>start</string>
         <string>--foreground</string>

@@ -1,14 +1,14 @@
 # Hub Operations Guide
 
-The HERMES Hub is a WebSocket server that routes encrypted messages between clan peers in real-time. It provides store-and-forward for offline peers and supports S2S (server-to-server) federation between hubs.
+The Amaru Hub is a WebSocket server that routes encrypted messages between clan peers in real-time. It provides store-and-forward for offline peers and supports S2S (server-to-server) federation between hubs.
 
 This guide covers installation, monitoring, and troubleshooting.
 
 ## Prerequisites
 
-1. HERMES installed (`hermes install` or manual `hermes init`)
-2. At least one peer registered (`hermes peer invite` / `hermes peer accept`)
-3. Hub peers file generated (`hermes hub init`)
+1. HERMES installed (`amaru install` or manual `amaru init`)
+2. At least one peer registered (`amaru peer invite` / `amaru peer accept`)
+3. Hub peers file generated (`amaru hub init`)
 
 ## Quick Start (Manual)
 
@@ -44,7 +44,7 @@ This creates and loads two services:
 Both services:
 - Start automatically on login (`RunAtLoad`)
 - Restart on crash (`KeepAlive`)
-- Log to `~/.hermes/hub.log` and `~/.hermes/hub-listen.log`
+- Log to `~/.amaru/hub.log` and `~/.amaru/hub-listen.log`
 
 ### Verify Installation
 
@@ -96,14 +96,14 @@ hermes hub uninstall
 
 | File | Location | Purpose |
 |------|----------|---------|
-| `hub-state.json` | `~/.hermes/` | Hub PID, uptime, messages routed |
-| `hub.lock/pid` | `~/.hermes/` | PID lock (prevents duplicate hubs) |
-| `hub-listen.pid` | `~/.hermes/` | Listener PID (daemon mode only) |
-| `hub-inbox.jsonl` | `~/.hermes/` | Incoming messages (read by hub_inject hook) |
-| `hub-peers.json` | `~/.hermes/` | Registered peers (clan_id -> public key) |
-| `federation-peers.json` | `~/.hermes/` | S2S federation links (hub_id -> host:port) |
-| `hub.log` | `~/.hermes/` | Hub stdout (when running as service) |
-| `hub.err` | `~/.hermes/` | Hub stderr (when running as service) |
+| `hub-state.json` | `~/.amaru/` | Hub PID, uptime, messages routed |
+| `hub.lock/pid` | `~/.amaru/` | PID lock (prevents duplicate hubs) |
+| `hub-listen.pid` | `~/.amaru/` | Listener PID (daemon mode only) |
+| `hub-inbox.jsonl` | `~/.amaru/` | Incoming messages (read by hub_inject hook) |
+| `hub-peers.json` | `~/.amaru/` | Registered peers (clan_id -> public key) |
+| `federation-peers.json` | `~/.amaru/` | S2S federation links (hub_id -> host:port) |
+| `hub.log` | `~/.amaru/` | Hub stdout (when running as service) |
+| `hub.err` | `~/.amaru/` | Hub stderr (when running as service) |
 
 ## Monitoring
 
@@ -119,8 +119,8 @@ launchctl list com.hermes.hub
 launchctl list com.hermes.hub-listen
 
 # View logs
-tail -f ~/.hermes/hub.log
-tail -f ~/.hermes/hub-listen.log
+tail -f ~/.amaru/hub.log
+tail -f ~/.amaru/hub-listen.log
 ```
 
 ## Federation (S2S)
@@ -129,7 +129,7 @@ Hubs can federate with each other for inter-hub routing. See [ARC-4601 §17](../
 
 ```bash
 # Configure federation peers
-cat ~/.hermes/federation-peers.json
+cat ~/.amaru/federation-peers.json
 
 # Hub automatically connects to federation peers on startup
 hermes hub status  # shows S2S link status
@@ -143,17 +143,17 @@ Another hub instance is running or crashed without cleanup:
 
 ```bash
 # Check if the old process is alive
-cat ~/.hermes/hub.lock/pid
-ps -p $(cat ~/.hermes/hub.lock/pid)
+cat ~/.amaru/hub.lock/pid
+ps -p $(cat ~/.amaru/hub.lock/pid)
 
 # If dead, remove the lock
-rm -rf ~/.hermes/hub.lock
+rm -rf ~/.amaru/hub.lock
 hermes hub start --foreground
 ```
 
 ### Listener connects but no messages appear
 
-1. Verify the hub is running: `hermes hub status`
+1. Verify the hub is running: `amaru hub status`
 2. Check that the sender uses `payload.dst` wrapper (common bug — see [wire-protocol-hub.md](wire-protocol-hub.md) §3.2)
 3. Verify your clan_id matches what the sender is targeting
 

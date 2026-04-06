@@ -17,8 +17,8 @@ from pathlib import Path
 
 import pytest
 
-from hermes.bus import ack_message, read_bus, write_message
-from hermes.message import (
+from amaru.bus import ack_message, read_bus, write_message
+from amaru.message import (
     VALID_TYPES,
     Message,
     ValidationError,
@@ -112,8 +112,8 @@ class TestL1MessageFormat:
 
     # L1-05: src MUST be non-empty namespace.
     def test_l1_05_valid_src(self):
-        msg = validate_message(_valid_msg(src="hermes"))
-        assert msg.src == "hermes"
+        msg = validate_message(_valid_msg(src="amaru"))
+        assert msg.src == "amaru"
 
     def test_l1_05_empty_src_rejected(self):
         with pytest.raises(ValidationError):
@@ -365,7 +365,7 @@ class TestLevel2ClanReady:
 
     def test_l2_01_syn_executes_at_start(self, tmp_path):
         """L2-01: Every session MUST execute the SYN protocol at start."""
-        from hermes.sync import syn
+        from amaru.sync import syn
 
         bus = tmp_path / "bus.jsonl"
         msg = create_message(src="alpha", dst="beta", type="state", msg="hello")
@@ -377,7 +377,7 @@ class TestLevel2ClanReady:
 
     def test_l2_02_fin_executes_at_close(self, tmp_path):
         """L2-02: Every session MUST execute the FIN protocol at close."""
-        from hermes.sync import FinAction, fin
+        from amaru.sync import FinAction, fin
 
         bus = tmp_path / "bus.jsonl"
         bus.write_text("", encoding="utf-8")
@@ -388,7 +388,7 @@ class TestLevel2ClanReady:
 
     def test_l2_02_fin_with_no_actions(self, tmp_path):
         """L2-02: FIN MUST execute even with no state changes (returns empty)."""
-        from hermes.sync import fin
+        from amaru.sync import fin
 
         bus = tmp_path / "bus.jsonl"
         bus.write_text("", encoding="utf-8")
@@ -398,7 +398,7 @@ class TestLevel2ClanReady:
 
     def test_l2_03_no_work_without_syn(self, tmp_path):
         """L2-03: Agent MUST NOT perform work without first executing SYN."""
-        from hermes.sync import syn
+        from amaru.sync import syn
 
         bus = tmp_path / "bus.jsonl"
         bus.write_text("", encoding="utf-8")
@@ -410,7 +410,7 @@ class TestLevel2ClanReady:
 
     def test_l2_04_syn_reads_and_filters(self, tmp_path):
         """L2-04: SYN MUST read the bus, filter for the namespace, and report pending."""
-        from hermes.sync import syn
+        from amaru.sync import syn
 
         bus = tmp_path / "bus.jsonl"
         m1 = create_message(src="a", dst="target", type="state", msg="for target")
@@ -427,7 +427,7 @@ class TestLevel2ClanReady:
 
     def test_l2_05_fin_writes_to_bus(self, tmp_path):
         """L2-05: FIN MUST write state changes to the bus."""
-        from hermes.sync import FinAction, fin
+        from amaru.sync import FinAction, fin
 
         bus = tmp_path / "bus.jsonl"
         bus.write_text("", encoding="utf-8")
@@ -444,7 +444,7 @@ class TestLevel2ClanReady:
 
     def test_l2_06_fin_atomic(self, tmp_path):
         """L2-06: All FIN operations MUST complete as a logical unit."""
-        from hermes.sync import FinAction, fin
+        from amaru.sync import FinAction, fin
 
         bus = tmp_path / "bus.jsonl"
         bus.write_text("", encoding="utf-8")
@@ -463,7 +463,7 @@ class TestLevel2ClanReady:
         """L2-07: A namespace MUST NOT have concurrent active sessions writing."""
         # Verified structurally: syn() is synchronous and returns before work begins.
         # Two SYN calls for same namespace see the same bus state sequentially.
-        from hermes.sync import syn
+        from amaru.sync import syn
 
         bus = tmp_path / "bus.jsonl"
         bus.write_text("", encoding="utf-8")
@@ -474,7 +474,7 @@ class TestLevel2ClanReady:
 
     def test_l2_08_session_duration_tracking(self, tmp_path):
         """L2-08: An implementation SHOULD track session duration."""
-        from hermes.sync import syn
+        from amaru.sync import syn
 
         bus = tmp_path / "bus.jsonl"
         bus.write_text("", encoding="utf-8")
@@ -488,7 +488,7 @@ class TestLevel2ClanReady:
 
     def test_l2_09_namespace_private_space(self, tmp_path):
         """L2-09: Each namespace MUST have its own private space."""
-        from hermes.config import init_clan
+        from amaru.config import init_clan
 
         cfg = init_clan(tmp_path / "clan1", "ns1", "Namespace One")
         assert cfg.clan_id == "ns1"
@@ -497,7 +497,7 @@ class TestLevel2ClanReady:
 
     def test_l2_10_permission_table(self):
         """L2-10: MUST define a permission table for data crossings."""
-        from hermes.gateway import OutboundFilter
+        from amaru.gateway import OutboundFilter
 
         filt = OutboundFilter()
         # The filter's ALLOWED_TYPES is the permission table
@@ -506,7 +506,7 @@ class TestLevel2ClanReady:
 
     def test_l2_11_data_cross_no_credentials(self):
         """L2-11: data_cross MUST NOT carry credentials, tokens, or tool configs."""
-        from hermes.gateway import OutboundFilter
+        from amaru.gateway import OutboundFilter
 
         filt = OutboundFilter()
         # Even if type were allowed, credential patterns are blocked
@@ -517,7 +517,7 @@ class TestLevel2ClanReady:
 
     def test_l2_12_no_credential_crossing(self):
         """L2-12: Credentials, session state, memory MUST NEVER cross boundaries."""
-        from hermes.gateway import OutboundFilter
+        from amaru.gateway import OutboundFilter
 
         filt = OutboundFilter()
         blocked_payloads = [
@@ -532,7 +532,7 @@ class TestLevel2ClanReady:
 
     def test_l2_13_namespace_isolation_enforced(self):
         """L2-13: Namespaces MUST NOT access each other's private spaces."""
-        from hermes.gateway import AgentMapping, TranslationTable
+        from amaru.gateway import AgentMapping, TranslationTable
 
         # Unpublished agents are invisible — enforces isolation
         mappings = [
@@ -545,7 +545,7 @@ class TestLevel2ClanReady:
 
     def test_l2_14_cross_namespace_logging(self):
         """L2-14: SHOULD log all cross-namespace data transfers."""
-        from hermes.asp import MessageCategory, MessageClassifier
+        from amaru.asp import MessageCategory, MessageClassifier
 
         classifier = MessageClassifier(local_namespaces={"ns1", "ns2"})
         msg = create_message(src="ns1", dst="ns2", type="data_cross", msg="transfer")
@@ -557,7 +557,7 @@ class TestLevel2ClanReady:
 
     def test_l2_15_unique_namespace_id(self):
         """L2-15: Each agent MUST have a unique namespace identifier."""
-        from hermes.gateway import AgentMapping, TranslationTable
+        from amaru.gateway import AgentMapping, TranslationTable
 
         mappings = [
             AgentMapping("heraldo", "bot1", "herald", published=True, capabilities=[]),
@@ -582,7 +582,7 @@ class TestLevel2ClanReady:
 
     def test_l2_17_routing_unicast_broadcast(self, tmp_path):
         """L2-17: Routing by dst: exact match for unicast, '*' for broadcast."""
-        from hermes.bus import filter_for_namespace
+        from amaru.bus import filter_for_namespace
 
         m1 = create_message(src="a", dst="beta", type="state", msg="unicast")
         m2 = create_message(src="a", dst="*", type="state", msg="broadcast")
@@ -598,7 +598,7 @@ class TestLevel2ClanReady:
 
     def test_l2_18_single_gateway(self):
         """L2-18: A clan MUST have exactly one gateway."""
-        from hermes.config import GatewayConfig
+        from amaru.config import GatewayConfig
 
         config = GatewayConfig(clan_id="test", display_name="Test")
         # One GatewayConfig per clan — structural guarantee
@@ -606,7 +606,7 @@ class TestLevel2ClanReady:
 
     def test_l2_19_one_to_one_identity_mapping(self):
         """L2-19: Every external identity MUST map to exactly one internal identity."""
-        from hermes.gateway import AgentMapping, TranslationTable
+        from amaru.gateway import AgentMapping, TranslationTable
 
         mappings = [
             AgentMapping("ns1", "bot", "public-bot", published=True, capabilities=[]),
@@ -617,7 +617,7 @@ class TestLevel2ClanReady:
 
     def test_l2_20_external_alias_hides_internals(self):
         """L2-20: External aliases MUST NOT reveal internal names."""
-        from hermes.gateway import AgentMapping, TranslationTable
+        from amaru.gateway import AgentMapping, TranslationTable
 
         mappings = [
             AgentMapping("secret-ns", "internal-bot", "herald", published=True, capabilities=[]),
@@ -631,7 +631,7 @@ class TestLevel2ClanReady:
 
     def test_l2_21_no_internal_data_leak(self):
         """L2-21: Internal topology, bus messages, metrics MUST NOT leak externally."""
-        from hermes.gateway import OutboundFilter
+        from amaru.gateway import OutboundFilter
 
         filt = OutboundFilter()
         # Bus data is blocked
@@ -646,7 +646,7 @@ class TestLevel2ClanReady:
 
     def test_l2_22_default_deny_outbound(self):
         """L2-22: The gateway MUST apply a default-deny outbound filter."""
-        from hermes.gateway import OutboundFilter
+        from amaru.gateway import OutboundFilter
 
         filt = OutboundFilter()
         allowed, reason = filt.evaluate("arbitrary_type", "hello")
@@ -655,7 +655,7 @@ class TestLevel2ClanReady:
 
     def test_l2_23_outbound_through_filter(self):
         """L2-23: Outbound messages MUST pass through the gateway filter."""
-        from hermes.gateway import OutboundFilter
+        from amaru.gateway import OutboundFilter
 
         filt = OutboundFilter()
         # Allowed type with clean payload passes
@@ -665,7 +665,7 @@ class TestLevel2ClanReady:
 
     def test_l2_24_internal_not_forwarded(self):
         """L2-24: Internal messages MUST NOT be forwarded by the gateway."""
-        from hermes.asp import MessageCategory, MessageClassifier
+        from amaru.asp import MessageCategory, MessageClassifier
 
         classifier = MessageClassifier(local_namespaces={"ns1", "ns2"})
         msg = create_message(src="ns1", dst="ns2", type="state", msg="internal")
@@ -673,7 +673,7 @@ class TestLevel2ClanReady:
 
     def test_l2_25_gateway_publishes_profile(self):
         """L2-25: Gateway SHOULD publish an agent profile for discovery."""
-        from hermes.gateway import AgentMapping, TranslationTable
+        from amaru.gateway import AgentMapping, TranslationTable
 
         mappings = [
             AgentMapping("ns", "bot", "herald", published=True, capabilities=["messaging"]),
@@ -685,7 +685,7 @@ class TestLevel2ClanReady:
 
     def test_l2_26_profile_no_internal_data(self):
         """L2-26: Profile MUST NOT contain internal namespace names, bus messages, etc."""
-        from hermes.gateway import OutboundFilter
+        from amaru.gateway import OutboundFilter
 
         filt = OutboundFilter()
         # Profile-like payload with internal data is blocked
@@ -695,7 +695,7 @@ class TestLevel2ClanReady:
 
     def test_l2_27_multiple_peers(self):
         """L2-27: MAY support multiple peer clans."""
-        from hermes.config import GatewayConfig, PeerConfig
+        from amaru.config import GatewayConfig, PeerConfig
 
         config = GatewayConfig(
             clan_id="test",
@@ -711,7 +711,7 @@ class TestLevel2ClanReady:
 
     def test_l2_28_profile_declares_capabilities(self):
         """L2-28: Agent profile SHOULD declare capabilities and protocol version."""
-        from hermes.config import GatewayConfig
+        from amaru.config import GatewayConfig
 
         config = GatewayConfig(
             clan_id="test",
@@ -724,7 +724,7 @@ class TestLevel2ClanReady:
 
     def test_l2_29_agora_publication(self):
         """L2-29: MAY publish profile to Agora for discovery."""
-        from hermes.agora import AgoraDirectory
+        from amaru.agora import AgoraDirectory
 
         agora = AgoraDirectory.__new__(AgoraDirectory)
         agora.profiles = {}
@@ -735,7 +735,7 @@ class TestLevel2ClanReady:
 
     def test_l2_30_message_classification(self):
         """L2-30: SHOULD classify messages: internal, outbound, inbound, expired."""
-        from hermes.asp import MessageCategory, MessageClassifier
+        from amaru.asp import MessageCategory, MessageClassifier
 
         classifier = MessageClassifier(local_namespaces={"ns1", "ns2"}, gateway_namespace="gateway")
         today = date.today()
@@ -754,7 +754,7 @@ class TestLevel2ClanReady:
 
     def test_l2_31_source_verification(self):
         """L2-31: SHOULD verify src fields match registered namespaces."""
-        from hermes.asp import MessageClassifier
+        from amaru.asp import MessageClassifier
 
         classifier = MessageClassifier(local_namespaces={"ns1", "ns2"})
 
@@ -768,7 +768,7 @@ class TestLevel2ClanReady:
         """L2-32: MAY implement agent registration with declarative profiles."""
         import json as _json
 
-        from hermes.asp import AgentRegistry
+        from amaru.asp import AgentRegistry
 
         agents_dir = tmp_path / "agents"
         agents_dir.mkdir()
@@ -792,7 +792,7 @@ class TestLevel2ClanReady:
 
     def test_l2_33_dispatch_rules(self):
         """L2-33: MAY implement dispatch rules for automated message handling."""
-        from hermes.asp import DispatchRule, DispatchTrigger
+        from amaru.asp import DispatchRule, DispatchTrigger
 
         rule = DispatchRule(
             rule_id="r1",
@@ -817,7 +817,7 @@ class TestLevel3Crypto:
 
     def test_l3_01_independent_keypairs(self):
         """L3-01: MUST generate Ed25519 (signing) + X25519 (key agreement) independently."""
-        from hermes.crypto import ClanKeyPair
+        from amaru.crypto import ClanKeyPair
 
         kp = ClanKeyPair.generate()
         assert kp.sign_private is not None
@@ -831,8 +831,13 @@ class TestLevel3Crypto:
 
     def test_l3_02_keys_not_derived_from_each_other(self):
         """L3-02: Two key pairs MUST be generated independently."""
-        from hermes.crypto import ClanKeyPair
-        from cryptography.hazmat.primitives.serialization import Encoding, PrivateFormat, NoEncryption
+        from cryptography.hazmat.primitives.serialization import (
+            Encoding,
+            NoEncryption,
+            PrivateFormat,
+        )
+
+        from amaru.crypto import ClanKeyPair
 
         kp = ClanKeyPair.generate()
         sign_bytes = kp.sign_private.private_bytes(Encoding.Raw, PrivateFormat.Raw, NoEncryption())
@@ -842,7 +847,8 @@ class TestLevel3Crypto:
     def test_l3_03_private_key_permissions(self, tmp_path):
         """L3-03: Private keys MUST be stored with 0600 permissions."""
         import os
-        from hermes.crypto import ClanKeyPair
+
+        from amaru.crypto import ClanKeyPair
 
         kp = ClanKeyPair.generate()
         kp.save(str(tmp_path), "testclan")
@@ -853,7 +859,8 @@ class TestLevel3Crypto:
     def test_l3_04_private_key_not_in_public_file(self, tmp_path):
         """L3-04: Private keys MUST NOT be transmitted (not in .pub file)."""
         import json
-        from hermes.crypto import ClanKeyPair
+
+        from amaru.crypto import ClanKeyPair
 
         kp = ClanKeyPair.generate()
         kp.save(str(tmp_path), "testclan")
@@ -863,7 +870,7 @@ class TestLevel3Crypto:
 
     def test_l3_05_hkdf_sha256_static(self):
         """L3-05: MUST use HKDF-SHA256 with info=b'HERMES-ARC8446-v1' for static."""
-        from hermes.crypto import ClanKeyPair, derive_shared_secret
+        from amaru.crypto import ClanKeyPair, derive_shared_secret
 
         a = ClanKeyPair.generate()
         b = ClanKeyPair.generate()
@@ -874,7 +881,7 @@ class TestLevel3Crypto:
 
     def test_l3_06_aes_256_gcm(self):
         """L3-06: MUST use AES-256-GCM for authenticated encryption."""
-        from hermes.crypto import ClanKeyPair, derive_shared_secret, encrypt_message, decrypt_message
+        from amaru.crypto import ClanKeyPair, decrypt_message, derive_shared_secret, encrypt_message
 
         a = ClanKeyPair.generate()
         b = ClanKeyPair.generate()
@@ -887,7 +894,7 @@ class TestLevel3Crypto:
 
     def test_l3_07_unique_nonce_per_encryption(self):
         """L3-07: A unique 12-byte nonce MUST be generated per encryption."""
-        from hermes.crypto import ClanKeyPair, derive_shared_secret, encrypt_message
+        from amaru.crypto import ClanKeyPair, derive_shared_secret, encrypt_message
 
         a = ClanKeyPair.generate()
         b = ClanKeyPair.generate()
@@ -899,7 +906,7 @@ class TestLevel3Crypto:
 
     def test_l3_08_verify_signature_before_decrypt(self):
         """L3-08: MUST verify Ed25519 signature before attempting decryption."""
-        from hermes.crypto import ClanKeyPair, seal_bus_message, open_bus_message
+        from amaru.crypto import ClanKeyPair, open_bus_message, seal_bus_message
 
         a = ClanKeyPair.generate()
         b = ClanKeyPair.generate()
@@ -911,7 +918,7 @@ class TestLevel3Crypto:
 
     def test_l3_09_no_decrypt_on_sig_failure(self):
         """L3-09: If signature verification fails, MUST NOT attempt decryption."""
-        from hermes.crypto import ClanKeyPair, seal_bus_message, open_bus_message
+        from amaru.crypto import ClanKeyPair, open_bus_message, seal_bus_message
 
         a = ClanKeyPair.generate()
         b = ClanKeyPair.generate()
@@ -923,7 +930,7 @@ class TestLevel3Crypto:
 
     def test_l3_10_ecdhe_for_inter_clan(self):
         """L3-10: Inter-clan messages MUST use ECDHE with ephemeral X25519."""
-        from hermes.crypto import ClanKeyPair, seal_bus_message_ecdhe, open_bus_message
+        from amaru.crypto import ClanKeyPair, open_bus_message, seal_bus_message_ecdhe
 
         a = ClanKeyPair.generate()
         b = ClanKeyPair.generate()
@@ -935,22 +942,23 @@ class TestLevel3Crypto:
 
     def test_l3_11_ecdhe_hkdf_info(self):
         """L3-11: ECDHE MUST use HKDF-SHA256 with info=b'HERMES-ARC8446-ECDHE-v1'."""
-        from hermes.crypto import derive_shared_secret_ecdhe
         from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
+
+        from amaru.crypto import derive_shared_secret_ecdhe
 
         eph = X25519PrivateKey.generate()
         peer = X25519PrivateKey.generate()
         secret = derive_shared_secret_ecdhe(eph, peer.public_key())
         assert len(secret) == 32
         # Different from static derivation (different info string)
-        from hermes.crypto import derive_shared_secret
+        from amaru.crypto import derive_shared_secret
 
         static_secret = derive_shared_secret(eph, peer.public_key())
         assert secret != static_secret
 
     def test_l3_12_signature_covers_ct_plus_eph(self):
         """L3-12: ECDHE signature MUST cover ciphertext || ephemeral_pub (TLS 1.3 order)."""
-        from hermes.crypto import ClanKeyPair, seal_bus_message_ecdhe, verify_signature
+        from amaru.crypto import ClanKeyPair, seal_bus_message_ecdhe, verify_signature
 
         a = ClanKeyPair.generate()
         b = ClanKeyPair.generate()
@@ -963,7 +971,8 @@ class TestLevel3Crypto:
     def test_l3_13_aad_includes_eph_pub(self):
         """L3-13: AAD for ECDHE MUST include the ephemeral public key."""
         import json
-        from hermes.crypto import ClanKeyPair, seal_bus_message_ecdhe
+
+        from amaru.crypto import ClanKeyPair, seal_bus_message_ecdhe
 
         a = ClanKeyPair.generate()
         b = ClanKeyPair.generate()
@@ -975,7 +984,7 @@ class TestLevel3Crypto:
 
     def test_l3_14_sealed_static_for_intra_clan(self):
         """L3-14: SHOULD support sealed bus messages (static DH) for intra-clan."""
-        from hermes.crypto import ClanKeyPair, seal_bus_message, open_bus_message
+        from amaru.crypto import ClanKeyPair, open_bus_message, seal_bus_message
 
         a = ClanKeyPair.generate()
         b = ClanKeyPair.generate()
@@ -986,13 +995,13 @@ class TestLevel3Crypto:
 
     def test_l3_15_compact_sealed_envelopes(self):
         """L3-15: SHOULD support compact sealed envelopes (ARC-5322 §14)."""
-        from hermes.crypto import (
+        from amaru.crypto import (
+            COMPACT_SEALED_ECDHE_LEN,
+            COMPACT_SEALED_STATIC_LEN,
             ClanKeyPair,
+            open_bus_message_compact,
             seal_bus_message_compact,
             seal_bus_message_ecdhe_compact,
-            open_bus_message_compact,
-            COMPACT_SEALED_STATIC_LEN,
-            COMPACT_SEALED_ECDHE_LEN,
         )
 
         a = ClanKeyPair.generate()
@@ -1011,7 +1020,7 @@ class TestLevel3Crypto:
 
     def test_l3_16_migration_window(self):
         """L3-16: MAY implement 30-day migration window for crypto param changes."""
-        from hermes.crypto import ClanKeyPair, seal_bus_message_ecdhe, open_bus_message
+        from amaru.crypto import ClanKeyPair, open_bus_message, seal_bus_message_ecdhe
 
         a = ClanKeyPair.generate()
         b = ClanKeyPair.generate()
@@ -1041,7 +1050,7 @@ class TestLevel3BusIntegrity:
 
     def test_l3_18_monotonic_seq_per_source(self):
         """L3-18: SHOULD include monotonically increasing seq field per source."""
-        from hermes.integrity import SequenceTracker
+        from amaru.integrity import SequenceTracker
 
         tracker = SequenceTracker()
         tracker.record("alpha", 1)
@@ -1052,7 +1061,7 @@ class TestLevel3BusIntegrity:
 
     def test_l3_19_detect_gaps_and_duplicates(self):
         """L3-19: SHOULD detect sequence gaps and duplicates."""
-        from hermes.integrity import SequenceTracker
+        from amaru.integrity import SequenceTracker
 
         tracker = SequenceTracker()
         tracker.record("alpha", 1)
@@ -1066,7 +1075,7 @@ class TestLevel3BusIntegrity:
 
     def test_l3_20_write_ownership_enforcement(self):
         """L3-20: SHOULD enforce write ownership per namespace."""
-        from hermes.integrity import OwnershipRegistry
+        from amaru.integrity import OwnershipRegistry
 
         registry = OwnershipRegistry(daemon_id="daemon-1")
         registry.claim("heraldo", "daemon-1")
@@ -1075,7 +1084,7 @@ class TestLevel3BusIntegrity:
 
     def test_l3_21_mvcc_write_vectors(self):
         """L3-21: MAY implement MVCC write vectors for conflict detection."""
-        from hermes.integrity import SequenceTracker, WriteVector, WriteVectorTracker
+        from amaru.integrity import SequenceTracker, WriteVector, WriteVectorTracker
 
         seq = SequenceTracker()
         tracker = WriteVectorTracker(seq)
@@ -1087,7 +1096,7 @@ class TestLevel3BusIntegrity:
 
     def test_l3_22_conflict_log(self, tmp_path):
         """L3-22: MAY maintain a conflict log in bus-conflicts.jsonl."""
-        from hermes.integrity import ConflictLog
+        from amaru.integrity import ConflictLog
 
         log_path = tmp_path / "bus-conflicts.jsonl"
         clog = ConflictLog(str(log_path))
@@ -1102,7 +1111,7 @@ class TestLevel3BusIntegrity:
 
     def test_l3_23_snapshot_recovery(self):
         """L3-23: MAY implement snapshot-based recovery."""
-        from hermes.integrity import SequenceTracker
+        from amaru.integrity import SequenceTracker
 
         tracker = SequenceTracker()
         tracker.record("alpha", 1)
@@ -1113,7 +1122,7 @@ class TestLevel3BusIntegrity:
 
     def test_l3_24_sequence_aware_gc(self, tmp_path):
         """L3-24: MAY implement sequence-aware garbage collection."""
-        from hermes.integrity import ConflictLog
+        from amaru.integrity import ConflictLog
 
         log_path = tmp_path / "bus-conflicts.jsonl"
         clog = ConflictLog(str(log_path))
@@ -1128,7 +1137,7 @@ class TestLevel3BusIntegrity:
 
     def test_l3_25_tracker_state_persistence(self):
         """L3-25: SequenceTracker state SHOULD be persisted."""
-        from hermes.integrity import SequenceTracker
+        from amaru.integrity import SequenceTracker
 
         tracker = SequenceTracker()
         tracker.record("alpha", 1)
@@ -1148,7 +1157,7 @@ class TestLevel3AgentNode:
 
     def test_l3_26_persistent_daemon(self):
         """L3-26: SHOULD provide a persistent daemon that observes the bus."""
-        from hermes.agent import AgentNode
+        from amaru.agent import AgentNode
 
         assert hasattr(AgentNode, "run")
         assert hasattr(AgentNode, "_bus_loop")
@@ -1168,14 +1177,14 @@ class TestLevel3AgentNode:
 
     def test_l3_28_heartbeats_not_on_bus(self):
         """L3-28: Heartbeats are transport-layer; MUST NOT be written to the bus."""
-        from hermes.message import VALID_TYPES
+        from amaru.message import VALID_TYPES
 
         assert "heartbeat" not in VALID_TYPES
 
     def test_l3_29_no_dual_mode(self):
         """L3-29: Single process MUST NOT run both local-daemon and hub-mode."""
-        from hermes.agent import AgentNode, AgentNodeConfig
-        from hermes.hub import HubServer
+        from amaru.agent import AgentNode
+        from amaru.hub import HubServer
 
         # AgentNode and HubServer are separate classes — cannot be same process
         assert AgentNode is not HubServer
@@ -1189,7 +1198,7 @@ class TestLevel3HubMode:
 
     def test_l3_30_websocket_support(self):
         """L3-30: Hub MUST support WebSocket protocol (RFC 6455) over TLS."""
-        from hermes.hub import HubConfig, HubServer
+        from amaru.hub import HubConfig
 
         config = HubConfig(listen_port=8443)
         assert config.listen_port == 8443
@@ -1201,8 +1210,8 @@ class TestLevel3HubMode:
         """L3-31: Hub MUST authenticate peers using Ed25519 challenge-response."""
         from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
-        from hermes.crypto import ClanKeyPair, sign_message
-        from hermes.hub import AuthHandler, PeerInfo
+        from amaru.crypto import ClanKeyPair, sign_message
+        from amaru.hub import AuthHandler, PeerInfo
 
         kp = ClanKeyPair.generate()
         pub_hex = kp.sign_public.public_bytes(Encoding.Raw, PublicFormat.Raw).hex()
@@ -1217,7 +1226,7 @@ class TestLevel3HubMode:
 
     def test_l3_32_e2e_passthrough(self):
         """L3-32: Hub MUST NOT inspect/modify/decrypt the msg field."""
-        from hermes.hub import MessageRouter, ConnectionTable, StoreForwardQueue
+        from amaru.hub import ConnectionTable, MessageRouter, StoreForwardQueue
 
         conns = ConnectionTable()
         queue = StoreForwardQueue()
@@ -1229,7 +1238,7 @@ class TestLevel3HubMode:
 
     def test_l3_33_store_and_forward(self):
         """L3-33: Hub MUST support store-and-forward with TTL eviction."""
-        from hermes.hub import StoreForwardQueue
+        from amaru.hub import StoreForwardQueue
 
         queue = StoreForwardQueue(max_depth=10)
         payload = {"src": "alpha", "dst": "beta", "type": "state", "msg": "test"}
@@ -1240,7 +1249,7 @@ class TestLevel3HubMode:
 
     def test_l3_33_ttl_eviction(self):
         """L3-33 (cont): TTL-based eviction for stored messages."""
-        from hermes.hub import StoreForwardQueue
+        from amaru.hub import StoreForwardQueue
 
         queue = StoreForwardQueue(max_depth=10)
         queue.enqueue("beta", {"msg": "old"}, ttl_seconds=0)
@@ -1250,7 +1259,7 @@ class TestLevel3HubMode:
 
     def test_l3_33_queue_depth_limit(self):
         """L3-33 (cont): Queue enforces max_depth."""
-        from hermes.hub import StoreForwardQueue
+        from amaru.hub import StoreForwardQueue
 
         queue = StoreForwardQueue(max_depth=2)
         assert queue.enqueue("beta", {"msg": "1"})
@@ -1259,7 +1268,7 @@ class TestLevel3HubMode:
 
     def test_l3_34_broadcast_delivery(self):
         """L3-34: SHOULD support broadcast to all connected peers."""
-        from hermes.hub import MessageRouter, ConnectionTable, StoreForwardQueue
+        from amaru.hub import ConnectionTable, MessageRouter, StoreForwardQueue
 
         conns = ConnectionTable()
         queue = StoreForwardQueue()
@@ -1269,7 +1278,7 @@ class TestLevel3HubMode:
 
     def test_l3_35_presence_notifications(self):
         """L3-35: MAY provide presence notifications."""
-        from hermes.hub import ConnectionTable
+        from amaru.hub import ConnectionTable
 
         conns = ConnectionTable()
         assert hasattr(conns, "is_online")
@@ -1285,7 +1294,7 @@ class TestLevel3Bridge:
 
     def test_l3_36_a2a_translation(self):
         """L3-36: MAY support translation between HERMES and A2A."""
-        from hermes.bridge import A2ABridge
+        from amaru.bridge import A2ABridge
 
         bridge = A2ABridge()
         jsonrpc = {
@@ -1297,12 +1306,12 @@ class TestLevel3Bridge:
                 "message": {"role": "user", "parts": [{"text": "hello"}]},
             },
         }
-        msg = bridge.a2a_to_hermes(jsonrpc)
+        msg = bridge.a2a_to_amaru(jsonrpc)
         assert msg.type in ("state", "event", "dispatch")
 
     def test_l3_37_mcp_translation(self):
         """L3-37: MAY support translation between HERMES and MCP."""
-        from hermes.bridge import MCPBridge
+        from amaru.bridge import MCPBridge
 
         bridge = MCPBridge()
         jsonrpc = {
@@ -1311,12 +1320,12 @@ class TestLevel3Bridge:
             "id": "1",
             "params": {"name": "bus_read", "arguments": {"filter": "state"}},
         }
-        msg = bridge.mcp_to_hermes(jsonrpc)
+        msg = bridge.mcp_to_amaru(jsonrpc)
         assert msg is not None
 
     def test_l3_38_semantic_preservation(self):
         """L3-38: Bridge translations MUST preserve semantic intent."""
-        from hermes.bridge import A2ABridge
+        from amaru.bridge import A2ABridge
 
         bridge = A2ABridge()
         jsonrpc_send = {
@@ -1328,15 +1337,15 @@ class TestLevel3Bridge:
                 "message": {"role": "user", "parts": [{"text": "data"}]},
             },
         }
-        msg = bridge.a2a_to_hermes(jsonrpc_send)
-        # Round-trip: hermes → a2a should preserve the intent
-        result = bridge.hermes_to_a2a(msg)
+        msg = bridge.a2a_to_amaru(jsonrpc_send)
+        # Round-trip: amaru → a2a should preserve the intent
+        result = bridge.amaru_to_a2a(msg)
         assert "result" in result or "method" in result
 
     def test_l3_39_bridge_respects_gateway(self):
         """L3-39: Bridge translations MUST NOT bypass the gateway filter."""
-        from hermes.bridge import A2ABridge
-        from hermes.gateway import InboundValidator, OutboundFilter
+        from amaru.bridge import A2ABridge
+        from amaru.gateway import InboundValidator, OutboundFilter
 
         bridge = A2ABridge()
         # Bridge produces a HERMES message
@@ -1349,7 +1358,7 @@ class TestLevel3Bridge:
                 "message": {"role": "user", "parts": [{"text": "blocked"}]},
             },
         }
-        msg = bridge.a2a_to_hermes(jsonrpc)
+        msg = bridge.a2a_to_amaru(jsonrpc)
         # The message type must be one the gateway knows how to filter
         # Outbound filter has ALLOWED_TYPES; inbound validator has SUPPORTED_INBOUND_TYPES
         # Bridge output goes through gateway — verifying the types are filterable
@@ -1363,14 +1372,16 @@ class TestLevel3Bridge:
     def _make_hub_ws():
         """Create a minimal mock WebSocket for hub auth tests."""
         from unittest.mock import AsyncMock
+
         ws = AsyncMock()
         ws.close = AsyncMock()
         return ws
 
     def test_l3_40_hub_hello_frame_required(self, tmp_path):
         """L3-40: Hub MUST wait for client HELLO before sending CHALLENGE."""
-        from hermes.hub import HubServer, HubConfig
         import asyncio
+
+        from amaru.hub import HubConfig, HubServer
 
         (tmp_path / "hub-peers.json").write_text(json.dumps({"peers": {}}))
         config = HubConfig(listen_port=19443, auth_timeout=2)
@@ -1394,9 +1405,11 @@ class TestLevel3Bridge:
 
     def test_l3_41_hub_hello_with_capabilities(self, tmp_path):
         """L3-41: Hub MUST include server_version and server_capabilities in CHALLENGE."""
-        from hermes.hub import HubServer, HubConfig
-        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
         import asyncio
+
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+        from amaru.hub import HubConfig, HubServer
 
         privkey = Ed25519PrivateKey.generate()
         pubkey_hex = privkey.public_key().public_bytes_raw().hex()
@@ -1418,13 +1431,15 @@ class TestLevel3Bridge:
             nonlocal recv_count
             recv_count += 1
             if recv_count == 1:
-                return json.dumps({
-                    "type": "hello",
-                    "clan_id": "test_clan",
-                    "sign_pub": pubkey_hex,
-                    "protocol_version": "0.4.2a1",
-                    "capabilities": ["e2e_crypto"],
-                })
+                return json.dumps(
+                    {
+                        "type": "hello",
+                        "clan_id": "test_clan",
+                        "sign_pub": pubkey_hex,
+                        "protocol_version": "0.4.2a1",
+                        "capabilities": ["e2e_crypto"],
+                    }
+                )
             else:
                 # Sign the challenge nonce
                 challenge = sent_messages[-1]
@@ -1451,9 +1466,11 @@ class TestLevel3Bridge:
 
     def test_l3_42_hub_legacy_backward_compat(self, tmp_path):
         """L3-42: Hub MUST support legacy clients that send auth without hello."""
-        from hermes.hub import HubServer, HubConfig
-        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
         import asyncio
+
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+        from amaru.hub import HubConfig, HubServer
 
         privkey = Ed25519PrivateKey.generate()
         pubkey_hex = privkey.public_key().public_bytes_raw().hex()
@@ -1476,23 +1493,27 @@ class TestLevel3Bridge:
             recv_count += 1
             if recv_count == 1:
                 # Legacy client sends auth directly (no hello)
-                return json.dumps({
-                    "type": "auth",
-                    "clan_id": "legacy_clan",
-                    "nonce_response": "placeholder",
-                    "sign_pub": pubkey_hex,
-                })
+                return json.dumps(
+                    {
+                        "type": "auth",
+                        "clan_id": "legacy_clan",
+                        "nonce_response": "placeholder",
+                        "sign_pub": pubkey_hex,
+                    }
+                )
             else:
                 # Sign the challenge nonce from the server
                 challenge = sent_messages[-1]
                 nonce = challenge["nonce"]
                 sig = privkey.sign(bytes.fromhex(nonce)).hex()
-                return json.dumps({
-                    "type": "auth",
-                    "clan_id": "legacy_clan",
-                    "nonce_response": sig,
-                    "sign_pub": pubkey_hex,
-                })
+                return json.dumps(
+                    {
+                        "type": "auth",
+                        "clan_id": "legacy_clan",
+                        "nonce_response": sig,
+                        "sign_pub": pubkey_hex,
+                    }
+                )
 
         ws.send = mock_send
         ws.recv = mock_recv

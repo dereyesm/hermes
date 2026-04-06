@@ -259,7 +259,7 @@ Received via JEI-HERMES-017 (ECDHE-encrypted relay, decrypted by DANI).
 3. **Score yourself** honestly: Y/P/N/NA
 4. **Calculate your score**: Y / (Total - NA) x 100
 5. **Identify top 3 gaps** and create remediation tasks
-6. **Send results via HERMES relay** for bilateral comparison
+6. **Send results vian Amaru relay** for bilateral comparison
 
 ### What You Need Before Starting
 
@@ -291,7 +291,7 @@ Then graduate to:
 
 ### Phase 2: JEI Self-Assessment (target 2026-03-22)
 
-1. JEI receives this checklist via HERMES relay
+1. JEI receives this checklist vian Amaru relay
 2. JEI runs assessment independently against their setup
 3. JEI sends results back via relay: score per category + top gaps
 4. Both clans compare and identify shared improvement areas

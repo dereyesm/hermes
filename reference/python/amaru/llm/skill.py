@@ -11,7 +11,7 @@ Cursor, OpenCode, and 30+ AI coding tools. Provider-specific fields
 gracefully ignored by tools that don't support them.
 
 No PyYAML dependency — uses a lightweight parser for the frontmatter subset
-that HERMES skills actually use.
+that Amaru skills actually use.
 """
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ class SkillContext:
       - license: optional license identifier (e.g. "MIT", "Apache-2.0")
       - compatibility: optional environment requirements (e.g. "Python 3.11+")
 
-    Additional fields are HERMES extensions stored in metadata.
+    Additional fields are Amaru extensions stored in metadata.
     """
 
     name: str
@@ -83,7 +83,7 @@ class SkillLoader:
         )
 
     def _parse_frontmatter(self, text: str) -> dict:
-        """Simple YAML-like parser for the frontmatter subset used by HERMES skills."""
+        """Simple YAML-like parser for the frontmatter subset used by Amaru skills."""
         result: dict[str, str] = {}
         current_key: str | None = None
         current_value: list[str] = []

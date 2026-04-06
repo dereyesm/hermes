@@ -12,7 +12,7 @@
 
 ## 1. Abstract
 
-This document defines the HERMES Reference Model: a five-layer
+This document defines the Amaru Reference Model: a five-layer
 architecture for inter-agent communication in stateless AI environments.
 The model is derived from the principles of the ISO/IEC 7498-1
 (OSI Reference Model, standardized as ITU-T Recommendation X.200) and
@@ -31,7 +31,7 @@ reflecting the simpler topology of file-mediated agent messaging.
 
 This recommendation:
 
-- Defines the HERMES layered architecture and the responsibilities of
+- Defines the Amaru layered architecture and the responsibilities of
   each layer.
 - Specifies the data units exchanged at each layer boundary.
 - Establishes the interfaces between adjacent layers.
@@ -49,7 +49,7 @@ This recommendation does NOT:
 ## 3. Definitions
 
 - **Agent**: An autonomous software entity (AI model, script, or tool)
-  that reads from and writes to the HERMES bus.
+  that reads from and writes to the Amaru bus.
 - **Bus**: The active message file (`bus.jsonl`) containing all
   non-expired packets.
 - **Namespace**: A logical isolation boundary grouping agents, files,
@@ -65,7 +65,7 @@ This recommendation does NOT:
 
 ---
 
-## 4. The HERMES Five-Layer Model
+## 4. The Amaru Five-Layer Model
 
 ### 4.1 Layer Summary
 
@@ -129,7 +129,7 @@ the bytes it stores.
 
 #### 4.3.1 Responsibilities
 
-L1 defines the wire format of a HERMES packet. It is responsible for:
+L1 defines the wire format of an Amaru packet. It is responsible for:
 
 - Serializing agent messages into a deterministic, parseable format.
 - Deserializing raw lines from the bus file into structured packets.
@@ -743,11 +743,11 @@ signatures) or L3 (encrypted payloads).
 | ITU-T X.210 (1993) | Information technology — Open Systems Interconnection — Basic Reference Model: Conventions for the definition of OSI services |
 | RFC 1122 (1989) | Requirements for Internet Hosts — Communication Layers |
 | RFC 793 (1981) | Transmission Control Protocol |
-| HERMES PROTOCOL.md | HERMES Protocol Specification (internal, v1) |
+| HERMES PROTOCOL.md | Amaru Protocol Specification (internal, v1) |
 | 3GPP TS 23.214 | Architecture enhancements for control and user plane separation of EPC nodes |
 | 3GPP TS 29.244 | Interface between the control plane and the user plane nodes (PFCP) |
 | BBF TR-369 | User Services Platform (USP) |
 
 ---
 
-*ATR-X.200 is part of the HERMES open standard. Licensed under MIT.*
+*ATR-X.200 is part of the Amaru open standard. Licensed under MIT.*

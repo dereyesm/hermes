@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 import pytest
 
-from hermes.llm.adapters import LLMResponse
-from hermes.llm.telemetry import (
+from amaru.llm.adapters import LLMResponse
+from amaru.llm.telemetry import (
     COST_PER_MTOK,
     BackendUsage,
     TokenEvent,
@@ -16,7 +15,6 @@ from hermes.llm.telemetry import (
     TokenTracker,
     estimate_cost,
 )
-
 
 # ─── Fixtures ────────────────────────────────────────────────────
 
@@ -197,7 +195,9 @@ class TestTokenTrackerPersistence:
 
     def test_load_skips_bad_lines(self, tmp_path):
         log = tmp_path / "bad.jsonl"
-        log.write_text('{"ts":"x","backend":"y","model":"z","in":1,"out":2,"total":3,"cost":0}\n{bad json}\n')
+        log.write_text(
+            '{"ts":"x","backend":"y","model":"z","in":1,"out":2,"total":3,"cost":0}\n{bad json}\n'
+        )
         tracker = TokenTracker(file_path=log)
         loaded = tracker.load_from_file()
         assert loaded == 1

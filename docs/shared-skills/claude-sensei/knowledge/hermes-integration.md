@@ -1,4 +1,4 @@
-# HERMES Protocol — Integration with Claude Code
+# Amaru Protocol — Integration with Claude Code
 
 > How HERMES inter-agent communication works within the Claude/Anthropic ecosystem.
 
@@ -6,7 +6,7 @@
 
 HERMES is an open-source protocol for inter-agent AI communication, inspired by TCP/IP and telecom standards (3GPP, ITU-T, IETF). It enables AI agents to coordinate across tools, sessions, and teams using a lightweight file-based message bus.
 
-- **Repo**: https://github.com/dereyesm/hermes (MIT license)
+- **Repo**: https://github.com/amaru-protocol/amaru (MIT license)
 - **Version**: v0.4.2-alpha (20 spec files, 1146 tests, 17 Python modules)
 - **Philosophy**: Sovereign-first (runs on local files, no cloud required), with optional Hub Mode for real-time connectivity
 
@@ -22,29 +22,29 @@ HERMES registers three Claude Code hooks that activate automatically:
 | `pull_on_prompt` | UserPromptSubmit | Activates on `/hermes` commands, refreshes bus state |
 | `exit_reminder` | Stop | Reminds about unacked messages before session close |
 
-Hooks are installed via `hermes install` and configured in Claude Code's `settings.json`. They use stdin/stdout JSON (no bash dependency, cross-platform).
+Hooks are installed via `amaru install` and configured in Claude Code's `settings.json`. They use stdin/stdout JSON (no bash dependency, cross-platform).
 
-**Implementation**: `~/.hermes/hooks.py` (or venv wrapper at `~/.hermes/bin/hermes-hook`)
+**Implementation**: `~/.amaru/hooks.py` (or venv wrapper at `~/.amaru/bin/hermes-hook`)
 
 ### 2. Adapter Pattern (HERMES → Claude Code)
 
-The `hermes adapt claude-code` command generates Claude Code configuration from the canonical `~/.hermes/` directory:
+The `amaru adapt claude-code` command generates Claude Code configuration from the canonical `~/.amaru/` directory:
 
 ```
-~/.hermes/                    ~/.claude/
+~/.amaru/                    ~/.claude/
 ├── config.toml          →    (reads config)
 ├── bus.jsonl             →    sync/bus.jsonl (symlink)
 ├── skills/*.md           →    skills/ (symlinks)
 └── rules/*.md            →    rules/ (symlinks)
 ```
 
-**Key design**: Symlinks, not copies — single source of truth stays in `~/.hermes/`.
+**Key design**: Symlinks, not copies — single source of truth stays in `~/.amaru/`.
 
-Other agents get their own adapter: `hermes adapt cursor` compiles a `.cursorrules` file instead of symlinks. The adapter pattern is agent-agnostic.
+Other agents get their own adapter: `amaru adapt cursor` compiles a `.cursorrules` file instead of symlinks. The adapter pattern is agent-agnostic.
 
 ### 3. Bus Protocol (Inter-Session Communication)
 
-The HERMES bus (`bus.jsonl`) enables communication between Claude Code sessions, even across different projects:
+The Amaru bus (`bus.jsonl`) enables communication between Claude Code sessions, even across different projects:
 
 ```jsonl
 {"ts":"2026-03-28","src":"hermes","dst":"*","type":"state","msg":"ARC-1122 spec DONE","ttl":7,"ack":[]}
@@ -56,13 +56,13 @@ The HERMES bus (`bus.jsonl`) enables communication between Claude Code sessions,
 
 ### 4. Skills as HERMES Nodes
 
-Claude Code skills (`.claude/skills/*.md`) can be HERMES nodes — they read from and write to the bus. Example: the `protocol-architect` skill in the HERMES dimension reads quest dispatches from the bus and writes progress updates.
+Claude Code skills (`.claude/skills/*.md`) can be HERMES nodes — they read from and write to the bus. Example: the `protocol-architect` skill in the Amaru dimension reads quest dispatches from the bus and writes progress updates.
 
 Skills don't need special HERMES code. They just follow the SYN/FIN protocol naturally as part of their session lifecycle.
 
 ### 5. Agent Node Daemon
 
-The `hermes agent start` command runs a persistent daemon that:
+The `amaru agent start` command runs a persistent daemon that:
 - Watches bus.jsonl for changes (kqueue/inotify)
 - Dispatches messages to registered agent profiles
 - Connects to Hub for real-time cross-clan delivery
@@ -97,8 +97,8 @@ hermes install          # One-command setup (hooks + config + keys)
 hermes status           # Show clan status, bus stats, peers
 hermes bus              # Show bus messages
 hermes bus --pending    # Show unacked messages
-hermes adapt claude-code  # Generate Claude Code config from ~/.hermes/
-hermes adapt cursor     # Generate .cursorrules from ~/.hermes/
+hermes adapt claude-code  # Generate Claude Code config from ~/.amaru/
+hermes adapt cursor     # Generate .cursorrules from ~/.amaru/
 hermes agent start      # Start persistent daemon
 hermes hub start        # Start hub server (for multi-peer routing)
 ```
@@ -108,7 +108,7 @@ hermes hub start        # Start hub server (for multi-peer routing)
 ```
 Claude Code Session
     ↕ hooks (stdin/stdout JSON)
-~/.hermes/ (canonical HERMES config)
+~/.amaru/ (canonical HERMES config)
     ↕ bus.jsonl (JSONL message bus)
 Agent Node Daemon (optional)
     ↕ WebSocket

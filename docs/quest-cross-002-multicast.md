@@ -15,24 +15,24 @@
 ### All clans
 - [ ] Pull latest: `cd ~/Dev/hermes-dani && git pull` (HEAD 62c192c)
 - [ ] Install: `pip install -e reference/python/`
-- [ ] Hub running: `hermes hub start`
-- [ ] Agent Node running: `hermes daemon start --dir ~/.hermes`
-- [ ] `hermes status` shows all peers as `active`
+- [ ] Hub running: `amaru hub start`
+- [ ] Agent Node running: `amaru daemon start --dir ~/.hermes`
+- [ ] `amaru status` shows all peers as `active`
 
 ### Nymyka (dispatcher)
-- [ ] Hub access configured (either MCP hermes-bus or `hermes send` CLI)
+- [ ] Hub access configured (either MCP hermes-bus or `amaru send` CLI)
 - [ ] Both peers (momoshod + jei) registered in hub-peers.json
 - [ ] Federation config with both peer hub URIs
 
 ### DANI (worker)
-- [ ] cross-clan-dispatcher agent registered in `~/.hermes/agents/`
+- [ ] cross-clan-dispatcher agent registered in `~/.amaru/agents/`
 - [ ] Hub listener connected to JEI's hub (for bidirectional)
 - [ ] Listener connected to own hub (for Nymyka's messages)
 
 ### JEI (worker)
-- [ ] cross-clan-dispatcher agent registered in `~/.hermes/agents/`
+- [ ] cross-clan-dispatcher agent registered in `~/.amaru/agents/`
 - [ ] Hub listener connected to DANI's hub
-- [ ] `hermes send` CLI working (PR#4 merged)
+- [ ] `amaru send` CLI working (PR#4 merged)
 
 ## Protocol
 
@@ -91,7 +91,7 @@ Response written to bus + auto-forwarded via hub
 hermes bus --pending | grep QUEST-CROSS-002
 
 # Check agent node logs for dispatch activity
-tail -20 ~/.hermes/agent-node.log 2>/dev/null
+tail -20 ~/.amaru/agent-node.log 2>/dev/null
 ```
 
 ### Phase 3: Response Collection (5 min)
@@ -144,7 +144,7 @@ Pick one for the first run:
 | Response not forwarded | _forward_to_hub failed silently | Check hub PID in hub-state.json |
 | Peer shows pending_ack | Auto-upgrade not triggered yet | Send any message to trigger upgrade |
 | Broadcast not received | Peer was offline | Use unicast (hermes send <peer>) instead |
-| hermes send fails | No hub running | `hermes hub start` first |
+| hermes send fails | No hub running | `amaru hub start` first |
 
 ## Success Criteria
 
@@ -167,7 +167,7 @@ Pick one for the first run:
 
 - This quest tests the EXACT pipeline validated by Tier 1-4 bilateral tests (22 tests, all GREEN)
 - Broadcast is best-effort (Tier 4 finding) — use unicast for guaranteed delivery
-- `hermes send` CLI (PR#4 by JEI) eliminates the 40-line script friction
+- `amaru send` CLI (PR#4 by JEI) eliminates the 40-line script friction
 - If any step fails, document in bilateral-issues-plan.md as P6+
 
 ---

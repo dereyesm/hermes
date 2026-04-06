@@ -1,6 +1,6 @@
 # HERMES Architecture Guide
 
-A visual guide to the HERMES protocol stack.
+A visual guide to the Amaru protocol stack.
 
 ## The 5-Layer Stack
 
@@ -53,7 +53,7 @@ HERMES is a **signaling protocol**, not a data protocol. Like SS7 in telecom net
 A typical HERMES deployment:
 
 ```
-~/.hermes/                          # or any root directory
+~/.amaru/                          # or any root directory
 ├── bus.jsonl                       # active messages
 ├── bus-archive.jsonl               # expired messages
 ├── routes.md                       # routing table
@@ -84,7 +84,7 @@ A typical HERMES deployment:
 When a clan wants to connect with other clans on the Agora (public inter-clan network), it deploys a **Gateway** — a NAT-like component at the boundary.
 
 <p align="center">
-  <img src="diagrams/d2/gateway-clan-boundary.svg" alt="HERMES gateway at clan boundary with NAT and Agora" width="800"/>
+  <img src="diagrams/d2/gateway-clan-boundary.svg" alt="Amaru gateway at clan boundary with NAT and Agora" width="800"/>
 </p>
 
 **What the gateway exposes**: Public profiles (alias, capabilities, Resonance score).
@@ -134,8 +134,8 @@ The bus auto-detects format by the first character of each line (`{` = verbose, 
 ```bash
 hermes bus --compact      # Output all messages in compact format
 hermes bus --expand       # Output all messages in verbose format
-cat bus.jsonl | python -m hermes.message --compact   # Convert to compact
-cat bus.jsonl | python -m hermes.message --expand    # Convert to verbose
+cat bus.jsonl | python -m amaru.message --compact   # Convert to compact
+cat bus.jsonl | python -m amaru.message --expand    # Convert to verbose
 ```
 
 ### Compact Sealed Envelopes (ARC-8446)
@@ -162,8 +162,8 @@ The `installer` module ([`reference/python/hermes/installer.py`](../reference/py
 ```
 hermes install --clan-id <id> --display-name <name>
        │
-       ├─ 1. init_clan_if_needed()     → ~/.hermes/gateway.json + bus.jsonl
-       ├─ 2. generate_keypair()        → ~/.hermes/.keys/<id>.key (Ed25519 + X25519)
+       ├─ 1. init_clan_if_needed()     → ~/.amaru/gateway.json + bus.jsonl
+       ├─ 2. generate_keypair()        → ~/.amaru/.keys/<id>.key (Ed25519 + X25519)
        ├─ 3. add_agent_node_section()  → gateway.json agent_node block
        ├─ 4. install_service()         → OS-specific daemon registration
        ├─ 5. install_hooks()           → Claude Code hooks (3 events)
@@ -174,7 +174,7 @@ hermes install --clan-id <id> --display-name <name>
 
 | Platform | Mechanism | Path |
 |----------|-----------|------|
-| macOS | LaunchAgent plist | `~/Library/LaunchAgents/com.hermes.agent-node.plist` |
+| macOS | LaunchAgent plist | `~/Library/LaunchAgents/com.amaru.agent-node.plist` |
 | Linux | systemd user unit | `~/.config/systemd/user/hermes-agent.service` |
 | Windows | Scheduled task | `HermesAgentNode` (schtasks) |
 
@@ -186,23 +186,23 @@ hermes install --clan-id <id> --display-name <name>
 | `pull_on_prompt` | `UserPromptSubmit` | Activates on `/hermes` prefixed prompts |
 | `exit_reminder` | `Stop` | Reminds about unacked messages |
 
-Hooks are cross-platform (no bash dependency), invoked as `python -m hermes.hooks <cmd>`.
+Hooks are cross-platform (no bash dependency), invoked as `python -m amaru.hooks <cmd>`.
 
 ![Install Flow](diagrams/d2/install-flow.svg)
 
 ## Adapter Pattern — Agent-Agnostic Bridge
 
-The **Adapter** ([`adapter.py`](../reference/python/hermes/adapter.py)) bridges HERMES's canonical filesystem structure (`~/.hermes/`) to each AI assistant's native config format.
+The **Adapter** ([`adapter.py`](../reference/python/hermes/adapter.py)) bridges HERMES's canonical filesystem structure (`~/.amaru/`) to each AI assistant's native config format.
 
-**Claude Code Adapter** reads `~/.hermes/config.toml` and generates:
+**Claude Code Adapter** reads `~/.amaru/config.toml` and generates:
 
 ```
 ~/.claude/
 ├── CLAUDE.md              ← from config.toml + dimension states
-├── skills/                ← symlinks to .hermes/dimensions/*/skills/
-├── rules/                 ← symlinks to .hermes/dimensions/*/rules/ (prefixed by dimension)
+├── skills/                ← symlinks to .amaru/dimensions/*/skills/
+├── rules/                 ← symlinks to .amaru/dimensions/*/rules/ (prefixed by dimension)
 └── sync/
-    └── bus.jsonl          ← symlink to .hermes/bus/active.jsonl
+    └── bus.jsonl          ← symlink to .amaru/bus/active.jsonl
 ```
 
 ```bash
@@ -216,12 +216,12 @@ Adapters are idempotent (safe to re-run) and follow the contract in [installable
 
 | Adapter | Target | Output Strategy | Command |
 |---------|--------|----------------|---------|
-| Claude Code | `~/.claude/` | Symlinks + CLAUDE.md | `hermes adapt claude-code` |
-| Cursor | Project root | Compiled `.cursorrules` (HERMES markers) | `hermes adapt cursor` |
-| OpenCode | `~/.config/opencode/` | AGENTS.md + opencode.json merge + symlinks | `hermes adapt opencode` |
-| Gemini CLI | `~/.gemini/` | GEMINI.md + settings.json merge + symlinks | `hermes adapt gemini` |
+| Claude Code | `~/.claude/` | Symlinks + CLAUDE.md | `amaru adapt claude-code` |
+| Cursor | Project root | Compiled `.cursorrules` (HERMES markers) | `amaru adapt cursor` |
+| OpenCode | `~/.config/opencode/` | AGENTS.md + opencode.json merge + symlinks | `amaru adapt opencode` |
+| Gemini CLI | `~/.gemini/` | GEMINI.md + settings.json merge + symlinks | `amaru adapt gemini` |
 
-Auto-detect and adapt all: `hermes adapt --all`. List available: `hermes adapt --list`.
+Auto-detect and adapt all: `amaru adapt --all`. List available: `amaru adapt --list`.
 
 ## Token Telemetry
 
@@ -229,8 +229,8 @@ The **Telemetry** module ([`llm/telemetry.py`](../reference/python/hermes/llm/te
 
 - **TokenTracker**: Records `input_tokens`, `output_tokens`, and estimates cost per call
 - **COST_PER_MTOK**: Built-in pricing table for 10 models (Claude, Gemini, OpenAI)
-- **Persistence**: Append-only JSONL (`~/.hermes/telemetry.jsonl`)
-- **CLI**: `hermes llm usage` — dashboard with per-model breakdown, budget tracking, CSV export
+- **Persistence**: Append-only JSONL (`~/.amaru/telemetry.jsonl`)
+- **CLI**: `amaru llm usage` — dashboard with per-model breakdown, budget tracking, CSV export
 - **Auto-instrument**: `AdapterManager.complete()` records telemetry automatically
 
 ## Agent Service Platform (ARC-0369)
@@ -253,7 +253,7 @@ See [ARC-0369](../spec/ARC-0369.md) for the full specification.
 
 ## Bus Integrity (ARC-9001)
 
-The **Bus Integrity Protocol** ([`integrity.py`](../reference/python/hermes/integrity.py)) provides message sequencing and write ownership for the HERMES bus:
+The **Bus Integrity Protocol** ([`integrity.py`](../reference/python/hermes/integrity.py)) provides message sequencing and write ownership for the Amaru bus:
 
 - **F1 Message Sequencing**: `SequenceTracker` assigns monotonic `seq` numbers per source namespace. Detects gaps (missing messages) and duplicates (replay). Inspired by SS7 FSN/BSN (ITU-T Q.703 §5.2).
 - **F2 Write Ownership**: `OwnershipRegistry` maps namespaces to authorized writers. Only the registered owner can write `src=namespace`. Default: daemon owns all local namespaces; ASP agents get ownership of their namespace.

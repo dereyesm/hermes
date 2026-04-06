@@ -1,6 +1,6 @@
 # SEQ-5322: Message Lifecycle
 
-> How a HERMES message is created, validated, written to the bus, consumed, acknowledged, and eventually archived.
+> How an Amaru message is created, validated, written to the bus, consumed, acknowledged, and eventually archived.
 
 This is the foundational flow -- every other protocol operation builds on this sequence.
 

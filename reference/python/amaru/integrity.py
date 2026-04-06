@@ -1,6 +1,6 @@
 """ARC-9001: Bus Integrity Protocol — F1-F4 Reference Implementation.
 
-Provides bus-level integrity guarantees for the HERMES protocol:
+Provides bus-level integrity guarantees for the Amaru protocol:
 
 F1 (SequenceTracker): Monotonic sequence numbers per source namespace.
    Detects gaps, duplicates, and replay attempts on the bus.

@@ -1,4 +1,4 @@
-"""HERMES Dojo — ARC-2314 Orchestration Plane Reference Implementation.
+"""Amaru Dojo — ARC-2314 Orchestration Plane Reference Implementation.
 
 The Dojo is the Orchestration Plane agent responsible for quest dispatch,
 skill roster management, backlog prioritization, and XP tracking.

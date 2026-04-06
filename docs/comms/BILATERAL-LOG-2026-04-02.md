@@ -13,7 +13,7 @@
 
 | Time (UTC) | Event | Detail |
 |------------|-------|--------|
-| ~21:00 | DANI hub start | `hermes hub start --dir ~/.hermes`, PID 45900, :8443 |
+| ~21:00 | DANI hub start | `amaru hub start --dir ~/.hermes`, PID 45900, :8443 |
 | ~21:10 | TCP connectivity confirmed | `nc -z 192.168.68.101 8443` succeeded |
 | ~21:15 | WebSocket connect to JEI | `ws://192.168.68.101:8443` — TCP+WS handshake OK |
 | ~21:15 | **JEI no challenge** | Connected but JEI hub does not send challenge frame |
@@ -74,7 +74,7 @@
 | `hermes/hub.py` | 45a226d | Fix `_process_http` for websockets v16 |
 | `hermes/hub.py` | 0dea423 | HELLO frame + `_authenticate` rewrite + `_authenticate_legacy` |
 | `scripts/quest005_hub_client.py` | 0dea423 | Client sends HELLO first |
-| `hermes/cli.py` | e8bbf36 | `hermes peer invite/accept` commands |
+| `hermes/cli.py` | e8bbf36 | `amaru peer invite/accept` commands |
 | `README.md` | 3e94c8d | Reframe: sovereignty > wire efficiency |
 | `tests/test_conformance.py` | 80a33ae | L3-40/41/42 hub handshake vectors |
 

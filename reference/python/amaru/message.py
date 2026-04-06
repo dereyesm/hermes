@@ -1,9 +1,9 @@
-"""HERMES Message Format — ARC-5322 Reference Implementation.
+"""Amaru Message Format — ARC-5322 Reference Implementation.
 
-Validates and constructs HERMES messages per the ARC-5322 specification.
+Validates and constructs Amaru messages per the ARC-5322 specification.
 Can be run as a script to validate messages from stdin:
 
-    cat bus.jsonl | python -m hermes.message
+    cat bus.jsonl | python -m amaru.message
 """
 
 from __future__ import annotations
@@ -80,7 +80,7 @@ COMPACT_FIELD_COUNT_WITH_ENCODING = 8
 
 @dataclass(frozen=True)
 class Message:
-    """A single HERMES bus message per ARC-5322."""
+    """A single Amaru bus message per ARC-5322."""
 
     ts: date
     src: str
@@ -369,7 +369,7 @@ def parse_line(line: str) -> Message:
         return validate_compact(data)
     else:
         raise ValidationError(
-            f"HERMES message must be a JSON object (verbose) or array (compact), "
+            f"Amaru message must be a JSON object (verbose) or array (compact), "
             f"got {type(data).__name__}"
         )
 
@@ -385,7 +385,7 @@ def create_message(
     seq: int | None = None,
     w: dict[str, int] | None = None,
 ) -> Message:
-    """Create and validate a new HERMES message.
+    """Create and validate a new Amaru message.
 
     If ttl is not provided, uses the default for the message type.
     If ts is not provided, uses today's date.

@@ -299,7 +299,7 @@ ARC-8446 updated to v1.2 with canonical parameters and migration path.
 Phase 3 DANI side: **DONE**. JEI needs to:
 1. Read ARC-8446 v1.2 §11.2.8 canonical parameters
 2. Update their implementation to use canonical parameters
-3. Verify with `hermes crypto validate-ecdhe` (planned CLI)
+3. Verify with `amaru crypto validate-ecdhe` (planned CLI)
 4. Non-canonical parameters deprecated — 30-day migration window from today
 
 ## References

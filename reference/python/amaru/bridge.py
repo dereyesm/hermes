@@ -1,21 +1,21 @@
-"""HERMES Bridge Protocol Mapping — ARC-7231 Reference Implementation.
+"""Amaru Bridge Protocol Mapping — ARC-7231 Reference Implementation.
 
-Translates between HERMES JSONL messages and external agent protocols
+Translates between Amaru JSONL messages and external agent protocols
 (Google A2A, Anthropic MCP) per ARC-7231.  This module implements the
 semantic translation layer — it does NOT include HTTP servers or transports.
 
 Usage:
-    from hermes.bridge import A2ABridge, MCPBridge, BridgeConfig
+    from amaru.bridge import A2ABridge, MCPBridge, BridgeConfig
 
     config = BridgeConfig(cid_prefix="brg")
     a2a = A2ABridge(config)
     mcp = MCPBridge(config)
 
-    # Inbound: A2A JSON-RPC → HERMES Message
-    msg = a2a.a2a_to_hermes(jsonrpc_request)
+    # Inbound: A2A JSON-RPC → Amaru Message
+    msg = a2a.a2a_to_amaru(jsonrpc_request)
 
-    # Outbound: HERMES Message → A2A JSON-RPC result
-    result = a2a.hermes_to_a2a(message)
+    # Outbound: Amaru Message → A2A JSON-RPC result
+    result = a2a.amaru_to_a2a(message)
 """
 
 from __future__ import annotations
@@ -76,7 +76,7 @@ def generate_cid(prefix: str = "brg", protocol: str = "a2a") -> str:
 # ─── Error Translation (Section 8.1) ─────────────────────────────
 
 
-# HERMES condition → (A2A error message, MCP error code, HTTP status)
+# Amaru condition → (A2A error message, MCP error code, HTTP status)
 _ERROR_MAP: dict[str, tuple[str, int, int]] = {
     "not_found": ("Task failed: agent not found", -32601, 404),
     "namespace_not_found": ("Task failed: agent not found", -32601, 404),
@@ -92,7 +92,7 @@ _ERROR_MAP: dict[str, tuple[str, int, int]] = {
 
 
 def translate_error(condition: str) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Translate a HERMES error condition to A2A and MCP error dicts.
+    """Translate a Amaru error condition to A2A and MCP error dicts.
 
     Returns (a2a_error, mcp_error) where each is a dict with
     'code' and 'message' keys.
@@ -104,7 +104,7 @@ def translate_error(condition: str) -> tuple[dict[str, Any], dict[str, Any]]:
 
 
 def translate_error_a2a(condition: str, request_id: int | str = 1) -> dict[str, Any]:
-    """Translate a HERMES error condition to an A2A JSON-RPC error response."""
+    """Translate a Amaru error condition to an A2A JSON-RPC error response."""
     a2a_err, _ = translate_error(condition)
     return {
         "jsonrpc": "2.0",
@@ -114,7 +114,7 @@ def translate_error_a2a(condition: str, request_id: int | str = 1) -> dict[str, 
 
 
 def translate_error_mcp(condition: str, request_id: int | str = 1) -> dict[str, Any]:
-    """Translate a HERMES error condition to an MCP JSON-RPC error response."""
+    """Translate a Amaru error condition to an MCP JSON-RPC error response."""
     _, mcp_err = translate_error(condition)
     return {
         "jsonrpc": "2.0",
@@ -146,7 +146,7 @@ def _truncate_payload(text: str) -> str:
 
 
 class A2ABridge:
-    """Translates between Google A2A JSON-RPC and HERMES JSONL.
+    """Translates between Google A2A JSON-RPC and Amaru JSONL.
 
     Implements the semantic mapping defined in ARC-7231 Section 3.
     """
@@ -155,8 +155,8 @@ class A2ABridge:
         self.config = config or BridgeConfig()
         self._cid_gen = CIDGenerator(self.config.cid_prefix)
 
-    def a2a_to_hermes(self, jsonrpc_request: dict[str, Any]) -> Message:
-        """Translate an A2A JSON-RPC request to a HERMES Message.
+    def a2a_to_amaru(self, jsonrpc_request: dict[str, Any]) -> Message:
+        """Translate an A2A JSON-RPC request to a Amaru Message.
 
         Supports: tasks/send, tasks/get, tasks/cancel (Section 3.3).
         Raises ValueError for unsupported methods.
@@ -224,8 +224,8 @@ class A2ABridge:
             ack=[],
         )
 
-    def hermes_to_a2a(self, message: Message, task_id: str | None = None) -> dict[str, Any]:
-        """Translate a HERMES Message to an A2A JSON-RPC result."""
+    def amaru_to_a2a(self, message: Message, task_id: str | None = None) -> dict[str, Any]:
+        """Translate a Amaru Message to an A2A JSON-RPC result."""
         task_state = self.translate_task_state(message)
         resolved_task_id = task_id or _extract_token(message.msg) or "unknown"
         response_text = _strip_correlation_prefix(message.msg)
@@ -245,7 +245,7 @@ class A2ABridge:
         }
 
     def translate_task_state(self, message: Message) -> str:
-        """Map HERMES message to A2A task state per Section 3.4."""
+        """Map Amaru message to A2A task state per Section 3.4."""
         msg = message.msg
 
         if "[RE:" in msg and "CANCELLED" in msg.upper():
@@ -261,7 +261,7 @@ class A2ABridge:
         return "submitted"
 
     def build_agent_card(self, profile: dict[str, Any]) -> dict[str, Any]:
-        """Build an A2A Agent Card from a HERMES profile (Section 3.2.1)."""
+        """Build an A2A Agent Card from a Amaru profile (Section 3.2.1)."""
         alias = profile.get("alias", "unknown")
         capabilities = profile.get("capabilities", [])
 
@@ -293,7 +293,7 @@ class A2ABridge:
         }
 
     def parse_agent_card(self, card: dict[str, Any]) -> dict[str, Any]:
-        """Parse an A2A Agent Card into a HERMES profile (Section 3.2.2)."""
+        """Parse an A2A Agent Card into a Amaru profile (Section 3.2.2)."""
         name = card.get("name", "unknown")
         alias = _sanitize_alias(name)
 
@@ -339,7 +339,7 @@ class A2ABridge:
 
 
 class MCPBridge:
-    """Translates between Anthropic MCP JSON-RPC and HERMES JSONL.
+    """Translates between Anthropic MCP JSON-RPC and Amaru JSONL.
 
     Implements the semantic mapping defined in ARC-7231 Section 4.
     """
@@ -348,8 +348,8 @@ class MCPBridge:
         self.config = config or BridgeConfig()
         self._cid_gen = CIDGenerator(self.config.cid_prefix)
 
-    def mcp_to_hermes(self, jsonrpc_request: dict[str, Any]) -> Message:
-        """Translate an MCP JSON-RPC request to a HERMES Message.
+    def mcp_to_amaru(self, jsonrpc_request: dict[str, Any]) -> Message:
+        """Translate an MCP JSON-RPC request to a Amaru Message.
 
         Supports: tools/call, resources/read (Sections 4.2, 4.3).
         Raises ValueError for unsupported methods.
@@ -402,8 +402,8 @@ class MCPBridge:
             ack=[],
         )
 
-    def hermes_to_mcp(self, message: Message, request_id: int | str = 1) -> dict[str, Any]:
-        """Translate a HERMES Message to an MCP JSON-RPC result."""
+    def amaru_to_mcp(self, message: Message, request_id: int | str = 1) -> dict[str, Any]:
+        """Translate a Amaru Message to an MCP JSON-RPC result."""
         response_text = _strip_correlation_prefix(message.msg)
         is_error = message.type == "alert"
 
@@ -417,7 +417,7 @@ class MCPBridge:
         }
 
     def build_tool_list(self, published_agents: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        """Build an MCP tool list from HERMES published agents (Section 7.2)."""
+        """Build an MCP tool list from Amaru published agents (Section 7.2)."""
         tools: list[dict[str, Any]] = []
         for agent in published_agents:
             alias = agent.get("alias", "unknown")
@@ -449,14 +449,14 @@ class MCPBridge:
         return tools
 
     def build_resource_list(self, namespaces: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        """Build an MCP resource list from HERMES namespaces (Section 4.3)."""
+        """Build an MCP resource list from Amaru namespaces (Section 4.3)."""
         resources: list[dict[str, Any]] = []
         for ns in namespaces:
             ns_id = ns.get("id", "unknown")
-            description = ns.get("description", f"HERMES namespace: {ns_id}")
+            description = ns.get("description", f"Amaru namespace: {ns_id}")
             resources.append(
                 {
-                    "uri": f"hermes://{ns_id}",
+                    "uri": f"amaru://{ns_id}",
                     "name": ns_id,
                     "description": description,
                     "mimeType": "application/json",
@@ -492,9 +492,9 @@ def _resolve_namespace_from_tool(tool_name: str) -> str:
 
 
 def _resolve_namespace_from_uri(uri: str) -> str:
-    """Derive the target namespace from a hermes:// URI."""
-    if uri.startswith("hermes://"):
-        path = uri[len("hermes://") :]
+    """Derive the target namespace from a amaru:// URI."""
+    if uri.startswith("amaru://"):
+        path = uri[len("amaru://") :]
         ns = path.split("/")[0]
         if re.match(r"^[a-z][a-z0-9\-]*$", ns):
             return ns
@@ -504,7 +504,7 @@ def _resolve_namespace_from_uri(uri: str) -> str:
 def _description_from_path(path: str) -> str:
     """Generate a human-readable description from a capability path."""
     if not path:
-        return "HERMES agent capability"
+        return "Amaru agent capability"
     segments = path.replace("-", " ").split("/")
     if len(segments) > 1:
         words = " ".join(segments[1:])

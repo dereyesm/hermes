@@ -1,6 +1,6 @@
-"""HERMES Bus Operations — ARC-0793 Reference Implementation.
+"""Amaru Bus Operations — ARC-0793 Reference Implementation.
 
-Read, write, and archive operations on the HERMES message bus.
+Read, write, and archive operations on the Amaru message bus.
 """
 
 from __future__ import annotations

@@ -1,4 +1,4 @@
-"""HERMES Hub Mode — Server-side Agent Node (ARC-4601 §15).
+"""Amaru Hub Mode — Server-side Agent Node (ARC-4601 §15).
 
 A Hub accepts WebSocket connections from peer daemons, routes encrypted
 messages between them, and provides store-and-forward for offline peers.
@@ -23,7 +23,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-logger = logging.getLogger("hermes.hub")
+logger = logging.getLogger("amaru.hub")
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -431,8 +431,12 @@ class AuthHandler:
 
         # If client sent a key, verify it matches registered (optional strict check)
         if sign_pub_hex and peer.sign_pub_hex and sign_pub_hex != peer.sign_pub_hex:
-            logger.warning("Auth: key mismatch for %s. sent=%s...  registered=%s...",
-                          clan_id, sign_pub_hex[:16], peer.sign_pub_hex[:16])
+            logger.warning(
+                "Auth: key mismatch for %s. sent=%s...  registered=%s...",
+                clan_id,
+                sign_pub_hex[:16],
+                peer.sign_pub_hex[:16],
+            )
             # Still try with registered key (client may have sent wrong pub)
             verify_pub = peer.sign_pub_hex
 
@@ -774,10 +778,14 @@ class HubServer:
                         logger.info("S2S presence: %s %s (via %s)", peer_id, status, hub_id)
 
                     elif frame_type == "ping":
-                        await ws.send(json.dumps({
-                            "type": "pong",
-                            "ts": datetime.now(UTC).isoformat(),
-                        }))
+                        await ws.send(
+                            json.dumps(
+                                {
+                                    "type": "pong",
+                                    "ts": datetime.now(UTC).isoformat(),
+                                }
+                            )
+                        )
 
             else:
                 # Regular peer connection
@@ -819,7 +827,9 @@ class HubServer:
                             conn_entry.domains = frame["domains"][:20]
                         if "quest_slots" in frame:
                             qs = frame["quest_slots"]
-                            conn_entry.quest_slots_available = qs.get("available", conn_entry.quest_slots_available)
+                            conn_entry.quest_slots_available = qs.get(
+                                "available", conn_entry.quest_slots_available
+                            )
                             conn_entry.quest_slots_max = qs.get("max", conn_entry.quest_slots_max)
                         if "active_quests" in frame:
                             conn_entry.active_quests = frame["active_quests"][:10]
@@ -827,7 +837,9 @@ class HubServer:
                             conn_entry.status_message = frame["message"][:120]
                         # Broadcast the update
                         await self._broadcast_presence(clan_id, "online", conn_entry)
-                        await ws.send(json.dumps({"type": "status_ok", "readiness": conn_entry.readiness}))
+                        await ws.send(
+                            json.dumps({"type": "status_ok", "readiness": conn_entry.readiness})
+                        )
 
                     elif frame_type == "roster_request":
                         roster = self._build_roster()
@@ -847,8 +859,12 @@ class HubServer:
 
         except Exception as e:
             if clan_id:
-                logger.info("%s disconnected: %s (%s)",
-                            "S2S hub" if is_hub else "Peer", clan_id, type(e).__name__)
+                logger.info(
+                    "%s disconnected: %s (%s)",
+                    "S2S hub" if is_hub else "Peer",
+                    clan_id,
+                    type(e).__name__,
+                )
         finally:
             if clan_id:
                 if is_hub:
@@ -870,7 +886,7 @@ class HubServer:
         Returns (clan_id, role, remote_peers) on success, (None, "", []) on failure.
         Role is "hub" for S2S connections, "peer" for regular peers.
         """
-        from hermes import __version__
+        from amaru import __version__
 
         fail: tuple[str | None, str, list[str]] = (None, "", [])
 
@@ -895,7 +911,13 @@ class HubServer:
         client_role = hello.get("role", "peer")
         client_local_peers = hello.get("local_peers", [])
 
-        logger.info("HELLO from %s (v%s, role=%s, caps=%s)", client_clan_id, client_version, client_role, client_caps)
+        logger.info(
+            "HELLO from %s (v%s, role=%s, caps=%s)",
+            client_clan_id,
+            client_version,
+            client_role,
+            client_caps,
+        )
 
         # For S2S hubs: verify against federation config instead of peers
         if client_role == "hub":
@@ -919,13 +941,17 @@ class HubServer:
         server_caps = ["store_forward", "e2e_passthrough", "presence"]
         if self.federation.all_links():
             server_caps.append("s2s")
-        await ws.send(json.dumps({
-            "type": "challenge",
-            "nonce": nonce,
-            "server_version": __version__,
-            "server_clan_id": self._hub_id,
-            "server_capabilities": server_caps,
-        }))
+        await ws.send(
+            json.dumps(
+                {
+                    "type": "challenge",
+                    "nonce": nonce,
+                    "server_version": __version__,
+                    "server_clan_id": self._hub_id,
+                    "server_capabilities": server_caps,
+                }
+            )
+        )
 
         # Step 3: Wait for AUTH (signed nonce)
         try:
@@ -937,7 +963,9 @@ class HubServer:
             return fail
 
         if auth_frame.get("type") != "auth":
-            await ws.send(json.dumps({"type": "auth_fail", "reason": "expected auth after challenge"}))
+            await ws.send(
+                json.dumps({"type": "auth_fail", "reason": "expected auth after challenge"})
+            )
             await ws.close()
             return fail
 
@@ -949,11 +977,14 @@ class HubServer:
             verify_pub = fed_link.sign_pub_hex if fed_link and fed_link.sign_pub_hex else client_pub
             try:
                 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+
                 pub_key = Ed25519PublicKey.from_public_bytes(bytes.fromhex(verify_pub))
                 pub_key.verify(bytes.fromhex(sig), bytes.fromhex(nonce))
             except Exception as e:
                 logger.warning("S2S auth failed for %s: %s", client_clan_id, e)
-                await ws.send(json.dumps({"type": "auth_fail", "reason": "s2s authentication failed"}))
+                await ws.send(
+                    json.dumps({"type": "auth_fail", "reason": "s2s authentication failed"})
+                )
                 await ws.close()
                 return fail
         else:
@@ -964,11 +995,15 @@ class HubServer:
 
         # Step 4: AUTH_OK
         depth = self.queue.depth(client_clan_id) if client_role != "hub" else 0
-        await ws.send(json.dumps({
-            "type": "auth_ok",
-            "clan_id": client_clan_id,
-            "queue_depth": depth,
-        }))
+        await ws.send(
+            json.dumps(
+                {
+                    "type": "auth_ok",
+                    "clan_id": client_clan_id,
+                    "queue_depth": depth,
+                }
+            )
+        )
         return (client_clan_id, client_role, client_local_peers)
 
     async def _authenticate_legacy(self, ws: Any, first_frame: dict) -> str | None:
@@ -1031,8 +1066,9 @@ class HubServer:
                 )
             )
 
-    async def _broadcast_presence(self, clan_id: str, status: str,
-                                   entry: ConnectionEntry | None = None) -> None:
+    async def _broadcast_presence(
+        self, clan_id: str, status: str, entry: ConnectionEntry | None = None
+    ) -> None:
         """Notify connected peers of presence change (§15.5.1)."""
         payload: dict = {
             "type": "presence",
@@ -1040,13 +1076,18 @@ class HubServer:
             "status": status,
         }
         if entry:
-            payload.update({
-                "readiness": entry.readiness,
-                "quest_slots": {"available": entry.quest_slots_available, "max": entry.quest_slots_max},
-                "domains": entry.domains,
-                "active_quests": entry.active_quests,
-                "message": entry.status_message,
-            })
+            payload.update(
+                {
+                    "readiness": entry.readiness,
+                    "quest_slots": {
+                        "available": entry.quest_slots_available,
+                        "max": entry.quest_slots_max,
+                    },
+                    "domains": entry.domains,
+                    "active_quests": entry.active_quests,
+                    "message": entry.status_message,
+                }
+            )
         frame = json.dumps(payload)
         for peer in self.connections.all_except(clan_id):
             try:
@@ -1080,17 +1121,19 @@ class HubServer:
                 roster.append(entries[0].presence_dict())
         # Include remote federation peers
         for link in self.federation.active_links():
-            roster.append({
-                "clan_id": link.hub_id,
-                "status": "online",
-                "readiness": "online",
-                "quest_slots": {"available": 0, "max": 0},
-                "domains": [],
-                "active_quests": [],
-                "message": f"S2S hub ({len(link.remote_peers)} peers)",
-                "since": "",
-                "remote_peers": link.remote_peers,
-            })
+            roster.append(
+                {
+                    "clan_id": link.hub_id,
+                    "status": "online",
+                    "readiness": "online",
+                    "quest_slots": {"available": 0, "max": 0},
+                    "domains": [],
+                    "active_quests": [],
+                    "message": f"S2S hub ({len(link.remote_peers)} peers)",
+                    "since": "",
+                    "remote_peers": link.remote_peers,
+                }
+            )
         return roster
 
     # -- S2S Outbound (§17) ------------------------------------------------
@@ -1111,25 +1154,31 @@ class HubServer:
                     # the remote hub from seeing empty routing when our peers
                     # haven't connected yet (ARC-0370 §4.4).
                     local_peers_set = set(self.connections.connected_clan_ids())
-                    for pid in self._peers.keys():
+                    for pid in self.peers:
                         if pid != self._hub_id:
                             local_peers_set.add(pid)
                     local_peers = sorted(local_peers_set - {link.hub_id})
-                    await ws.send(json.dumps({
-                        "type": "hello",
-                        "clan_id": self._hub_id,
-                        "role": "hub",
-                        "sign_pub": self._get_hub_sign_pub(),
-                        "protocol_version": self._get_version(),
-                        "capabilities": ["e2e_crypto", "store_forward", "s2s"],
-                        "local_peers": local_peers,
-                    }))
+                    await ws.send(
+                        json.dumps(
+                            {
+                                "type": "hello",
+                                "clan_id": self._hub_id,
+                                "role": "hub",
+                                "sign_pub": self._get_hub_sign_pub(),
+                                "protocol_version": self._get_version(),
+                                "capabilities": ["e2e_crypto", "store_forward", "s2s"],
+                                "local_peers": local_peers,
+                            }
+                        )
+                    )
 
                     # CHALLENGE
                     raw = await asyncio.wait_for(ws.recv(), timeout=10)
                     frame = json.loads(raw)
                     if frame.get("type") != "challenge":
-                        logger.warning("S2S %s: expected challenge, got %s", link.hub_id, frame.get("type"))
+                        logger.warning(
+                            "S2S %s: expected challenge, got %s", link.hub_id, frame.get("type")
+                        )
                         continue
 
                     nonce_hex = frame["nonce"]
@@ -1146,7 +1195,9 @@ class HubServer:
                     if frame.get("type") != "auth_ok":
                         logger.warning("S2S %s: auth failed: %s", link.hub_id, frame)
                         await asyncio.sleep(link.reconnect_backoff)
-                        link.reconnect_backoff = min(link.reconnect_backoff * 2, self.config.s2s_max_backoff)
+                        link.reconnect_backoff = min(
+                            link.reconnect_backoff * 2, self.config.s2s_max_backoff
+                        )
                         continue
 
                     # Connected!
@@ -1186,11 +1237,19 @@ class HubServer:
                             pass  # keepalive
 
             except (ConnectionRefusedError, OSError) as e:
-                logger.info("S2S %s: connection failed: %s (retry in %.0fs)",
-                            link.hub_id, e, link.reconnect_backoff)
+                logger.info(
+                    "S2S %s: connection failed: %s (retry in %.0fs)",
+                    link.hub_id,
+                    e,
+                    link.reconnect_backoff,
+                )
             except Exception as e:
-                logger.info("S2S %s: disconnected: %s (retry in %.0fs)",
-                            link.hub_id, e, link.reconnect_backoff)
+                logger.info(
+                    "S2S %s: disconnected: %s (retry in %.0fs)",
+                    link.hub_id,
+                    e,
+                    link.reconnect_backoff,
+                )
             finally:
                 link.ws = None
                 link.connected = False
@@ -1224,6 +1283,7 @@ class HubServer:
             key_path = Path(os.path.expanduser(key_file))
             key_data = json.loads(key_path.read_text())
             from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
             priv = Ed25519PrivateKey.from_private_bytes(bytes.fromhex(key_data["sign_private"]))
             sig = priv.sign(bytes.fromhex(nonce_hex))
             return sig.hex()
@@ -1234,7 +1294,8 @@ class HubServer:
     @staticmethod
     def _get_version() -> str:
         try:
-            from hermes import __version__
+            from amaru import __version__
+
             return __version__
         except Exception:
             return "0.4.2a1"
@@ -1279,7 +1340,7 @@ def cmd_hub_start(hub_dir: Path, foreground: bool = False) -> int:
     peers_path = hub_dir / config.peers_file
     if not peers_path.exists():
         print(f"Error: peers file not found: {peers_path}")
-        print("  Run 'hermes hub init' to generate it from your peer registry.")
+        print("  Run 'amaru hub init' to generate it from your peer registry.")
         return 1
 
     # PID lock
@@ -1464,11 +1525,12 @@ def cmd_hub_listen(hub_dir: Path, daemon: bool = False) -> int:
 
     try:
         from .config import load_config
+
         gw = load_config(gw_config_path)
         clan_id = gw.clan_id
         key_path = hub_dir / gw.keys_private
     except Exception:
-        print("Error: cannot load clan config. Run 'hermes init' first.")
+        print("Error: cannot load clan config. Run 'amaru init' first.")
         return 1
 
     if not key_path.exists():
@@ -1478,9 +1540,8 @@ def cmd_hub_listen(hub_dir: Path, daemon: bool = False) -> int:
     try:
         key_data = json.loads(key_path.read_text())
         from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-        sign_priv = Ed25519PrivateKey.from_private_bytes(
-            bytes.fromhex(key_data["sign_private"])
-        )
+
+        sign_priv = Ed25519PrivateKey.from_private_bytes(bytes.fromhex(key_data["sign_private"]))
         sign_pub_hex = key_data.get("sign_public", "")
         if not sign_pub_hex:
             sign_pub_hex = sign_priv.public_key().public_bytes_raw().hex()
@@ -1518,13 +1579,17 @@ def cmd_hub_listen(hub_dir: Path, daemon: bool = False) -> int:
             try:
                 async with websockets.connect(uri) as ws:
                     # Ed25519 HELLO/CHALLENGE/AUTH
-                    await ws.send(json.dumps({
-                        "type": "hello",
-                        "clan_id": clan_id,
-                        "sign_pub": sign_pub_hex,
-                        "protocol_version": "0.4.2a1",
-                        "capabilities": ["e2e_crypto"],
-                    }))
+                    await ws.send(
+                        json.dumps(
+                            {
+                                "type": "hello",
+                                "clan_id": clan_id,
+                                "sign_pub": sign_pub_hex,
+                                "protocol_version": "0.4.2a1",
+                                "capabilities": ["e2e_crypto"],
+                            }
+                        )
+                    )
 
                     frame = json.loads(await asyncio.wait_for(ws.recv(), 10))
                     if frame.get("type") != "challenge":
@@ -1533,10 +1598,14 @@ def cmd_hub_listen(hub_dir: Path, daemon: bool = False) -> int:
                         continue
 
                     sig = sign_priv.sign(bytes.fromhex(frame["nonce"]))
-                    await ws.send(json.dumps({
-                        "type": "auth",
-                        "nonce_response": sig.hex(),
-                    }))
+                    await ws.send(
+                        json.dumps(
+                            {
+                                "type": "auth",
+                                "nonce_response": sig.hex(),
+                            }
+                        )
+                    )
 
                     resp = json.loads(await asyncio.wait_for(ws.recv(), 10))
                     if resp.get("type") != "auth_ok":

@@ -1,4 +1,4 @@
-"""HERMES SYN/FIN Protocol — ARC-0793 Reference Implementation.
+"""Amaru SYN/FIN Protocol — ARC-0793 Reference Implementation.
 
 Session lifecycle management: SYN (session start) and FIN (session end).
 """
@@ -56,25 +56,25 @@ def syn_report(result: SynResult, namespace: str) -> str:
     lines = []
 
     if result.pending:
-        lines.append(f"[HERMES] {len(result.pending)} pending message(s) for '{namespace}':")
+        lines.append(f"[Amaru] {len(result.pending)} pending message(s) for '{namespace}':")
         for m in result.pending:
             lines.append(f"  [{m.src} → {m.dst}] ({m.type}) {m.msg}")
     else:
-        lines.append(f"[HERMES] No pending messages for '{namespace}'.")
+        lines.append(f"[Amaru] No pending messages for '{namespace}'.")
 
     if result.stale:
-        lines.append(f"[HERMES] WARNING: {len(result.stale)} message(s) unACKed >3 days:")
+        lines.append(f"[Amaru] WARNING: {len(result.stale)} message(s) unACKed >3 days:")
         for m in result.stale:
             age = (date.today() - m.ts).days
             lines.append(f"  [{m.src}] {m.msg} ({age}d old)")
 
     if result.unresolved:
-        lines.append(f"[HERMES] WARNING: {len(result.unresolved)} UNRESOLVED reliable message(s):")
+        lines.append(f"[Amaru] WARNING: {len(result.unresolved)} UNRESOLVED reliable message(s):")
         for m in result.unresolved:
             age = (date.today() - m.ts).days
             lines.append(f"  [{m.src}] {m.msg} ({age}d, ACKED but no resolution)")
 
-    lines.append(f"[HERMES] Bus total: {result.total_bus_messages} active message(s).")
+    lines.append(f"[Amaru] Bus total: {result.total_bus_messages} active message(s).")
     return "\n".join(lines)
 
 

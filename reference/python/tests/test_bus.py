@@ -9,7 +9,7 @@ from datetime import date, timedelta
 
 import pytest
 
-from hermes.bus import (
+from amaru.bus import (
     ack_message,
     archive_expired,
     filter_for_namespace,
@@ -21,8 +21,8 @@ from hermes.bus import (
     write_message,
     write_sealed_message,
 )
-from hermes.crypto import ClanKeyPair, NonceTracker
-from hermes.message import (
+from amaru.crypto import ClanKeyPair, NonceTracker
+from amaru.message import (
     ENCODING_SEALED,
     ENCODING_SEALED_ECDHE,
     Message,

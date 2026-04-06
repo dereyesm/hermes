@@ -1,4 +1,4 @@
-"""Tests for hermes.llm — Multi-LLM adapter layer."""
+"""Tests for amaru.llm — Multi-LLM adapter layer."""
 
 from __future__ import annotations
 
@@ -8,8 +8,8 @@ from unittest.mock import patch
 
 import pytest
 
-from hermes.config import GatewayConfig, LLMBackendConfig, load_config, save_config
-from hermes.llm.adapters import (
+from amaru.config import GatewayConfig, LLMBackendConfig, load_config, save_config
+from amaru.llm.adapters import (
     AdapterManager,
     ClaudeAdapter,
     GeminiAdapter,
@@ -17,7 +17,7 @@ from hermes.llm.adapters import (
     LLMResponse,
     create_adapter,
 )
-from hermes.llm.skill import SkillContext, SkillLoader
+from amaru.llm.skill import SkillContext, SkillLoader
 
 # ─── LLMResponse ────────────────────────────────────────────────
 
@@ -59,12 +59,12 @@ class TestCreateAdapter:
             with pytest.raises(ValueError, match="API key not found"):
                 create_adapter("claude")
 
-    @patch("hermes.llm.adapters.GeminiAdapter.__init__", return_value=None)
+    @patch("amaru.llm.adapters.GeminiAdapter.__init__", return_value=None)
     def test_gemini_factory(self, mock_init):
         adapter = create_adapter("gemini", api_key="test-key", model="gemini-pro")
         assert isinstance(adapter, GeminiAdapter)
 
-    @patch("hermes.llm.adapters.ClaudeAdapter.__init__", return_value=None)
+    @patch("amaru.llm.adapters.ClaudeAdapter.__init__", return_value=None)
     def test_claude_factory(self, mock_init):
         adapter = create_adapter("claude", api_key="test-key")
         assert isinstance(adapter, ClaudeAdapter)
@@ -84,12 +84,12 @@ class TestGeminiAdapter:
     def test_env_var_resolution(self):
         with (
             patch.dict(os.environ, {"MY_GEMINI_KEY": "fake-key"}),
-            patch("hermes.llm.adapters.GeminiAdapter.__init__", return_value=None),
+            patch("amaru.llm.adapters.GeminiAdapter.__init__", return_value=None),
         ):
             key = os.environ.get("MY_GEMINI_KEY", "")
             assert key == "fake-key"
 
-    @patch("hermes.llm.adapters.GeminiAdapter.__init__", return_value=None)
+    @patch("amaru.llm.adapters.GeminiAdapter.__init__", return_value=None)
     def test_name(self, mock_init):
         adapter = GeminiAdapter.__new__(GeminiAdapter)
         adapter._model_name = "gemini-2.5-flash"
@@ -107,7 +107,7 @@ class TestClaudeAdapter:
         ):
             ClaudeAdapter(api_key="test-key")
 
-    @patch("hermes.llm.adapters.ClaudeAdapter.__init__", return_value=None)
+    @patch("amaru.llm.adapters.ClaudeAdapter.__init__", return_value=None)
     def test_name(self, mock_init):
         adapter = ClaudeAdapter.__new__(ClaudeAdapter)
         adapter._model = "claude-sonnet-4-6"
@@ -427,7 +427,7 @@ class TestConfigLLM:
 
 class TestLLMCLI:
     def test_llm_list_no_backends(self, tmp_path, capsys):
-        from hermes.cli import main
+        from amaru.cli import main
 
         config = GatewayConfig(clan_id="test", display_name="Test")
         save_config(config, tmp_path / "gateway.json")
@@ -438,7 +438,7 @@ class TestLLMCLI:
         assert "No LLM backends configured" in captured.out
 
     def test_llm_list_with_backends(self, tmp_path, capsys):
-        from hermes.cli import main
+        from amaru.cli import main
 
         config = GatewayConfig(
             clan_id="test",

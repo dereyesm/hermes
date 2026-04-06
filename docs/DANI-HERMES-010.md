@@ -60,7 +60,7 @@ The `src_clan` alias is deprecated.
 ## 5. QUEST-003 — Ready
 
 Forward Secrecy (ECDHE) is the next bilateral deliverable. DANI is ready for
-kick-off. Spec foundation exists in ARC-8446 §11.2. Coordination via HERMES
+kick-off. Spec foundation exists in ARC-8446 §11.2. Coordination vian Amaru
 relay as usual.
 
 ## 6. Protocol Stats at QUEST-002 Closure

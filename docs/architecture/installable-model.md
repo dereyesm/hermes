@@ -61,12 +61,12 @@ HERMES provides the structure; the user fills the content.
 
 ## System Agents
 
-Two agent roles are part of the HERMES runtime (not the AI assistant):
+Two agent roles are part of the Amaru runtime (not the AI assistant):
 
 | Role | Daniel's instance | Purpose | Runs as |
 |------|-------------------|---------|---------|
 | **Controller** | Claude Code + /dojo | Main assistant, dispatches to skills, manages lifecycle | Interactive (user-invoked) |
-| **Messenger** | Heraldo | Reads external buses (email, Slack, etc), injects into HERMES bus | Daemon (background) |
+| **Messenger** | Heraldo | Reads external buses (email, Slack, etc), injects into Amaru bus | Daemon (background) |
 
 For another user:
 - Controller could be Cursor + a dojo-equivalent plugin
@@ -77,7 +77,7 @@ For another user:
 ### Per-user install (recommended for personal use)
 
 ```
-~/.hermes/                  ← HERMES home (XDG-compatible)
+~/.amaru/                  ← HERMES home (XDG-compatible)
 ├── config.toml             ← dimensions, firewalls, MCP bindings
 ├── bus/
 │   ├── active.jsonl        ← live messages
@@ -99,8 +99,8 @@ For another user:
 │   │   └── state.json      ← last scan, processed IDs
 │   └── ...                 ← future daemons
 ├── adapters/
-│   ├── claude-code/        ← generates .claude/ structure from .hermes/
-│   ├── cursor/             ← generates .cursorrules from .hermes/
+│   ├── claude-code/        ← generates .claude/ structure from .amaru/
+│   ├── cursor/             ← generates .cursorrules from .amaru/
 │   └── generic/            ← spec for building new adapters
 ├── memory/                 ← persistent memory (cross-session)
 │   └── MEMORY.md
@@ -117,7 +117,7 @@ For another user:
 /var/log/hermes/            ← centralized logs
 ```
 
-Each user still has `~/.hermes/` for their personal dimensions.
+Each user still has `~/.amaru/` for their personal dimensions.
 System install provides shared infrastructure (bus relay, daemon supervisor).
 
 ### Dedicated user
@@ -127,7 +127,7 @@ useradd --system --home-dir /var/lib/hermes --shell /usr/sbin/nologin hermes
 ```
 
 Daemons (messenger, etc.) run as `hermes` user. Interactive sessions run as
-the human user, reading from `~/.hermes/`.
+the human user, reading from `~/.amaru/`.
 
 ## Config Schema (config.toml)
 
@@ -209,7 +209,7 @@ forward_types = ["alert", "dispatch", "event"]
 Existing installations using `gateway.json` continue to work. HERMES auto-discovers
 the config file, preferring `config.toml` over `gateway.json`.
 
-To migrate: `hermes config migrate` — reads `gateway.json`, writes `config.toml`,
+To migrate: `amaru config migrate` — reads `gateway.json`, writes `config.toml`,
 keeps the JSON file as backup.
 
 ## The Adapter Pattern
@@ -219,26 +219,26 @@ AI assistant expects.
 
 ### Claude Code adapter (example)
 
-Reads `~/.hermes/` → generates:
+Reads `~/.amaru/` → generates:
 
 ```
 ~/.claude/
 ├── CLAUDE.md              ← from config.toml + dimension states
-├── skills/                ← symlinks or copies from .hermes/dimensions/*/skills/
-├── rules/                 ← from .hermes/dimensions/*/rules/
+├── skills/                ← symlinks or copies from .amaru/dimensions/*/skills/
+├── rules/                 ← from .amaru/dimensions/*/rules/
 └── sync/
-    └── bus.jsonl          ← symlink to .hermes/bus/active.jsonl
+    └── bus.jsonl          ← symlink to .amaru/bus/active.jsonl
 ```
 
 ### Cursor adapter
 
-Reads `~/.hermes/` → generates:
+Reads `~/.amaru/` → generates:
 
 ```
 project-root/
 ├── .cursorrules           ← compiled markdown from config + skills + rules
 └── .cursor/
-    └── bus.jsonl          ← symlink to .hermes/bus/active.jsonl (optional)
+    └── bus.jsonl          ← symlink to .amaru/bus/active.jsonl (optional)
 ```
 
 Unlike Claude Code (directory of symlinks), Cursor uses a single `.cursorrules`
@@ -248,17 +248,17 @@ user-written content outside the markers.
 
 ### OpenCode adapter
 
-Reads `~/.hermes/` → generates:
+Reads `~/.amaru/` → generates:
 
 ```
 ~/.config/opencode/
 ├── AGENTS.md              ← compiled markdown (HERMES:BEGIN/END markers)
 ├── opencode.json          ← config with instructions ref (merge strategy)
 ├── skills/
-│   ├── global-consejo/    ← symlink to .hermes/dimensions/global/skills/consejo
+│   ├── global-consejo/    ← symlink to .amaru/dimensions/global/skills/consejo
 │   ├── global-palas/      ← symlink
 │   └── nymyka-niky-ceo/   ← symlink (dimension-prefixed to avoid collisions)
-└── bus.jsonl              ← symlink to .hermes/bus/active.jsonl (optional)
+└── bus.jsonl              ← symlink to .amaru/bus/active.jsonl (optional)
 ```
 
 Hybrid approach: compiled AGENTS.md (like Cursor) plus JSON config and skill
@@ -273,10 +273,10 @@ are preserved across adapter re-runs.
 ### Adapter contract
 
 An adapter MUST:
-1. Read `~/.hermes/config.toml` for dimension topology
+1. Read `~/.amaru/config.toml` for dimension topology
 2. Read active dimension's `skills/` and `rules/`
 3. Read `bus/active.jsonl` for pending messages
-4. Write session state changes back to `.hermes/` (not to agent-specific dirs)
+4. Write session state changes back to `.amaru/` (not to agent-specific dirs)
 5. Be idempotent (can re-run safely)
 
 An adapter MUST NOT:
@@ -288,23 +288,23 @@ An adapter MUST NOT:
 
 ```
 Phase 1: Canonical structure
-  - Define ~/.hermes/ layout (this document)
+  - Define ~/.amaru/ layout (this document)
   - Build config.toml schema
-  - Migrate bus.jsonl → .hermes/bus/
+  - Migrate bus.jsonl → .amaru/bus/
 
 Phase 2: Claude Code adapter ✓ DONE (commit 3113395)
-  - adapter.py: ClaudeCodeAdapter reads ~/.hermes/, generates ~/.claude/
+  - adapter.py: ClaudeCodeAdapter reads ~/.amaru/, generates ~/.claude/
   - CLI: hermes adapt claude-code [--hermes-dir] [--target-dir]
   - Idempotent, 44 tests. Registered in adapter registry.
 
 Phase 3: Second adapter ✓ DONE (2026-03-23)
-  - adapter.py: CursorAdapter compiles .cursorrules from ~/.hermes/
+  - adapter.py: CursorAdapter compiles .cursorrules from ~/.amaru/
   - CLI: hermes adapt cursor [--hermes-dir] [--target-dir]
   - Marker-based regeneration preserves user content
   - Idempotent, 26 tests. Proves agent-agnostic design.
 
 Phase 3.5: Third adapter + Skill Portability ✓ DONE (2026-03-30)
-  - adapter.py: OpenCodeAdapter generates AGENTS.md + opencode.json from ~/.hermes/
+  - adapter.py: OpenCodeAdapter generates AGENTS.md + opencode.json from ~/.amaru/
   - CLI: hermes adapt opencode [--hermes-dir] [--target-dir]
   - Hybrid output: compiled AGENTS.md (markers) + JSON merge + skill symlinks
   - Default target: ~/.config/opencode/ (OpenCode global config)
@@ -315,7 +315,7 @@ Phase 3.5: Third adapter + Skill Portability ✓ DONE (2026-03-30)
   - 34 tests. 3 adapters validates the agent-agnostic pattern at scale.
 
 Phase 4: Fourth adapter + CLI enhancements ✓ DONE (2026-04-01)
-  - adapter.py: GeminiCLIAdapter generates GEMINI.md + settings.json from ~/.hermes/
+  - adapter.py: GeminiCLIAdapter generates GEMINI.md + settings.json from ~/.amaru/
   - CLI: hermes adapt gemini [--hermes-dir] [--target-dir]
   - settings.json merge: preserves user keys, adds context.fileName for GEMINI.md
   - Skill symlinks with dimension prefix (same pattern as OpenCode)
@@ -332,14 +332,14 @@ Phase 4.5: Token Telemetry ✓ DONE (2026-04-01)
 
 Phase 5: Daemon extraction
   - Heraldo runs as systemd service (not Claude Code agent)
-  - Reads .hermes/daemons/messenger/config.toml
-  - Writes to .hermes/bus/active.jsonl directly
+  - Reads .amaru/daemons/messenger/config.toml
+  - Writes to .amaru/bus/active.jsonl directly
 
 Phase 6: Package & distribute
-  - PyPI: pip install hermes-protocol
+  - PyPI: pip install amaru-protocol
   - npm/brew install
-  - User runs `hermes install` → gets ~/.hermes/ scaffold
-  - User runs `hermes adapt --all` → gets all agents configured
+  - User runs `amaru install` → gets ~/.amaru/ scaffold
+  - User runs `amaru adapt --all` → gets all agents configured
 ```
 
 ## Key Decisions
@@ -349,13 +349,13 @@ Phase 6: Package & distribute
 | Config format | TOML | Human-readable, typed, standard (like Cargo.toml, pyproject.toml) |
 | Bus format | JSONL | Append-only, line-diffable, already proven in v0.4 |
 | Adapter output | Files | Agents read files, not APIs. Keep it simple. |
-| Per-user vs system | Both | Personal use = ~/.hermes/. Server = /opt + /etc + /var |
+| Per-user vs system | Both | Personal use = ~/.amaru/. Server = /opt + /etc + /var |
 | Daemon supervisor | systemd | Industry standard. launchd on macOS. |
 
 ## Open Questions
 
 - [x] ~~Should adapters use symlinks or file copies?~~ → Symlinks (Phase 2 adapter uses them, agents follow them fine)
 - [x] ~~Config.toml schema — what's the minimum viable config?~~ → `[clan] id + display_name` (Phase 1 done)
-- [ ] How does `hermes init` detect existing .claude/ state and offer migration?
-- [ ] Multi-agent: can two agents use the same .hermes/ concurrently? (ARC-9001 applies here)
+- [ ] How does `amaru init` detect existing .claude/ state and offer migration?
+- [ ] Multi-agent: can two agents use the same .amaru/ concurrently? (ARC-9001 applies here)
 - [x] ~~Skill format: keep .md or introduce a structured format?~~ → Keep YAML frontmatter + MD body (Agent Skills Open Standard convergence — Claude Code, Gemini CLI, Cursor, OpenCode all use this)

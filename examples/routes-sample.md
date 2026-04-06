@@ -4,10 +4,10 @@
 
 | Namespace | Config | Memory | Agents |
 |-----------|--------|--------|--------|
-| `controller` | `~/.hermes/controller/config.md` | `~/.hermes/controller/memory/` | `~/.hermes/controller/agents/` |
-| `engineering` | `~/.hermes/engineering/config.md` | `~/.hermes/engineering/memory/` | `~/.hermes/engineering/agents/` |
-| `operations` | `~/.hermes/operations/config.md` | `~/.hermes/operations/memory/` | `~/.hermes/operations/agents/` |
-| `finance` | `~/.hermes/finance/config.md` | `~/.hermes/finance/memory/` | `~/.hermes/finance/agents/` |
+| `controller` | `~/.amaru/controller/config.md` | `~/.amaru/controller/memory/` | `~/.amaru/controller/agents/` |
+| `engineering` | `~/.amaru/engineering/config.md` | `~/.amaru/engineering/memory/` | `~/.amaru/engineering/agents/` |
+| `operations` | `~/.amaru/operations/config.md` | `~/.amaru/operations/memory/` | `~/.amaru/operations/agents/` |
+| `finance` | `~/.amaru/finance/config.md` | `~/.amaru/finance/memory/` | `~/.amaru/finance/agents/` |
 
 ## Namespace → Head Agent → Tools
 

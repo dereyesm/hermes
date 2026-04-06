@@ -1,6 +1,6 @@
 # HERMES Hub Wire Protocol — Implementor's Guide
 
-> Everything you need to connect two HERMES clans in real-time via WebSocket hub.
+> Everything you need to connect two Amaru clans in real-time via WebSocket hub.
 > This is the golden path: two laptops, one LAN, zero cloud.
 
 **Status**: Living document. Canonical reference for ARC-4601 §15 Hub Mode.
@@ -8,7 +8,7 @@
 
 ## Overview
 
-A HERMES hub is a WebSocket server that routes messages between connected clans.
+An Amaru hub is a WebSocket server that routes messages between connected clans.
 It provides:
 
 - **Real-time delivery** via persistent WebSocket connections
@@ -38,7 +38,7 @@ python3 scripts/quest005_hub_client.py --clan DANI --host 192.168.68.100 --port 
 
 ### 2.1 Ed25519 Challenge-Response (Normative — ARC-4601 §15.6)
 
-This is the canonical auth flow. All HERMES hubs SHOULD implement this.
+This is the canonical auth flow. All Amaru hubs SHOULD implement this.
 
 ```
 CLIENT                                  HUB
@@ -129,7 +129,7 @@ Keys are registered in `hub-peers.json`:
 }
 ```
 
-Generate this file: `hermes hub init`
+Generate this file: `amaru hub init`
 
 ## 3. Message Exchange
 
@@ -301,7 +301,7 @@ T+200 Hub drains queue               ← DRAIN(1 msg)
 
 ## 8. Implementation Checklist
 
-For a minimal client that can participate in HERMES hub bilateral:
+For a minimal client that can participate in Amaru hub bilateral:
 
 - [ ] WebSocket connection to `ws://host:port`
 - [ ] Ed25519 key pair (sign only — `sign_private`, `sign_public`)
@@ -367,7 +367,7 @@ Key files MUST be in HERMES native JSON format (not PEM):
 ```
 
 **Common mistake**: Using PEM-exported keys with field names `private`/`public` instead of
-`sign_private`/`sign_public`. The hub expects the HERMES native format with `sign_private` key.
+`sign_private`/`sign_public`. The hub expects the Amaru native format with `sign_private` key.
 
 If your keys are in PEM format, convert them:
 
@@ -398,7 +398,7 @@ a listener (for receiving) and a client (for sending) connected at the same time
 Messages to that clan are delivered to ALL active connections.
 
 This means:
-- A `hermes hub listen` daemon and an interactive client can coexist
+- A `amaru hub listen` daemon and an interactive client can coexist
 - Store-and-forward drain happens on the first connection; subsequent connections
   receive only new messages
 - Disconnecting one session does not affect others for the same clan
@@ -496,4 +496,4 @@ Cloud infrastructure is appropriate **only when it generates direct value** (mon
 2. **cloudflared tunnel** — temporary, ephemeral, no persistent state, for remote sessions
 3. **GCloud/Fly.io** — only when persistent availability generates revenue
 
-This mirrors the HERMES dual-mode architecture: Sovereign (LAN) + Hosted (cloud) — where Hosted is opt-in, not the default.
+This mirrors the Amaru dual-mode architecture: Sovereign (LAN) + Hosted (cloud) — where Hosted is opt-in, not the default.

@@ -72,7 +72,7 @@ This project follows one rule: **build for the collective, not for control.**
 ## Development Setup
 
 ```bash
-git clone https://github.com/dereyesm/hermes.git
+git clone https://github.com/amaru-protocol/amaru.git
 cd hermes
 cd reference/python
 pip install -e ".[dev]"

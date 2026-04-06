@@ -12,7 +12,7 @@
 ## Bus Message (for relay dispatch)
 
 ```json
-{"ts":"2026-03-16","src":"momoshod","dst":"jei","type":"quest_ping","msg":"QUEST-003: ECDHE Forward Secrecy. Per-message ephemeral X25519 DH. Spec: ARC-8446 s11.2. Depends: QUEST-002 COMPLETE. Full proposal: github.com/dereyesm/hermes/blob/main/docs/QUEST-003-ECDHE-FORWARD-SECRECY.md","ttl":14,"ack":[]}
+{"ts":"2026-03-16","src":"momoshod","dst":"jei","type":"quest_ping","msg":"QUEST-003: ECDHE Forward Secrecy. Per-message ephemeral X25519 DH. Spec: ARC-8446 s11.2. Depends: QUEST-002 COMPLETE. Full proposal: github.com/amaru-protocol/amaru/blob/main/docs/QUEST-003-ECDHE-FORWARD-SECRECY.md","ttl":14,"ack":[]}
 ```
 
 ## Email Draft
@@ -61,7 +61,7 @@ Hoy, si la clave estática X25519 de cualquiera de los dos clanes se compromete,
 
 ### Propuesta completa
 
-https://github.com/dereyesm/hermes/blob/main/docs/QUEST-003-ECDHE-FORWARD-SECRECY.md
+https://github.com/amaru-protocol/amaru/blob/main/docs/QUEST-003-ECDHE-FORWARD-SECRECY.md
 
 Con QUEST-003 complete, ARC-8446 llega a production-grade en crypto. La tríada Ed25519+X25519+AES-256-GCM con AAD+ECDHE cubre autenticidad, confidencialidad, integridad, y forward secrecy.
 

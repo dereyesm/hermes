@@ -1,11 +1,11 @@
-"""HERMES Installer — Cross-platform one-command setup.
+"""Amaru Installer — Cross-platform one-command setup.
 
 Orchestrates: clan init, keypair generation, OS service installation,
 Claude Code hooks, and desktop notifications. Supports macOS, Linux, Windows.
 
 Usage:
-    hermes install --clan-id <id> --display-name <name>
-    hermes uninstall [--purge] [--keep-hooks]
+    amaru install --clan-id <id> --display-name <name>
+    amaru uninstall [--purge] [--keep-hooks]
 """
 
 from __future__ import annotations
@@ -59,16 +59,16 @@ def default_clan_dir(plat: Platform) -> Path:
     """Return the default clan directory for the platform."""
     if plat == Platform.WINDOWS:
         appdata = os.environ.get("APPDATA", os.path.expanduser("~"))
-        return Path(appdata) / "hermes"
-    return Path.home() / ".hermes"
+        return Path(appdata) / "amaru"
+    return Path.home() / ".amaru"
 
 
-def hermes_executable_path() -> str:
-    """Find the hermes executable or fall back to python -m."""
-    exe = shutil.which("hermes")
+def amaru_executable_path() -> str:
+    """Find the amaru executable or fall back to python -m."""
+    exe = shutil.which("amaru")
     if exe:
         return exe
-    return f"{sys.executable} -m hermes.cli"
+    return f"{sys.executable} -m amaru.cli"
 
 
 def init_clan_if_needed(
@@ -179,9 +179,9 @@ def add_agent_node_section(clan_dir: Path) -> tuple[bool, str]:
 # Service generators
 # ---------------------------------------------------------------------------
 
-_LAUNCHAGENT_LABEL = "com.hermes.agent-node"
-_HUB_LABEL = "com.hermes.hub"
-_HUB_LISTEN_LABEL = "com.hermes.hub-listen"
+_LAUNCHAGENT_LABEL = "com.amaru.agent-node"
+_HUB_LABEL = "com.amaru.hub"
+_HUB_LISTEN_LABEL = "com.amaru.hub-listen"
 
 
 def generate_launchagent(clan_dir: str | Path) -> tuple[Path, str]:
@@ -190,10 +190,10 @@ def generate_launchagent(clan_dir: str | Path) -> tuple[Path, str]:
     Returns (target_path, plist_content).
     """
     clan_dir = str(Path(clan_dir).resolve())
-    hermes_exe = hermes_executable_path()
+    amaru_exe = amaru_executable_path()
 
-    # Split compound commands (e.g. "python -m hermes.cli")
-    parts = hermes_exe.split()
+    # Split compound commands (e.g. "python -m amaru.cli")
+    parts = amaru_exe.split()
     program_args = "".join(f"    <string>{p}</string>\n" for p in parts)
     program_args += (
         f"    <string>daemon</string>\n"
@@ -237,15 +237,15 @@ def generate_systemd_unit(clan_dir: str | Path) -> tuple[Path, str]:
     Returns (target_path, unit_content).
     """
     clan_dir = str(Path(clan_dir).resolve())
-    hermes_exe = hermes_executable_path()
+    amaru_exe = amaru_executable_path()
 
     unit = f"""[Unit]
-Description=HERMES Agent Node
+Description=Amaru Agent Node
 After=network.target
 
 [Service]
 Type=simple
-ExecStart={hermes_exe} daemon start --foreground --dir {clan_dir}
+ExecStart={amaru_exe} daemon start --foreground --dir {clan_dir}
 Restart=on-failure
 RestartSec=10
 WorkingDirectory={clan_dir}
@@ -254,7 +254,7 @@ WorkingDirectory={clan_dir}
 WantedBy=default.target
 """
     config_dir = Path.home() / ".config" / "systemd" / "user"
-    target = config_dir / "hermes-agent.service"
+    target = config_dir / "amaru-agent.service"
     return target, unit
 
 
@@ -264,14 +264,14 @@ def generate_windows_task(clan_dir: str | Path) -> tuple[Path, str]:
     Returns (bat_path, bat_content).
     """
     clan_dir = str(Path(clan_dir).resolve())
-    hermes_exe = hermes_executable_path()
+    amaru_exe = amaru_executable_path()
 
     bat = f"""@echo off
-REM HERMES Agent Node — auto-start
+REM Amaru Agent Node — auto-start
 cd /d "{clan_dir}"
-{hermes_exe} daemon start --foreground --dir "{clan_dir}"
+{amaru_exe} daemon start --foreground --dir "{clan_dir}"
 """
-    bat_path = Path(clan_dir) / "hermes-agent.bat"
+    bat_path = Path(clan_dir) / "amaru-agent.bat"
     return bat_path, bat
 
 
@@ -280,11 +280,12 @@ cd /d "{clan_dir}"
 # ---------------------------------------------------------------------------
 
 
-def _generate_hub_plist(label: str, clan_dir: str, subcommand: list[str],
-                        log_prefix: str) -> tuple[Path, str]:
+def _generate_hub_plist(
+    label: str, clan_dir: str, subcommand: list[str], log_prefix: str
+) -> tuple[Path, str]:
     """Generate a macOS LaunchAgent plist for a hub service."""
-    hermes_exe = hermes_executable_path()
-    parts = hermes_exe.split()
+    amaru_exe = amaru_executable_path()
+    parts = amaru_exe.split()
     program_args = "".join(f"    <string>{p}</string>\n" for p in parts)
     for arg in subcommand:
         program_args += f"    <string>{arg}</string>\n"
@@ -321,11 +322,12 @@ def _generate_hub_plist(label: str, clan_dir: str, subcommand: list[str],
     return target, plist
 
 
-def _generate_hub_systemd(name: str, description: str, clan_dir: str,
-                          subcommand: list[str]) -> tuple[Path, str]:
+def _generate_hub_systemd(
+    name: str, description: str, clan_dir: str, subcommand: list[str]
+) -> tuple[Path, str]:
     """Generate a systemd user unit for a hub service."""
-    hermes_exe = hermes_executable_path()
-    cmd = f"{hermes_exe} {' '.join(subcommand)} --dir {clan_dir}"
+    amaru_exe = amaru_executable_path()
+    cmd = f"{amaru_exe} {' '.join(subcommand)} --dir {clan_dir}"
     unit = f"""[Unit]
 Description={description}
 After=network.target
@@ -355,25 +357,39 @@ def generate_hub_service(clan_dir: str | Path) -> list[tuple[Path, str]]:
     results: list[tuple[Path, str]] = []
 
     if plat == Platform.MACOS:
-        results.append(_generate_hub_plist(
-            _HUB_LABEL, clan_dir,
-            ["hub", "start", "--foreground"],
-            "hub",
-        ))
-        results.append(_generate_hub_plist(
-            _HUB_LISTEN_LABEL, clan_dir,
-            ["hub", "listen"],
-            "hub-listen",
-        ))
+        results.append(
+            _generate_hub_plist(
+                _HUB_LABEL,
+                clan_dir,
+                ["hub", "start", "--foreground"],
+                "hub",
+            )
+        )
+        results.append(
+            _generate_hub_plist(
+                _HUB_LISTEN_LABEL,
+                clan_dir,
+                ["hub", "listen"],
+                "hub-listen",
+            )
+        )
     elif plat == Platform.LINUX:
-        results.append(_generate_hub_systemd(
-            "hermes-hub", "HERMES Hub Server (ARC-4601)", clan_dir,
-            ["hub", "start", "--foreground"],
-        ))
-        results.append(_generate_hub_systemd(
-            "hermes-hub-listen", "HERMES Hub Listener", clan_dir,
-            ["hub", "listen"],
-        ))
+        results.append(
+            _generate_hub_systemd(
+                "amaru-hub",
+                "Amaru Hub Server (ARC-4601)",
+                clan_dir,
+                ["hub", "start", "--foreground"],
+            )
+        )
+        results.append(
+            _generate_hub_systemd(
+                "amaru-hub-listen",
+                "Amaru Hub Listener",
+                clan_dir,
+                ["hub", "listen"],
+            )
+        )
 
     return results
 
@@ -398,17 +414,20 @@ def install_hub_service(clan_dir: Path) -> tuple[bool, str]:
             if plat == Platform.MACOS:
                 subprocess.run(
                     ["launchctl", "load", "-w", str(target)],
-                    capture_output=True, check=True,
+                    capture_output=True,
+                    check=True,
                 )
             elif plat == Platform.LINUX:
                 subprocess.run(
                     ["systemctl", "--user", "daemon-reload"],
-                    capture_output=True, check=True,
+                    capture_output=True,
+                    check=True,
                 )
                 unit_name = target.stem
                 subprocess.run(
                     ["systemctl", "--user", "enable", "--now", unit_name],
-                    capture_output=True, check=True,
+                    capture_output=True,
+                    check=True,
                 )
             installed.append(target.name)
 
@@ -441,7 +460,7 @@ def uninstall_hub_service() -> tuple[bool, str]:
                     removed.append(label)
 
         elif plat == Platform.LINUX:
-            for name in ["hermes-hub", "hermes-hub-listen"]:
+            for name in ["amaru-hub", "amaru-hub-listen"]:
                 target = Path.home() / ".config" / "systemd" / "user" / f"{name}.service"
                 if target.exists():
                     subprocess.run(
@@ -486,7 +505,7 @@ def install_service(plat: Platform, clan_dir: Path) -> tuple[bool, str]:
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(content)
             subprocess.run(
-                ["systemctl", "--user", "enable", "--now", "hermes-agent"],
+                ["systemctl", "--user", "enable", "--now", "amaru-agent"],
                 capture_output=True,
                 check=True,
             )
@@ -495,7 +514,7 @@ def install_service(plat: Platform, clan_dir: Path) -> tuple[bool, str]:
         elif plat == Platform.WINDOWS:
             bat_path, bat_content = generate_windows_task(clan_dir)
             bat_path.write_text(bat_content)
-            task_name = "HermesAgentNode"
+            task_name = "AmaruAgentNode"
             subprocess.run(
                 [
                     "schtasks",
@@ -539,17 +558,17 @@ def uninstall_service(plat: Platform) -> tuple[bool, str]:
 
         elif plat == Platform.LINUX:
             subprocess.run(
-                ["systemctl", "--user", "disable", "--now", "hermes-agent"],
+                ["systemctl", "--user", "disable", "--now", "amaru-agent"],
                 capture_output=True,
             )
-            target = Path.home() / ".config" / "systemd" / "user" / "hermes-agent.service"
+            target = Path.home() / ".config" / "systemd" / "user" / "amaru-agent.service"
             if target.exists():
                 target.unlink()
             return True, "systemd service removed"
 
         elif plat == Platform.WINDOWS:
             subprocess.run(
-                ["schtasks", "/Delete", "/TN", "HermesAgentNode", "/F"],
+                ["schtasks", "/Delete", "/TN", "AmaruAgentNode", "/F"],
                 capture_output=True,
             )
             return True, "Windows scheduled task removed"
@@ -564,12 +583,12 @@ def uninstall_service(plat: Platform) -> tuple[bool, str]:
 # Claude Code hooks
 # ---------------------------------------------------------------------------
 
-_HERMES_HOOKS_MARKER = "hermes-protocol"
+_AMARU_HOOKS_MARKER = "amaru-protocol"
 
 
 def _hook_wrapper_path() -> Path:
-    """Return path to the hermes-hook wrapper script."""
-    return Path.home() / ".hermes" / "bin" / "hermes-hook"
+    """Return path to the amaru-hook wrapper script."""
+    return Path.home() / ".amaru" / "bin" / "amaru-hook"
 
 
 def _hook_command(subcommand: str) -> str:
@@ -580,42 +599,42 @@ def _hook_command(subcommand: str) -> str:
     wrapper = _hook_wrapper_path()
     if wrapper.exists():
         return f"{wrapper} {subcommand}"
-    return f"{sys.executable} -m hermes.hooks {subcommand}"
+    return f"{sys.executable} -m amaru.hooks {subcommand}"
 
 
 def install_hook_wrapper(clan_dir: Path | None = None) -> Path:
-    """Create ~/.hermes/bin/hermes-hook wrapper script.
+    """Create ~/.amaru/bin/amaru-hook wrapper script.
 
     The wrapper discovers the Python interpreter dynamically by checking:
-    1. HERMES_PYTHON env var (explicit override)
-    2. The venv recorded in ~/.hermes/bin/.python-path at install time
+    1. AMARU_PYTHON env var (explicit override)
+    2. The venv recorded in ~/.amaru/bin/.python-path at install time
     3. python3 from PATH as last resort
 
     This makes hooks resilient to venv recreation.
     """
     if clan_dir is None:
-        clan_dir = Path.home() / ".hermes"
+        clan_dir = Path.home() / ".amaru"
 
     bin_dir = clan_dir / "bin"
     bin_dir.mkdir(parents=True, exist_ok=True)
 
-    wrapper = bin_dir / "hermes-hook"
+    wrapper = bin_dir / "amaru-hook"
     python_path_file = bin_dir / ".python-path"
 
     # Record current Python path for future discovery
     python_path_file.write_text(sys.executable + "\n", encoding="utf-8")
 
     script = f"""#!/bin/sh
-# HERMES hook wrapper — resilient to venv changes.
-# Generated by hermes install. Do not edit manually.
+# Amaru hook wrapper — resilient to venv changes.
+# Generated by amaru install. Do not edit manually.
 #
 # Discovery order:
-#   1. $HERMES_PYTHON (explicit override)
+#   1. $AMARU_PYTHON (explicit override)
 #   2. {python_path_file} (recorded at install time)
 #   3. python3 from PATH (fallback)
 
-if [ -n "$HERMES_PYTHON" ] && [ -x "$HERMES_PYTHON" ]; then
-    PYTHON="$HERMES_PYTHON"
+if [ -n "$AMARU_PYTHON" ] && [ -x "$AMARU_PYTHON" ]; then
+    PYTHON="$AMARU_PYTHON"
 elif [ -f "{python_path_file}" ]; then
     RECORDED=$(head -1 "{python_path_file}" 2>/dev/null)
     if [ -x "$RECORDED" ]; then
@@ -627,7 +646,7 @@ else
     PYTHON="python3"
 fi
 
-exec "$PYTHON" -m hermes.hooks "$@"
+exec "$PYTHON" -m amaru.hooks "$@"
 """
     wrapper.write_text(script, encoding="utf-8")
     wrapper.chmod(0o755)
@@ -635,15 +654,15 @@ exec "$PYTHON" -m hermes.hooks "$@"
     return wrapper
 
 
-def _hermes_hooks() -> dict[str, list[dict[str, Any]]]:
-    """Build HERMES hooks dict with correct command paths."""
+def _amaru_hooks() -> dict[str, list[dict[str, Any]]]:
+    """Build Amaru hooks dict with correct command paths."""
     return {
         "SessionStart": [
             {
                 "type": "command",
                 "command": _hook_command("pull_on_start"),
                 "timeout": 5000,
-                "_hermes": _HERMES_HOOKS_MARKER,
+                "_amaru": _AMARU_HOOKS_MARKER,
             }
         ],
         "UserPromptSubmit": [
@@ -651,7 +670,7 @@ def _hermes_hooks() -> dict[str, list[dict[str, Any]]]:
                 "type": "command",
                 "command": _hook_command("pull_on_prompt"),
                 "timeout": 3000,
-                "_hermes": _HERMES_HOOKS_MARKER,
+                "_amaru": _AMARU_HOOKS_MARKER,
             }
         ],
         "Stop": [
@@ -659,7 +678,7 @@ def _hermes_hooks() -> dict[str, list[dict[str, Any]]]:
                 "type": "command",
                 "command": _hook_command("exit_reminder"),
                 "timeout": 3000,
-                "_hermes": _HERMES_HOOKS_MARKER,
+                "_amaru": _AMARU_HOOKS_MARKER,
             }
         ],
     }
@@ -685,7 +704,7 @@ def _settings_path() -> Path:
 
 
 def install_hooks(dry_run: bool = False) -> tuple[bool, str, dict[str, Any]]:
-    """Safely merge HERMES hooks into Claude Code settings.json.
+    """Safely merge Amaru hooks into Claude Code settings.json.
 
     Never overwrites existing hooks. Returns (modified, message, resulting_hooks).
     """
@@ -699,17 +718,17 @@ def install_hooks(dry_run: bool = False) -> tuple[bool, str, dict[str, Any]]:
     hooks = settings.get("hooks", {})
     modified = False
 
-    for event, hermes_hooks in _hermes_hooks().items():
+    for event, amaru_hooks in _amaru_hooks().items():
         existing = hooks.get(event, [])
 
-        # Check if hermes hooks already installed (by marker)
-        has_hermes = any(
-            h.get("_hermes") == _HERMES_HOOKS_MARKER for h in existing if isinstance(h, dict)
+        # Check if amaru hooks already installed (by marker)
+        has_amaru = any(
+            h.get("_amaru") == _AMARU_HOOKS_MARKER for h in existing if isinstance(h, dict)
         )
-        if has_hermes:
+        if has_amaru:
             continue
 
-        existing.extend(hermes_hooks)
+        existing.extend(amaru_hooks)
         hooks[event] = existing
         modified = True
 
@@ -723,7 +742,7 @@ def install_hooks(dry_run: bool = False) -> tuple[bool, str, dict[str, Any]]:
 
 
 def uninstall_hooks() -> tuple[bool, str]:
-    """Remove only HERMES hooks from Claude Code settings.json.
+    """Remove only Amaru hooks from Claude Code settings.json.
 
     Preserves all other hooks. Returns (modified, message).
     """
@@ -742,7 +761,7 @@ def uninstall_hooks() -> tuple[bool, str]:
         filtered = [
             h
             for h in original
-            if not (isinstance(h, dict) and h.get("_hermes") == _HERMES_HOOKS_MARKER)
+            if not (isinstance(h, dict) and h.get("_amaru") == _AMARU_HOOKS_MARKER)
         ]
         if len(filtered) != len(original):
             modified = True
@@ -755,7 +774,7 @@ def uninstall_hooks() -> tuple[bool, str]:
         settings["hooks"] = hooks
         _atomic_json_write(settings_file, settings)
 
-    return modified, "HERMES hooks removed" if modified else "No HERMES hooks found"
+    return modified, "Amaru hooks removed" if modified else "No Amaru hooks found"
 
 
 # ---------------------------------------------------------------------------
@@ -808,7 +827,7 @@ def send_notification(title: str, msg: str, plat: Platform | None = None) -> boo
                 f"ContentType=WindowsRuntime]::new();"
                 f"$t.LoadXml($xml);"
                 f"[Windows.UI.Notifications.ToastNotificationManager]"
-                f"::CreateToastNotifier('HERMES').Show("
+                f"::CreateToastNotifier('Amaru').Show("
                 f"[Windows.UI.Notifications.ToastNotification]::new($t))"
             )
             subprocess.run(
@@ -830,7 +849,7 @@ def send_notification(title: str, msg: str, plat: Platform | None = None) -> boo
 
 
 def _print_banner() -> None:
-    """Print the HERMES install banner."""
+    """Print the Amaru install banner."""
     print()
     print("  ╔══════════════════════════════════════╗")
     print("  ║  H E R M E S   I N S T A L L        ║")
@@ -926,9 +945,9 @@ def run_install(
     # 7. Start daemon — only if service was NOT installed (service already starts it)
     if skip_service:
         try:
-            hermes_exe = hermes_executable_path()
+            amaru_exe = amaru_executable_path()
             proc = subprocess.Popen(
-                [*hermes_exe.split(), "daemon", "start", "--dir", str(clan_dir)],
+                [*amaru_exe.split(), "daemon", "start", "--dir", str(clan_dir)],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
@@ -968,16 +987,16 @@ def run_install(
         print(f"  Completed with {len(result.errors)} warning(s).")
         result.success = False
     else:
-        print("  You're connected! Run 'hermes status' to check.")
+        print("  You're connected! Run 'amaru status' to check.")
         print("  Share your public key fingerprint with peers to start exchanging.")
         print()
-        print("  Next: connect HERMES to your AI agent:")
-        print("    hermes adapt --list         # see available adapters")
-        print("    hermes adapt claude-code     # for Claude Code")
-        print("    hermes adapt gemini          # for Gemini CLI")
-        print("    hermes adapt cursor          # for Cursor")
-        print("    hermes adapt opencode        # for OpenCode")
-        print("    hermes adapt --all           # adapt all detected agents")
+        print("  Next: connect Amaru to your AI agent:")
+        print("    amaru adapt --list         # see available adapters")
+        print("    amaru adapt claude-code     # for Claude Code")
+        print("    amaru adapt gemini          # for Gemini CLI")
+        print("    amaru adapt cursor          # for Cursor")
+        print("    amaru adapt opencode        # for OpenCode")
+        print("    amaru adapt --all           # adapt all detected agents")
 
     print()
     return result
@@ -1001,13 +1020,13 @@ def run_uninstall(
     result.clan_dir = str(clan_dir)
 
     print()
-    print("  HERMES Uninstall")
+    print("  Amaru Uninstall")
     print()
 
     # 1. Stop daemon
     try:
-        hermes_exe = hermes_executable_path()
-        parts = hermes_exe.split()
+        amaru_exe = amaru_executable_path()
+        parts = amaru_exe.split()
         subprocess.run(
             [*parts, "daemon", "stop", "--dir", str(clan_dir)],
             capture_output=True,

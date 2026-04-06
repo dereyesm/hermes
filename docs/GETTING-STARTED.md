@@ -495,7 +495,7 @@ international treaty verification.
 ### Step 1: Clone HERMES
 
 ```bash
-git clone https://github.com/dereyesm/hermes.git
+git clone https://github.com/amaru-protocol/amaru.git
 cd hermes
 ```
 
@@ -591,7 +591,7 @@ The Dojo is your clan's orchestrator. You can use the Python API to
 manage it programmatically:
 
 ```python
-from hermes.dojo import Dojo, SkillProfile, QuestType
+from amaru.dojo import Dojo, SkillProfile, QuestType
 
 # Create your Dojo
 dojo = Dojo(clan_id="jei")
@@ -715,13 +715,13 @@ innovation feeds the commons.
 
 | Command | What it does |
 |---------|-------------|
-| `hermes init` | Create a new clan workspace |
-| `hermes status` | Show clan status and peer list |
-| `hermes publish` | Publish your profile to the Agora |
-| `hermes peer` | Connect to another clan |
-| `hermes send` | Send a message to a peer |
-| `hermes inbox` | Read pending messages |
-| `hermes discover` | Search the Agora for clans |
+| `amaru init` | Create a new clan workspace |
+| `amaru status` | Show clan status and peer list |
+| `amaru publish` | Publish your profile to the Agora |
+| `amaru peer` | Connect to another clan |
+| `amaru send` | Send a message to a peer |
+| `amaru inbox` | Read pending messages |
+| `amaru discover` | Search the Agora for clans |
 
 ### Specs to Read First
 

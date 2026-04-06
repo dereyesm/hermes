@@ -579,4 +579,4 @@ Ensure the local server is running before launching OpenCode:
 
 ---
 
-*This guide is part of the [HERMES](https://github.com/hermes-protocol) project. HERMES is vendor-neutral and does not endorse any specific model or provider. Models listed are examples chosen for accessibility and performance.*
+*This guide is part of the [HERMES](https://github.com/amaru-protocol) project. HERMES is vendor-neutral and does not endorse any specific model or provider. Models listed are examples chosen for accessibility and performance.*

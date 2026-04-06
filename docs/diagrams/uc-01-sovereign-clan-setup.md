@@ -66,17 +66,17 @@ flowchart TD
 
 ### Step 1: Install
 
-Clone the HERMES repository and install the Python reference implementation. This gives you the `hermes` CLI and the protocol library.
+Clone the Amaru repository and install the Python reference implementation. This gives you the `hermes` CLI and the protocol library.
 
 ```bash
-git clone https://github.com/dereyesm/hermes.git
+git clone https://github.com/amaru-protocol/amaru.git
 cd hermes/reference/python
 pip install -e .
 ```
 
 ### Step 2: Initialize Clan
 
-Run `hermes init` to create your clan workspace. This generates the minimum viable file structure -- a bus file, a routing table, a gateway config, and a profile.
+Run `amaru init` to create your clan workspace. This generates the minimum viable file structure -- a bus file, a routing table, a gateway config, and a profile.
 
 ```bash
 hermes init --clan-id my-clan --display-name "My Clan"

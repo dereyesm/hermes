@@ -6,7 +6,7 @@
 ## Prerequisites
 
 - JEI hub running (quest005_hub.py or hermes hub start)
-- Ed25519 keys generated (`~/.hermes/keys/jei.key` + `jei.pub`)
+- Ed25519 keys generated (`~/.amaru/keys/jei.key` + `jei.pub`)
 - DANI hub reachable at `192.168.68.100:8443`
 
 ## Step 1: Pull latest HERMES code
@@ -20,7 +20,7 @@ The `hub.py` now includes `FederationTable`, `FederationLink`, and S2S routing i
 
 ## Step 2: Create federation-peers.json
 
-Create `~/.hermes/federation-peers.json` (or wherever your hub dir is):
+Create `~/.amaru/federation-peers.json` (or wherever your hub dir is):
 
 ```json
 {
@@ -35,7 +35,7 @@ Create `~/.hermes/federation-peers.json` (or wherever your hub dir is):
   "self": {
     "hub_id": "jei-hub",
     "sign_pub": "b05d85e59a6dee74aaded152d49b19e971e79bb9227b3a1382aaab2a69277a0c",
-    "key_file": "~/.hermes/keys/jei.key"
+    "key_file": "~/.amaru/keys/jei.key"
   }
 }
 ```
@@ -59,9 +59,9 @@ Your `hub-peers.json` needs an entry for `dani-hub` so the AuthHandler can verif
 }
 ```
 
-## Step 4: Start JEI hub with HERMES hub.py
+## Step 4: Start JEI hub with Amaru hub.py
 
-If JEI is using the custom `quest005_hub.py`, it needs to be updated to support S2S. The simplest path: use the reference `hermes hub start`:
+If JEI is using the custom `quest005_hub.py`, it needs to be updated to support S2S. The simplest path: use the reference `amaru hub start`:
 
 ```bash
 cd ~/path-to-hermes

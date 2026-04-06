@@ -4,17 +4,17 @@
 <dict>
     <!-- HERMES Agent Node — ARC-4601 -->
     <!-- Persistent daemon that observes bus, links to gateway, dispatches sub-agents -->
-    <!-- Docs: https://github.com/dereyesm/hermes/blob/main/spec/ARC-4601.md -->
+    <!-- Docs: https://github.com/dereyesm/amaru/blob/main/spec/ARC-4601.md -->
 
     <key>Label</key>
-    <string>com.hermes.agent-node</string>
+    <string>com.amaru.agent-node</string>
 
     <key>ProgramArguments</key>
     <array>
         <!-- Replace with your Python path and clan directory -->
         <string>/path/to/python</string>
         <string>-m</string>
-        <string>hermes.cli</string>
+        <string>amaru.cli</string>
         <string>daemon</string>
         <string>start</string>
         <string>--foreground</string>
@@ -32,16 +32,16 @@
 
     <!-- Logging -->
     <key>StandardOutPath</key>
-    <string>/tmp/hermes-agent-node-stdout.log</string>
+    <string>/tmp/amaru-agent-node-stdout.log</string>
 
     <key>StandardErrorPath</key>
-    <string>/tmp/hermes-agent-node-stderr.log</string>
+    <string>/tmp/amaru-agent-node-stderr.log</string>
 
     <!-- Environment -->
     <key>EnvironmentVariables</key>
     <dict>
         <key>PYTHONPATH</key>
-        <string>/path/to/hermes/reference/python</string>
+        <string>/path/to/amaru/reference/python</string>
     </dict>
 </dict>
 </plist>

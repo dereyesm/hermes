@@ -5,8 +5,8 @@
 ## Quick Start
 
 ```bash
-mkdir -p ~/.hermes/agents
-cat > ~/.hermes/agents/my-agent.json << 'EOF'
+mkdir -p ~/.amaru/agents
+cat > ~/.amaru/agents/my-agent.json << 'EOF'
 {
   "agent_id": "my-agent",
   "display_name": "My First Agent",
@@ -53,7 +53,7 @@ Then ensure your `gateway.json` has an `agent_node` section:
 }
 ```
 
-Restart daemon: `hermes daemon stop && hermes daemon start`
+Restart daemon: `amaru daemon stop && hermes daemon start`
 
 ## Agent JSON Schema
 
@@ -190,7 +190,7 @@ This is the minimum agent needed for bilateral quest handling:
 }
 ```
 
-Save as `~/.hermes/agents/cross-clan-dispatcher.json`, restart daemon, done.
+Save as `~/.amaru/agents/cross-clan-dispatcher.json`, restart daemon, done.
 
 ## Verification
 
@@ -202,7 +202,7 @@ hermes status
 # Should show agent in Agent Node row
 
 # Check agent file is valid JSON
-python3 -m json.tool ~/.hermes/agents/your-agent.json
+python3 -m json.tool ~/.amaru/agents/your-agent.json
 
 # Test dispatch manually
 hermes bus write --type dispatch --msg "QUEST-TEST: ping" --dst your-clan-id
@@ -216,4 +216,4 @@ hermes bus write --type dispatch --msg "QUEST-TEST: ping" --dst your-clan-id
 | Agent not showing in status | No `agent_node` section in gateway.json | Add the section (see Quick Start) |
 | "No agent_node section" error | Missing config | Add `agent_node` to gateway.json |
 | Agent not triggering | `match_type` doesn't match bus message type | Check dispatch_rules trigger |
-| Daemon won't start | Stale PID lock | `rm ~/.hermes/.agent-node.pid` then start |
+| Daemon won't start | Stale PID lock | `rm ~/.amaru/.agent-node.pid` then start |

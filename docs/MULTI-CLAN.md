@@ -1,12 +1,12 @@
 # HERMES Multi-Clan Guide: Your First Connection
 
 > Two clans, one protocol. This guide walks you through setting up your first
-> inter-clan HERMES gateway connection.
+> inter-clan Amaru gateway connection.
 
 ## Prerequisites
 
 - Python 3.10+
-- The `hermes-protocol` package (clone from GitHub)
+- The `amaru-protocol` package (clone from GitHub)
 - Two machines (or two directories simulating two clans)
 
 ## Quick Start (5 minutes)
@@ -15,7 +15,7 @@
 
 ```bash
 cd ~/my-clan
-python -m hermes.cli init my-clan-id "My Clan Name"
+python -m amaru.cli init my-clan-id "My Clan Name"
 ```
 
 This creates:
@@ -54,7 +54,7 @@ Edit `gateway.json` to publish agents:
 ### 3. Publish Your Profile
 
 ```bash
-python -m hermes.cli publish
+python -m amaru.cli publish
 ```
 
 This writes your public profile to `.agora/profiles/my-clan-id.json`.
@@ -62,7 +62,7 @@ This writes your public profile to `.agora/profiles/my-clan-id.json`.
 ### 4. Connect to a Peer
 
 ```bash
-python -m hermes.cli peer add other-clan-id
+python -m amaru.cli peer add other-clan-id
 ```
 
 This:
@@ -74,13 +74,13 @@ This:
 ### 5. Send Your First Message
 
 ```bash
-python -m hermes.cli send other-clan-id "First Contact achieved!"
+python -m amaru.cli send other-clan-id "First Contact achieved!"
 ```
 
 ### 6. Check Your Inbox
 
 ```bash
-python -m hermes.cli inbox
+python -m amaru.cli inbox
 ```
 
 ## Two Clans on One Machine (Testing)
@@ -94,36 +94,36 @@ mkdir -p /tmp/hermes-agora/{profiles,inbox,attestations,quest_log}
 # Initialize Clan A
 mkdir /tmp/clan-a
 cd /tmp/clan-a
-python -m hermes.cli init alpha "Clan Alpha"
+python -m amaru.cli init alpha "Clan Alpha"
 rm -rf .agora && ln -s /tmp/hermes-agora .agora
 
 # Initialize Clan B
 mkdir /tmp/clan-b
 cd /tmp/clan-b
-python -m hermes.cli init beta "Clan Beta"
+python -m amaru.cli init beta "Clan Beta"
 rm -rf .agora && ln -s /tmp/hermes-agora .agora
 
 # Clan A publishes
-cd /tmp/clan-a && python -m hermes.cli publish
+cd /tmp/clan-a && python -m amaru.cli publish
 
 # Clan B publishes
-cd /tmp/clan-b && python -m hermes.cli publish
+cd /tmp/clan-b && python -m amaru.cli publish
 
 # Clan B peers with A
-cd /tmp/clan-b && python -m hermes.cli peer add alpha
+cd /tmp/clan-b && python -m amaru.cli peer add alpha
 
 # Clan A checks inbox
-cd /tmp/clan-a && python -m hermes.cli inbox
+cd /tmp/clan-a && python -m amaru.cli inbox
 # → Shows hello from beta
 
 # Clan A peers with B
-cd /tmp/clan-a && python -m hermes.cli peer add beta
+cd /tmp/clan-a && python -m amaru.cli peer add beta
 
 # Clan A sends message
-cd /tmp/clan-a && python -m hermes.cli send beta "Hello from Alpha!"
+cd /tmp/clan-a && python -m amaru.cli send beta "Hello from Alpha!"
 
 # Clan B reads
-cd /tmp/clan-b && python -m hermes.cli inbox
+cd /tmp/clan-b && python -m amaru.cli inbox
 # → Shows hello from alpha + message
 ```
 
@@ -148,21 +148,21 @@ cd .agora && git add . && git commit -m "Profile update" && git push
 
 # To check inbox
 cd .agora && git pull
-cd ~/my-clan && python -m hermes.cli inbox
+cd ~/my-clan && python -m amaru.cli inbox
 ```
 
 ## CLI Reference
 
 | Command | Description |
 |---------|-------------|
-| `hermes init <id> <name>` | Initialize a new clan |
-| `hermes status` | Show gateway status |
-| `hermes publish` | Publish profile to Agora |
-| `hermes peer add <clan-id>` | Add a peer clan |
-| `hermes peer list` | List all peers |
-| `hermes send <clan-id> <msg>` | Send message to peer |
-| `hermes inbox` | Read inbox messages |
-| `hermes discover <capability>` | Find agents by capability |
+| `amaru init <id> <name>` | Initialize a new clan |
+| `amaru status` | Show gateway status |
+| `amaru publish` | Publish profile to Agora |
+| `amaru peer add <clan-id>` | Add a peer clan |
+| `amaru peer list` | List all peers |
+| `amaru send <clan-id> <msg>` | Send message to peer |
+| `amaru inbox` | Read inbox messages |
+| `amaru discover <capability>` | Find agents by capability |
 
 All commands accept `--dir <path>` to specify the clan directory.
 
@@ -175,7 +175,7 @@ All commands accept `--dir <path>` to specify the clan directory.
 
 ## Example: Clan Momosho D. + Clan JEI (First Contact)
 
-The first two clans on the HERMES network:
+The first two clans on the Amaru network:
 
 ```
 Clan Momosho D. (Daniel)              Clan JEI (Jeimmy)
@@ -244,4 +244,4 @@ Internal names, bus messages, and metrics never leave the clan.
 
 ---
 
-*Part of the HERMES project. MIT License.*
+*Part of the Amaru project. MIT License.*

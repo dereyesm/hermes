@@ -14,10 +14,10 @@
 
 **HERMES** — Named after the Greek messenger god who crosses boundaries between worlds. The name encodes the protocol's purpose: enabling communication across boundaries that no single platform controls.
 
-- **Full name**: HERMES Protocol
+- **Full name**: Amaru Protocol
 - **Never**: Hermes (lowercase after H), hermes (all lowercase in prose), HERMÉS
 - **In code/CLI**: `hermes` (all lowercase, per Unix convention)
-- **Repo**: `dereyesm/hermes`
+- **Repo**: `amaru-protocol/amaru`
 
 ### 1.2 Tagline
 
@@ -72,7 +72,7 @@ HERMES speaks like a **telecom engineer who reads philosophy** — technically p
 
 | Term | Definition | Never say |
 |------|-----------|-----------|
-| **Clan** | An autonomous group of agents sharing a HERMES instance | Team, org, tenant |
+| **Clan** | An autonomous group of agents sharing an Amaru instance | Team, org, tenant |
 | **Namespace** | An agent's address within a clan | User, account, endpoint |
 | **Bus** | The shared JSONL file where messages live | Queue, broker, channel |
 | **Gateway** | NAT-like boundary between clan and Agora | API, proxy, router |
@@ -90,7 +90,7 @@ HERMES speaks like a **telecom engineer who reads philosophy** — technically p
 
 ### 3.1 Logo Concept
 
-The HERMES logo represents **a messenger crossing boundaries** — two domains connected by a path.
+The Amaru logo represents **a messenger crossing boundaries** — two domains connected by a path.
 
 **Primary mark**: Stylized caduceus simplified to two parallel lines (domains) with a diagonal crossing element (the messenger). Geometric, not ornamental.
 
@@ -146,7 +146,7 @@ Use ASCII box drawing for terminal-friendly branding. No Unicode emoji in protoc
 
 > "HERMES is a file-based inter-agent communication protocol inspired by TCP/IP and the 3GPP service-based architecture. It uses JSONL as its wire format with a 120-character Shannon-constrained payload, supports both datagram and reliable transport modes, and implements Ed25519 + X25519 + AES-256-GCM encryption aligned with TLS 1.3.
 >
-> What makes it different: it works anywhere files work — no servers, no Docker, no cloud. Air-gapped military networks, local development machines, sovereign infrastructure. The protocol bridges bidirectionally to Google A2A and Anthropic MCP via ARC-7231, so HERMES agents can participate in broader ecosystems without lock-in.
+> What makes it different: it works anywhere files work — no servers, no Docker, no cloud. Air-gapped military networks, local development machines, sovereign infrastructure. The protocol bridges bidirectionally to Google A2A and Anthropic MCP via ARC-7231, so Amaru agents can participate in broader ecosystems without lock-in.
 >
 > The Agora layer uses Git repositories for discovery — agents publish profiles and build reputation through cryptographically signed attestations, not platform ratings. Think SMTP, not Slack."
 
@@ -173,7 +173,7 @@ Use ASCII box drawing for terminal-friendly branding. No Unicode emoji in protoc
 | Objection | Response |
 |-----------|----------|
 | "Just use A2A" | A2A is excellent for cloud-native enterprise agents. HERMES serves the sovereign/offline/E2E-encrypted space that A2A doesn't address. They interop via ARC-7231. |
-| "Just use MCP" | MCP is vertical (LLM ↔ tools). HERMES is horizontal (agent ↔ agent). They're complementary. HERMES bridges to MCP natively. |
+| "Just use MCP" | MCP is vertical (LLM ↔ tools). HERMES is horizontal (agent ↔ agent). They're complementary. Amaru bridges to MCP natively. |
 | "Just use HTTP" | HTTP adds 40-60% overhead for agent-to-agent signaling. HERMES file-based transport has near-zero overhead for co-located agents. For remote, the Hub mode uses HTTP — but with HERMES semantics. |
 | "Files don't scale" | Correct — that's why HERMES has dual-mode (Sovereign + Hosted). Files for <50 agents, Hub for scale. Same wire format both modes. |
 | "Nobody uses this" | TCP/IP had 4 nodes in 1969. HERMES has 2 clans with encrypted bilateral communication in 2026. Protocols grow by being useful, not by being popular. |
@@ -184,7 +184,7 @@ Use ASCII box drawing for terminal-friendly branding. No Unicode emoji in protoc
 
 ### 5.1 Spec Naming Convention
 
-HERMES specs follow three tracks inspired by real-world standards bodies:
+Amaru specs follow three tracks inspired by real-world standards bodies:
 
 | Track | Lineage | Naming | Example |
 |-------|---------|--------|---------|
@@ -229,8 +229,8 @@ HERMES specs follow three tracks inspired by real-world standards bodies:
 | **JEI (La Triada)** | Jeimmy Gomez | Active | Security review, bilateral crypto |
 
 New clans join by:
-1. Deploying a HERMES instance (Sovereign mode: `scripts/init_hermes.sh`)
-2. Generating keypair (`hermes keygen`)
+1. Deploying an Amaru instance (Sovereign mode: `scripts/init_hermes.sh`)
+2. Generating keypair (`amaru keygen`)
 3. Exchanging fingerprints with an existing clan (in-person or verified channel)
 4. First encrypted handshake via relay or direct file exchange
 

@@ -1,4 +1,4 @@
-"""HERMES Gateway Configuration — ARC-3022 Section 16 Reference Implementation.
+"""Amaru Gateway Configuration — ARC-3022 Section 16 Reference Implementation.
 
 Load, validate, and save gateway configuration files (JSON and TOML formats).
 Supports auto-discovery: config.toml preferred over gateway.json.
@@ -346,7 +346,7 @@ def load_config_toml(path: Path) -> GatewayConfig:
     if schema_ver > CONFIG_SCHEMA_VERSION:
         raise ValueError(
             f"Config schema version {schema_ver} is newer than supported "
-            f"version {CONFIG_SCHEMA_VERSION}. Upgrade HERMES."
+            f"version {CONFIG_SCHEMA_VERSION}. Upgrade Amaru."
         )
 
     clan = data.get("clan", {})
@@ -480,7 +480,7 @@ def init_clan(
     (keys_dir / "peers").mkdir(exist_ok=True)
     (clan_dir / ".agora").mkdir(exist_ok=True)
 
-    # Generate real Ed25519 + X25519 keypairs (aligned with hermes install)
+    # Generate real Ed25519 + X25519 keypairs (aligned with amaru install)
     key_file = keys_dir / f"{clan_id}.key"
     pub_file = keys_dir / f"{clan_id}.pub"
     if not key_file.exists():

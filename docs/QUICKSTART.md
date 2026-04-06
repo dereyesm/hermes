@@ -46,10 +46,10 @@ Create `routes.md`:
 
 | Namespace | Config | Memory | Agents |
 |-----------|--------|--------|--------|
-| controller | ~/.hermes/controller/config.md | ~/.hermes/controller/memory/ | ~/.hermes/controller/agents/ |
-| engineering | ~/.hermes/engineering/config.md | ~/.hermes/engineering/memory/ | ~/.hermes/engineering/agents/ |
-| operations | ~/.hermes/operations/config.md | ~/.hermes/operations/memory/ | ~/.hermes/operations/agents/ |
-| finance | ~/.hermes/finance/config.md | ~/.hermes/finance/memory/ | ~/.hermes/finance/agents/ |
+| controller | ~/.amaru/controller/config.md | ~/.amaru/controller/memory/ | ~/.amaru/controller/agents/ |
+| engineering | ~/.amaru/engineering/config.md | ~/.amaru/engineering/memory/ | ~/.amaru/engineering/agents/ |
+| operations | ~/.amaru/operations/config.md | ~/.amaru/operations/memory/ | ~/.amaru/operations/agents/ |
+| finance | ~/.amaru/finance/config.md | ~/.amaru/finance/memory/ | ~/.amaru/finance/agents/ |
 
 ## Namespace → Tools
 
@@ -72,12 +72,12 @@ Create `routes.md`:
 
 ```bash
 for ns in controller engineering operations finance; do
-  mkdir -p ~/.hermes/$ns/{memory,agents}
-  cat > ~/.hermes/$ns/config.md << 'EOF'
+  mkdir -p ~/.amaru/$ns/{memory,agents}
+  cat > ~/.amaru/$ns/config.md << 'EOF'
 # Namespace Configuration
 
 ## SYNC HEADER
-<!-- HERMES Protocol — do not edit manually -->
+<!-- Amaru Protocol — do not edit manually -->
 | Field | Value |
 |-------|-------|
 | version | 1 |
@@ -94,10 +94,10 @@ done
 Add HERMES instructions to each agent's system prompt or configuration file. The core instructions are:
 
 ```
-## HERMES Protocol
+## Amaru Protocol
 
 At session start (SYN):
-1. Read ~/.hermes/bus.jsonl
+1. Read ~/.amaru/bus.jsonl
 2. Filter messages where dst = [your-namespace] OR dst = "*"
    AND [your-namespace] NOT IN ack array
 3. Report any pending messages
@@ -117,7 +117,7 @@ Message format (one JSON object per line):
 Test the bus by writing a message directly:
 
 ```bash
-echo '{"ts":"2026-01-01","src":"controller","dst":"*","type":"event","msg":"hermes_instance_initialized. welcome_to_the_network","ttl":7,"ack":[]}' >> ~/.hermes/bus.jsonl
+echo '{"ts":"2026-01-01","src":"controller","dst":"*","type":"event","msg":"hermes_instance_initialized. welcome_to_the_network","ttl":7,"ack":[]}' >> ~/.amaru/bus.jsonl
 ```
 
 Now start a session in any namespace — the agent should pick up this message during SYN.
@@ -126,14 +126,14 @@ Now start a session in any namespace — the agent should pick up this message d
 
 ```bash
 # Check the bus has your message
-cat ~/.hermes/bus.jsonl | python -m json.tool --no-ensure-ascii
+cat ~/.amaru/bus.jsonl | python -m json.tool --no-ensure-ascii
 
 # If using the reference implementation:
 cd /path/to/hermes/reference/python
 pip install -e .
 python -c "
-from hermes.bus import read_bus
-msgs = read_bus('$HOME/.hermes/bus.jsonl')
+from amaru.bus import read_bus
+msgs = read_bus('$HOME/.amaru/bus.jsonl')
 for m in msgs:
     print(f'[{m.src} → {m.dst}] {m.msg}')
 "
@@ -171,8 +171,8 @@ What it does:
 
 | Step | Action |
 |------|--------|
-| 1 | Initializes `~/.hermes/` with `gateway.json` and empty bus |
-| 2 | Generates Ed25519 (signing) + X25519 (DH) keypairs in `~/.hermes/.keys/` |
+| 1 | Initializes `~/.amaru/` with `gateway.json` and empty bus |
+| 2 | Generates Ed25519 (signing) + X25519 (DH) keypairs in `~/.amaru/.keys/` |
 | 3 | Adds `agent_node` block to `gateway.json` |
 | 4 | Installs OS service: **macOS** LaunchAgent, **Linux** systemd user unit, **Windows** scheduled task |
 | 5 | Registers 3 Claude Code hooks (`pull_on_start`, `pull_on_prompt`, `exit_reminder`) |
@@ -199,7 +199,7 @@ hermes adapt opencode            # for OpenCode → generates ~/.config/opencode
 hermes adapt --all               # adapt all detected agents at once
 ```
 
-Each adapter reads `~/.hermes/` and generates the agent's native config format. Idempotent — safe to re-run whenever your HERMES config changes.
+Each adapter reads `~/.amaru/` and generates the agent's native config format. Idempotent — safe to re-run whenever your HERMES config changes.
 
 ### Step 3 — Monitor token usage (optional)
 
@@ -251,8 +251,8 @@ The hub runs a WebSocket server on port 8443 and the listener delivers incoming 
 - Check the [Glossary](GLOSSARY.md) for canonical terminology
 - Explore the [specs](../spec/INDEX.md) for protocol details
 - See [installable-model.md](architecture/installable-model.md) for the adapter architecture
-- Try `hermes llm test` to verify your LLM backends are configured
-- Run `hermes status` for a full dashboard of your clan
+- Try `amaru llm test` to verify your LLM backends are configured
+- Run `amaru status` for a full dashboard of your clan
 
 ## Common Patterns
 

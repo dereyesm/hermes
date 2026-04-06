@@ -1,6 +1,6 @@
 # SEQ-0793: Session Lifecycle
 
-> How a HERMES session starts (SYN), operates (ACTIVE), ends (FIN), and gets audited (SYNC).
+> How an Amaru session starts (SYN), operates (ACTIVE), ends (FIN), and gets audited (SYNC).
 
 Modeled after TCP's connection management. Every session MUST execute SYN at start and FIN at close.
 

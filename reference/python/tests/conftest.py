@@ -14,12 +14,10 @@ from pathlib import Path
 import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-from hermes.hub import HubConfig, HubServer
-
-
 # ---------------------------------------------------------------------------
 # Clan Factory — creates temporary clan directories with keys
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class ClanInfo:
@@ -84,9 +82,7 @@ def clan_factory(tmp_path):
                 "sign_pub": pub_hex,
                 "display_name": f"Test Clan {pid}",
             }
-        (clan_dir / "hub-peers.json").write_text(
-            json.dumps({"peers": peer_entries})
-        )
+        (clan_dir / "hub-peers.json").write_text(json.dumps({"peers": peer_entries}))
 
         # Empty federation config (no S2S for Tier 1)
         (clan_dir / "federation-peers.json").write_text(
@@ -127,6 +123,7 @@ def clan_factory(tmp_path):
 # Hub Test Client — WebSocket client with HELLO/AUTH handshake
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class HubTestClient:
     """Lightweight WebSocket client for bilateral testing."""
@@ -153,9 +150,7 @@ class HubTestClient:
         raw = await asyncio.wait_for(self.ws.recv(), timeout=timeout)
         return json.loads(raw)
 
-    async def recv_until(
-        self, frame_type: str, timeout: float = 5.0
-    ) -> dict:
+    async def recv_until(self, frame_type: str, timeout: float = 5.0) -> dict:
         """Receive frames until one matches the given type."""
         deadline = asyncio.get_event_loop().time() + timeout
         while True:
@@ -186,13 +181,17 @@ async def connect_hub_client(
 
     # HELLO
     pub_hex = sign_key.public_key().public_bytes_raw().hex()
-    await ws.send(json.dumps({
-        "type": "hello",
-        "clan_id": clan_id,
-        "sign_pub": pub_hex,
-        "protocol_version": protocol_version,
-        "capabilities": ["e2e_crypto"],
-    }))
+    await ws.send(
+        json.dumps(
+            {
+                "type": "hello",
+                "clan_id": clan_id,
+                "sign_pub": pub_hex,
+                "protocol_version": protocol_version,
+                "capabilities": ["e2e_crypto"],
+            }
+        )
+    )
 
     # CHALLENGE
     challenge = json.loads(await asyncio.wait_for(ws.recv(), timeout=5))
@@ -201,15 +200,17 @@ async def connect_hub_client(
     # AUTH (sign the nonce)
     nonce_bytes = bytes.fromhex(challenge["nonce"])
     signature = sign_key.sign(nonce_bytes)
-    await ws.send(json.dumps({
-        "type": "auth",
-        "nonce_response": signature.hex(),
-    }))
+    await ws.send(
+        json.dumps(
+            {
+                "type": "auth",
+                "nonce_response": signature.hex(),
+            }
+        )
+    )
 
     # AUTH_OK
     auth_ok = json.loads(await asyncio.wait_for(ws.recv(), timeout=5))
     assert auth_ok["type"] == "auth_ok", f"Expected auth_ok, got {auth_ok}"
 
     return HubTestClient(ws=ws, clan_id=clan_id, _sign_key=sign_key)
-
-

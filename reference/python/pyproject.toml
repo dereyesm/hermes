@@ -3,9 +3,9 @@ requires = ["setuptools>=68.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "hermes-protocol"
-version = "0.4.2a1"
-description = "HERMES: A lightweight, file-based inter-agent communication protocol"
+name = "amaru-protocol"
+version = "0.5.0a1"
+description = "Amaru: A lightweight, file-based inter-agent communication protocol"
 readme = "README.md"
 keywords = ["agent", "communication", "protocol", "multi-agent", "AI", "inter-agent"]
 license = "MIT"
@@ -48,20 +48,20 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/dereyesm/hermes"
-Repository = "https://github.com/dereyesm/hermes"
-Issues = "https://github.com/dereyesm/hermes/issues"
+Homepage = "https://github.com/amaru-protocol/amaru"
+Repository = "https://github.com/amaru-protocol/amaru"
+Issues = "https://github.com/amaru-protocol/amaru/issues"
 
 [project.scripts]
-hermes = "hermes.cli:main"
+amaru = "amaru.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["hermes*"]
+include = ["amaru*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "--cov=hermes --cov-report=term-missing"
+addopts = "--cov=amaru --cov-report=term-missing"
 
 [tool.ruff]
 target-version = "py311"
@@ -97,9 +97,9 @@ check_untyped_defs = true
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
-module = "hermes.crypto"
+module = "amaru.crypto"
 disallow_untyped_defs = true
 
 [[tool.mypy.overrides]]
-module = "hermes.agent"
+module = "amaru.agent"
 ignore_errors = true

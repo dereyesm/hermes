@@ -4,16 +4,16 @@
 
 ## 1. Clan Health Checklist
 
-Run `hermes status` and verify each row:
+Run `amaru status` and verify each row:
 
 | Component | Expected | How to Fix |
 |-----------|----------|------------|
-| Fingerprint | Ed25519 hex (e.g. `b111:c2ec:...`) | `hermes init <clan_id> <name>` |
-| Hub | `running` with PID and uptime | `hermes hub start` + `hermes hub listen` |
+| Fingerprint | Ed25519 hex (e.g. `b111:c2ec:...`) | `amaru init <clan_id> <name>` |
+| Hub | `running` with PID and uptime | `amaru hub start` + `amaru hub listen` |
 | Agent Node | `running` with registered agents | Configure `agent_node` in gateway.json |
-| Bus | Message count > 0 | `hermes bus write ...` |
-| Peers | At least 1 peer with `active` status | Auto-peer via hub, or `hermes peer add` |
-| Presence | Peers show `online`/`offline` | Restart `hermes hub listen` |
+| Bus | Message count > 0 | `amaru bus write ...` |
+| Peers | At least 1 peer with `active` status | Auto-peer via hub, or `amaru peer add` |
+| Presence | Peers show `online`/`offline` | Restart `amaru hub listen` |
 
 ## 2. Self-Assessment Template
 
@@ -85,7 +85,7 @@ The key insight: **session logs are decision journals, not debug traces.** Each 
 Memory persists knowledge across sessions. Structure:
 
 ```
-~/.hermes/           (or clan dir)
+~/.amaru/           (or clan dir)
   MEMORY.md          # Index file — 1 line per entry, links to topic files
   memory/
     feedback_*.md    # How to work (corrections + confirmations)
@@ -143,7 +143,7 @@ Total human involvement: start + review result
 | Symptom | Likely Cause | Fix |
 |---------|-------------|-----|
 | "No peers" in status | Auto-peer not triggered | Restart listener, check hub-inbox.jsonl |
-| Peer shows `offline` | Listener disconnected | `hermes hub listen` (restart) |
+| Peer shows `offline` | Listener disconnected | `amaru hub listen` (restart) |
 | Messages not arriving | Wrong dst (e.g. `jei-hub` vs `jei`) | Fix HELLO clan_id in listener |
-| Agent Node "not running" | No .agent-node.pid or state file | `hermes daemon start` |
+| Agent Node "not running" | No .agent-node.pid or state file | `amaru daemon start` |
 | `ImportError: __version__` | Running from dir that shadows package | Use entry point, not `python -m` |
