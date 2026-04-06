@@ -10,6 +10,7 @@ Master index of all Amaru standards across the three tracks: ARC, ATR, and AES.
 |--------|---------|
 | **IMPLEMENTED** | Complete spec with working reference implementation |
 | **DRAFT** | Spec in progress, subject to change |
+| **DRAFT (§X IMPL)** | DRAFT spec, with a named stable subsection covered by reference impl |
 | **PLANNED** | Outlined but not yet written |
 | **INFORMATIONAL** | Context, philosophy, or guidance -- not a protocol spec |
 
@@ -58,7 +59,7 @@ Architecture, reference models, and telecom-inspired patterns.
 | ATR-X.680 | Message Schema Notation | X.680 (ASN.1) | RFC 8949 (CBOR); ECMA-433 (NLIP) data packaging; JSON Schema | PLANNED | Extension |
 | ATR-E.164 | Global Agent Addressing | E.164 (Phone Numbers) | ANP DID identifiers; A2A Agent Card URLs; 3GPP SUPI/GPSI (TS 23.003) | PLANNED | Extension |
 | [ATR-Q.700](ATR-Q700.md) | Out-of-Band Signaling | Q.700 (SS7) | 3GPP TS 29.244 (PFCP) signaling; SIP (RFC 3261); ECMA-431 (NLIP) signaling | INFORMATIONAL | Philosophy |
-| [ATR-Q.931](ATR-Q931.md) | Session Setup Signaling | Q.931 (ISDN) | A2A task initiation; MCP session negotiation; SIP INVITE (RFC 3261) | DRAFT | Extension |
+| [ATR-Q.931](ATR-Q931.md) | Session Setup Signaling | Q.931 (ISDN) | A2A task initiation; MCP session negotiation; SIP INVITE (RFC 3261) | DRAFT (§8.1 IMPL) | Extension |
 | [ATR-G.711](ATR-G711.md) | Payload Encoding & Wire Efficiency | G.711 (Audio Codec) | RFC 8949 (CBOR); BBF TR-181 data model encoding; MessagePack | IMPLEMENTED | Extension |
 
 ## AES -- Agent Engineering Standards (IEEE Lineage)
