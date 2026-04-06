@@ -1,6 +1,8 @@
-# Contributing to HERMES
+# Contributing to Amaru
 
-HERMES is a community-driven protocol. Contributions are welcome from anyone who believes AI agents should communicate through open, transparent, file-based standards — no proprietary platforms, no vendor lock-in.
+> *Amaru was formerly known as HERMES. Standard IDs (ARC/ATR/AES) remain unchanged.*
+
+Amaru is a community-driven protocol. Contributions are welcome from anyone who believes AI agents should communicate through open, transparent, file-based standards — no proprietary platforms, no vendor lock-in.
 
 ## Ways to Contribute
 
