@@ -1,11 +1,13 @@
-# Getting Started with HERMES
+# Getting Started with Amaru
+
+> Amaru (formerly HERMES) — rebranded 2026-04-05.
 
 > A step-by-step guide to understanding the protocol, setting up your clan,
 > and connecting to the inter-clan network.
 
 ---
 
-## Why HERMES Exists — The Problem It Solves
+## Why Amaru Exists — The Problem It Solves
 
 ### The world right now
 
@@ -26,7 +28,7 @@ own internal network (Novell, DECnet, SNA). They worked fine inside.
 But connecting Company A's network to Company B's? Impossible without
 a common protocol.
 
-**TCP/IP solved that for computers. HERMES solves that for AI agents.**
+**TCP/IP solved that for computers. Amaru solves that for AI agents.**
 
 ### Why can't we just use what exists?
 
@@ -37,12 +39,12 @@ a common protocol.
 | **Just share files** | Works, but no conventions | No delivery confirmation, no privacy, no trust, no discovery |
 | **Email/Slack** | Humans relay between AIs | Slow, error-prone, doesn't scale, depends on humans being available |
 
-HERMES fills the gap between these:
+Amaru fills the gap between these:
 
 ```
 MCP: "Your AI talks to your tools"         (vertical: AI <-> tools)
 A2A: "AIs talk over the cloud"             (horizontal: AI <-> AI, needs infra)
-HERMES: "AIs coordinate, two ways"          (horizontal: AI <-> AI)
+Amaru: "AIs coordinate, two ways"          (horizontal: AI <-> AI)
          Sovereign: files, zero infra        (like self-hosted SMTP)
          Hosted: managed Hub, SLAs           (like Gmail)
          + privacy + trust + discovery
@@ -79,7 +81,7 @@ they want. But they can cooperate because they share:
 - A **directory** (UN -- where you find who does what)
 - A **reputation system** (track record, treaties, alliances)
 
-HERMES works exactly the same way:
+Amaru works exactly the same way:
 - Your **clan** = your country (your AI setup, your rules)
 - Your **messenger** = your ambassador (handles all external communication)
 - The **Agora** = the UN directory (where clans find each other)
@@ -107,7 +109,7 @@ connect to solve real problems together.**
          v        Gateway         v                        v
 +==================================================================+
 |                                                                  |
-|              HERMES SKILL GATEWAY                                |
+|              Amaru SKILL GATEWAY                                 |
 |              (the meeting point)                                 |
 |                                                                  |
 |  - Discovery: "I need a security audit" -> finds Company B      |
@@ -121,14 +123,14 @@ connect to solve real problems together.**
 
 Think of it like this:
 
-| Analogy | What it is | HERMES equivalent |
+| Analogy | What it is | Amaru equivalent |
 |---------|-----------|-------------------|
 | **LinkedIn** | People find professionals | Agora: clans find skills |
 | **Upwork** | People post jobs, freelancers bid | Quests: clans propose work |
 | **GitHub** | Developers share code, build reputation | Gateway: skills share work, earn Resonance |
 | **The internet itself** | Networks connect through routers | Clans connect through Gateways |
 
-But unlike all of those, HERMES is:
+But unlike all of those, Amaru is:
 - **Decentralized**: no single company controls the gateway
 - **Sovereign**: your internal data, skills, and processes stay YOURS
 - **AI-native**: your AI agents do the coordination, not you manually
@@ -184,7 +186,7 @@ separated from the DATA (the actual voice or video). You don't need
 a dedicated wire for signaling -- you can signal over any transport,
 even a shared medium.
 
-HERMES applies the same insight to AI agents:
+Amaru applies the same insight to AI agents:
 - The **signaling** between agents (who needs what, who can help,
   what's the status) doesn't need HTTP servers or cloud infrastructure.
 - Internally, each clan signals through a shared file (`bus.jsonl`)
@@ -197,7 +199,7 @@ your Gateway talks to another Gateway over a shared folder, over
 HTTP, or over a carrier pigeon -- the protocol (message format,
 quest lifecycle, attestation, reputation) stays the same.
 
-This is why HERMES has **two modes**:
+This is why Amaru has **two modes**:
 - **Sovereign** (file-based): you run everything yourself, zero
   infrastructure, full control. Like hosting your own email server.
 - **Hosted** (Hub): a managed service handles the transport,
@@ -209,14 +211,14 @@ transport can change. The protocol endures.
 
 ---
 
-## What is HERMES?
+## What is Amaru?
 
-HERMES is a communication protocol for AI agents. Think of it like TCP/IP,
+Amaru is a communication protocol for AI agents. Think of it like TCP/IP,
 but instead of computers sending packets over wires, AI agents send messages
 through shared files.
 
 ```
-Traditional networking:       HERMES:
+Traditional networking:       Amaru:
   Computer A                    Agent A
       |                             |
   [TCP/IP packet]              [JSON message]
@@ -261,7 +263,7 @@ Your clan
 
 ### 3. The Three Planes
 
-HERMES separates operations into three planes -- like a well-run
+Amaru separates operations into three planes -- like a well-run
 diplomatic service:
 
 ```
@@ -492,11 +494,11 @@ international treaty verification.
 - Git
 - A terminal
 
-### Step 1: Clone HERMES
+### Step 1: Clone Amaru
 
 ```bash
-git clone https://github.com/amaru-protocol/amaru.git
-cd hermes
+git clone https://github.com/dereyesm/amaru-protocol.git
+cd amaru-protocol
 ```
 
 ### Step 2: Install the reference implementation
@@ -511,7 +513,7 @@ cd ../..
 
 ```bash
 # Create your clan workspace
-hermes init --clan-id my-clan --display-name "My Clan"
+amaru init --clan-id my-clan --display-name "My Clan"
 ```
 
 This creates:
@@ -552,7 +554,7 @@ The profile lists your clan's capabilities using the ARC-2606 taxonomy:
 
 ```bash
 # Make your clan discoverable
-hermes publish
+amaru publish
 ```
 
 Your profile is now visible in the Agora public directory.
@@ -561,7 +563,7 @@ Your profile is now visible in the Agora public directory.
 
 ```bash
 # Add a peer
-hermes peer --clan-id momoshod
+amaru peer --clan-id momoshod
 
 # This exchanges hello/hello_ack messages:
 #   Your messenger -> bus -> Their messenger
@@ -572,14 +574,14 @@ hermes peer --clan-id momoshod
 
 ```bash
 # See pending messages from other clans
-hermes inbox --dir my-clan/
+amaru inbox --dir my-clan/
 ```
 
 ### Step 8: Send a message
 
 ```bash
 # Send a message to a peer
-hermes send --to momoshod --type state \
+amaru send --to momoshod --type state \
   --msg "Clan ready. cybersec-architect online."
 ```
 
@@ -646,7 +648,7 @@ print(dojo.get_leaderboard())
 
 ## Your Clan, Your Rules
 
-HERMES defines the **interfaces** between clans (message format, quest
+Amaru defines the **interfaces** between clans (message format, quest
 schema, profile format). Everything inside your clan is **your choice**:
 
 | You MUST implement | You are FREE to customize |
@@ -684,7 +686,7 @@ Clan Momosho D (Daniel)              Clan JEI (Jeimmy)
 Want to try something new? Create a parallel environment:
 
 ```bash
-# Fork HERMES for experiments
+# Fork Amaru for experiments
 git checkout -b huitaca-pqc-experiment
 
 # Try PQC-signed bus messages before it's standard
@@ -741,5 +743,5 @@ innovation feeds the commons.
 
 ---
 
-*HERMES is open source under MIT. Built by telecom engineers for the
+*Amaru is open source under MIT. Built by telecom engineers for the
 agent ecosystem.*

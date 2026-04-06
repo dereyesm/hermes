@@ -1,4 +1,6 @@
-# HERMES: Technical Positioning
+# Amaru: Technical Positioning
+
+> Amaru (formerly HERMES) — rebranded 2026-04-05.
 
 > Sovereign file-based communication and hosted Hub services -- one wire format, two deployment modes, for the multi-agent era.
 
@@ -16,15 +18,15 @@ This assumption excludes a significant class of deployments: developers running 
 
 These are not edge cases. They are the default operational mode for most AI agent deployments today.
 
-HERMES was designed for this reality -- and for the reality that comes after it. Some deployments will never need infrastructure. Others will eventually want managed services, SLAs, and turnkey onboarding. HERMES serves both through a dual-mode architecture: **Sovereign mode** for self-hosted, file-based communication, and **Hosted mode** for centralized Hub services. Same wire format. Same privacy model. Different operational profiles.
+Amaru was designed for this reality -- and for the reality that comes after it. Some deployments will never need infrastructure. Others will eventually want managed services, SLAs, and turnkey onboarding. Amaru serves both through a dual-mode architecture: **Sovereign mode** for self-hosted, file-based communication, and **Hosted mode** for centralized Hub services. Same wire format. Same privacy model. Different operational profiles.
 
 ---
 
 ## 2. Dual-Mode Architecture
 
-The core insight behind HERMES's architecture is borrowed from email. SMTP has been the universal mail transport protocol for four decades. You can run your own mail server (Sovereign) or use Gmail (Hosted). Both speak the same wire protocol. Both interoperate. The choice is operational, not architectural.
+The core insight behind Amaru's architecture is borrowed from email. SMTP has been the universal mail transport protocol for four decades. You can run your own mail server (Sovereign) or use Gmail (Hosted). Both speak the same wire protocol. Both interoperate. The choice is operational, not architectural.
 
-HERMES applies this pattern to agent communication:
+Amaru applies this pattern to agent communication:
 
 ### Sovereign Mode
 
@@ -57,13 +59,13 @@ The difference is transport:
 
 A Sovereign clan and a Hosted clan can communicate with each other. The Hub's gateway speaks the same peering protocol as any Sovereign gateway. From the perspective of the message format, the two modes are indistinguishable.
 
-This mirrors the email ecosystem precisely: a self-hosted Postfix server and a Gmail account exchange mail seamlessly because both speak SMTP. HERMES achieves the same interoperability because both modes speak ARC-5322 over ARC-3022 gateways.
+This mirrors the email ecosystem precisely: a self-hosted Postfix server and a Gmail account exchange mail seamlessly because both speak SMTP. Amaru achieves the same interoperability because both modes speak ARC-5322 over ARC-3022 gateways.
 
 ---
 
 ## 3. Sovereign Mode: File-Based Communication
 
-Sovereign mode is where HERMES's design philosophy is most visible. A complete Sovereign deployment requires:
+Sovereign mode is where Amaru's design philosophy is most visible. A complete Sovereign deployment requires:
 
 1. A JSONL file (`bus.jsonl`) -- the message bus
 2. A markdown file (`routes.md`) -- the routing table
@@ -85,7 +87,7 @@ This is not a simplified example for documentation purposes. This is the actual 
 
 **Instant deployment.** The time from "I want my agents to coordinate" to "my agents are coordinating" is the time it takes to create a file. No infrastructure provisioning, no service mesh configuration, no API key generation.
 
-**Universal compatibility.** Every programming language, every operating system, and every AI framework can read and write files. HERMES has no language-specific SDK requirement. The Python reference implementation exists for convenience and validation, but the protocol is defined by its file format, not by any library.
+**Universal compatibility.** Every programming language, every operating system, and every AI framework can read and write files. Amaru has no language-specific SDK requirement. The Python reference implementation exists for convenience and validation, but the protocol is defined by its file format, not by any library.
 
 ### Privacy as Architecture
 
@@ -93,7 +95,7 @@ The second structural advantage of Sovereign mode is organizational privacy. A2A
 
 Inside an organization, agents handle sensitive data: financial projections, legal documents, personnel records, strategic plans. The agent that manages legal review should not be discoverable by the agent that handles marketing campaigns. The financial planning agent's messages should not be readable by the engineering deployment agent. These are not hypothetical concerns -- they are the first requirement any enterprise security team will raise when evaluating agent coordination protocols.
 
-HERMES was designed with this constraint from the beginning. ARC-1918 (Private Spaces & Firewall), modeled after RFC 1918's private IP address ranges, defines namespace isolation as a core protocol feature, not an optional extension:
+Amaru was designed with this constraint from the beginning. ARC-1918 (Private Spaces & Firewall), modeled after RFC 1918's private IP address ranges, defines namespace isolation as a core protocol feature, not an optional extension:
 
 - **Namespaces are isolated by default.** An agent in namespace `legal` cannot read messages addressed to namespace `finance`. The bus carries messages for all namespaces, but agents filter by destination -- and the routing table enforces which namespaces each agent process can access.
 
@@ -143,9 +145,9 @@ This is the Gmail model: Google operates the SMTP infrastructure, but you can ex
 
 ## 5. Bridge Framework
 
-No protocol will win the agent communication landscape alone. The future is heterogeneous, and HERMES is designed for that. The gateway ([ARC-3022](../spec/ARC-3022.md), Section 11.5) is explicitly specified as a protocol bridge, not just a privacy boundary. Its architecture follows the 3GPP Service-Based Architecture pattern (TS 23.501), where Network Functions expose standardized service interfaces regardless of internal implementation.
+No protocol will win the agent communication landscape alone. The future is heterogeneous, and Amaru is designed for that. The gateway ([ARC-3022](../spec/ARC-3022.md), Section 11.5) is explicitly specified as a protocol bridge, not just a privacy boundary. Its architecture follows the 3GPP Service-Based Architecture pattern (TS 23.501), where Network Functions expose standardized service interfaces regardless of internal implementation.
 
-In HERMES, the gateway can:
+In Amaru, the gateway can:
 
 1. **Receive an A2A JSON-RPC request** from an external agent network
 2. **Translate** the request to an Amaru bus message, mapping A2A Agent Card fields to the internal profile schema (ARC-2606)
@@ -162,23 +164,23 @@ The same gateway architecture supports MCP bridging:
 - MCP `prompts[]` map to message templates
 - The gateway exposes an MCP-compatible interface externally while routing to Amaru agents internally
 
-This means adopting HERMES does not require abandoning existing protocols. Run HERMES internally for privacy-first coordination, expose selected agents via A2A externally, and use MCP for tool binding -- all through the same gateway. Bridge capability works identically in both Sovereign and Hosted modes -- the gateway performs protocol translation regardless of who operates it.
+This means adopting Amaru does not require abandoning existing protocols. Run Amaru internally for privacy-first coordination, expose selected agents via A2A externally, and use MCP for tool binding -- all through the same gateway. Bridge capability works identically in both Sovereign and Hosted modes -- the gateway performs protocol translation regardless of who operates it.
 
 ---
 
 ## 6. Research Vehicle
 
-Beyond its operational roles, HERMES serves as a research vehicle for applying telecom engineering concepts to agent communication. Several of these concepts may prove valuable to the broader protocol ecosystem regardless of whether HERMES itself achieves widespread adoption.
+Beyond its operational roles, Amaru serves as a research vehicle for applying telecom engineering concepts to agent communication. Several of these concepts may prove valuable to the broader protocol ecosystem regardless of whether Amaru itself achieves widespread adoption.
 
-**Control and User Plane Separation (CUPS).** Borrowed from 3GPP TS 23.214, HERMES separates the user plane (bus.jsonl -- message transit) from the control plane (routes.md, firewall rules, namespace configuration). This separation, well-established in mobile networks where it enables independent scaling of signaling and data forwarding, has not been formally applied to agent communication protocols. The hypothesis is that CUPS separation enables more efficient bus scaling: the control plane changes rarely (routing decisions, policy updates) while the user plane changes constantly (messages in transit).
+**Control and User Plane Separation (CUPS).** Borrowed from 3GPP TS 23.214, Amaru separates the user plane (bus.jsonl -- message transit) from the control plane (routes.md, firewall rules, namespace configuration). This separation, well-established in mobile networks where it enables independent scaling of signaling and data forwarding, has not been formally applied to agent communication protocols. The hypothesis is that CUPS separation enables more efficient bus scaling: the control plane changes rarely (routing decisions, policy updates) while the user plane changes constantly (messages in transit).
 
 **Shannon Constraint.** ARC-5322 imposes a 120-character maximum on message payloads -- a deliberate information-theoretic constraint that forces agents to decompose complex state changes into atomic messages, each carrying a single coherent signal. This atomicity simplifies bus processing, enables parallel consumption, and keeps the message stream human-auditable.
 
-**Dual Trust Metrics.** HERMES decomposes reputation into two independent metrics: Bounty (internal, measuring an agent's contribution within its clan) and Resonance (external, measuring attestations received from other clans). This decomposition reflects a structural reality that single-metric reputation systems conflate: an agent can be highly effective internally but unknown externally, or widely attested externally but underperforming internally. The dual-metric approach is inspired by telecom's separation of internal QoS metrics (frame error rate, jitter) from inter-carrier SLA metrics (availability, throughput commitments).
+**Dual Trust Metrics.** Amaru decomposes reputation into two independent metrics: Bounty (internal, measuring an agent's contribution within its clan) and Resonance (external, measuring attestations received from other clans). This decomposition reflects a structural reality that single-metric reputation systems conflate: an agent can be highly effective internally but unknown externally, or widely attested externally but underperforming internally. The dual-metric approach is inspired by telecom's separation of internal QoS metrics (frame error rate, jitter) from inter-carrier SLA metrics (availability, throughput commitments).
 
 **Adaptive Topology.** The Evolution Plan (Phase 4) investigates topology transitions -- from star (small clans) to hierarchical (medium, inspired by 3GPP RAN) to mesh (large, inspired by BGP autonomous systems) -- negotiated through bus signaling rather than manual reconfiguration.
 
-These concepts are documented in formal specs, implemented in reference code, and designed to be testable with reproducible benchmarks using open datasets (Ookla, M-Lab, CAIDA). Even if HERMES as a protocol does not achieve broad adoption, these research contributions can inform the design of future protocols.
+These concepts are documented in formal specs, implemented in reference code, and designed to be testable with reproducible benchmarks using open datasets (Ookla, M-Lab, CAIDA). Even if Amaru as a protocol does not achieve broad adoption, these research contributions can inform the design of future protocols.
 
 ---
 
@@ -186,7 +188,7 @@ These concepts are documented in formal specs, implemented in reference code, an
 
 The following table compares protocol capabilities across the dimensions that matter for deployment decisions. No protocol excels at everything. The comparison is intended to show where each protocol fits, not to rank them.
 
-| Capability | MCP | A2A | Ecma NLIP | SLIM | ANP | HERMES |
+| Capability | MCP | A2A | Ecma NLIP | SLIM | ANP | Amaru |
 |-----------|-----|-----|-----------|------|-----|--------|
 | **Primary scope** | Model-to-Tools | Agent-to-Agent | Multimodal envelope | Real-time messaging | Discovery + DIDs | Sovereign + Hosted dual-mode |
 | **Transport** | stdio, HTTP | HTTP/2, gRPC, SSE | HTTP, WS, AMQP | gRPC + MLS | HTTP, JSON-LD | Filesystem (JSONL) / HTTPS (Hub) |
@@ -208,7 +210,7 @@ The following table compares protocol capabilities across the dimensions that ma
 - **Ecma NLIP**: When formal standards compliance is required, especially for multimodal (text + image + audio) agent interactions.
 - **SLIM**: When agents need real-time group communication with end-to-end encryption (MLS).
 - **ANP**: When decentralized agent discovery is the primary requirement, especially across organizational boundaries.
-- **HERMES**: When you need full data sovereignty with zero infrastructure (Sovereign mode), when you want managed agent coordination with SLAs and turnkey onboarding (Hosted mode), when communication must stay inside organizational boundaries (both modes), or when multiple protocols need to be bridged through a single boundary component (gateway).
+- **Amaru**: When you need full data sovereignty with zero infrastructure (Sovereign mode), when you want managed agent coordination with SLAs and turnkey onboarding (Hosted mode), when communication must stay inside organizational boundaries (both modes), or when multiple protocols need to be bridged through a single boundary component (gateway).
 
 ---
 
@@ -273,4 +275,4 @@ The following table compares protocol capabilities across the dimensions that ma
 
 ---
 
-*HERMES is released under the [MIT License](../LICENSE). Repository: [github.com/amaru-protocol/amaru](https://github.com/amaru-protocol/amaru)*
+*Amaru is released under the [MIT License](../LICENSE). Repository: [github.com/dereyesm/amaru-protocol](https://github.com/dereyesm/amaru-protocol)*

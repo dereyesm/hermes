@@ -1,25 +1,25 @@
-# HERMES Architecture Guide
+# Amaru Architecture Guide
 
-A visual guide to the Amaru protocol stack.
+A visual guide to the Amaru (formerly HERMES) protocol stack.
 
 ## The 5-Layer Stack
 
 <p align="center">
-  <img src="diagrams/d2/five-layer-stack.svg" alt="HERMES 5-layer protocol stack" width="800"/>
+  <img src="diagrams/d2/five-layer-stack.svg" alt="Amaru 5-layer protocol stack" width="800"/>
 </p>
 
 ## Message Lifecycle
 
 <p align="center">
-  <img src="diagrams/d2/message-lifecycle.svg" alt="HERMES message lifecycle" width="600"/>
+  <img src="diagrams/d2/message-lifecycle.svg" alt="Amaru message lifecycle" width="600"/>
 </p>
 
 ## Namespace Topology
 
-HERMES uses a **star topology** with the controller at the center:
+Amaru uses a **star topology** with the controller at the center:
 
 <p align="center">
-  <img src="diagrams/d2/namespace-topology.svg" alt="HERMES star topology with controller hub" width="600"/>
+  <img src="diagrams/d2/namespace-topology.svg" alt="Amaru star topology with controller hub" width="600"/>
 </p>
 
 **Key rules**:
@@ -31,26 +31,26 @@ HERMES uses a **star topology** with the controller at the center:
 ## Firewall Model
 
 <p align="center">
-  <img src="diagrams/d2/firewall-model.svg" alt="HERMES firewall model with namespace isolation" width="700"/>
+  <img src="diagrams/d2/firewall-model.svg" alt="Amaru firewall model with namespace isolation" width="700"/>
 </p>
 
 ## Session Lifecycle (SYN/FIN)
 
 <p align="center">
-  <img src="diagrams/d2/session-lifecycle.svg" alt="HERMES session lifecycle (SYN/FIN)" width="700"/>
+  <img src="diagrams/d2/session-lifecycle.svg" alt="Amaru session lifecycle (SYN/FIN)" width="700"/>
 </p>
 
 ## Control Plane vs Data Plane
 
 <p align="center">
-  <img src="diagrams/d2/control-vs-data-plane.svg" alt="HERMES control plane vs data plane separation" width="700"/>
+  <img src="diagrams/d2/control-vs-data-plane.svg" alt="Amaru control plane vs data plane separation" width="700"/>
 </p>
 
-HERMES is a **signaling protocol**, not a data protocol. Like SS7 in telecom networks, it carries the coordination messages that tell agents where to work and what changed — but the actual work happens outside the bus.
+Amaru is a **signaling protocol**, not a data protocol. Like SS7 in telecom networks, it carries the coordination messages that tell agents where to work and what changed — but the actual work happens outside the bus.
 
 ## File System Layout
 
-A typical HERMES deployment:
+A typical Amaru deployment:
 
 ```
 ~/.amaru/                          # or any root directory
@@ -96,12 +96,12 @@ See [ARC-3022](../spec/ARC-3022.md) for the full specification.
 ## Dual Reputation Model
 
 <p align="center">
-  <img src="diagrams/d2/dual-reputation.svg" alt="HERMES dual reputation model — Bounty vs Resonance" width="600"/>
+  <img src="diagrams/d2/dual-reputation.svg" alt="Amaru dual reputation model — Bounty vs Resonance" width="600"/>
 </p>
 
 ## Compact Wire Format (ARC-5322 §14)
 
-HERMES supports a **dual-mode wire format**: verbose (JSON objects) and compact (JSON arrays). Both are valid JSON, readable by standard tools, and can coexist on the same bus.
+Amaru supports a **dual-mode wire format**: verbose (JSON objects) and compact (JSON arrays). Both are valid JSON, readable by standard tools, and can coexist on the same bus.
 
 ### Verbose vs Compact
 
@@ -132,8 +132,8 @@ The bus auto-detects format by the first character of each line (`{` = verbose, 
 ### CLI Support
 
 ```bash
-hermes bus --compact      # Output all messages in compact format
-hermes bus --expand       # Output all messages in verbose format
+amaru bus --compact      # Output all messages in compact format
+amaru bus --expand       # Output all messages in verbose format
 cat bus.jsonl | python -m amaru.message --compact   # Convert to compact
 cat bus.jsonl | python -m amaru.message --expand    # Convert to verbose
 ```
@@ -150,17 +150,17 @@ Encrypted messages also support compact representation:
 Auto-detection by array length: 5 = static, 6 = ECDHE with forward secrecy.
 
 <p align="center">
-  <img src="diagrams/d2/compact-wire-format.svg" alt="HERMES compact wire format comparison" width="700"/>
+  <img src="diagrams/d2/compact-wire-format.svg" alt="Amaru compact wire format comparison" width="700"/>
 </p>
 
 See [ARC-5322 §14](../spec/ARC-5322.md) and [ATR-G.711](../spec/ATR-G711.md) for the full specification and efficiency analysis.
 
 ## Installer & Claude Code Integration
 
-The `installer` module ([`reference/python/hermes/installer.py`](../reference/python/hermes/installer.py)) provides one-command setup for the full HERMES stack:
+The `installer` module ([`reference/python/amaru/installer.py`](../reference/python/amaru/installer.py)) provides one-command setup for the full Amaru stack:
 
 ```
-hermes install --clan-id <id> --display-name <name>
+amaru install --clan-id <id> --display-name <name>
        │
        ├─ 1. init_clan_if_needed()     → ~/.amaru/gateway.json + bus.jsonl
        ├─ 2. generate_keypair()        → ~/.amaru/.keys/<id>.key (Ed25519 + X25519)
@@ -175,15 +175,15 @@ hermes install --clan-id <id> --display-name <name>
 | Platform | Mechanism | Path |
 |----------|-----------|------|
 | macOS | LaunchAgent plist | `~/Library/LaunchAgents/com.amaru.agent-node.plist` |
-| Linux | systemd user unit | `~/.config/systemd/user/hermes-agent.service` |
-| Windows | Scheduled task | `HermesAgentNode` (schtasks) |
+| Linux | systemd user unit | `~/.config/systemd/user/amaru-agent.service` |
+| Windows | Scheduled task | `AmaruAgentNode` (schtasks) |
 
-**Claude Code hooks** ([`hooks.py`](../reference/python/hermes/hooks.py)):
+**Claude Code hooks** ([`hooks.py`](../reference/python/amaru/hooks.py)):
 
 | Hook | Event | Behavior |
 |------|-------|----------|
 | `pull_on_start` | `SessionStart` | Shows pending bus messages as `systemMessage` |
-| `pull_on_prompt` | `UserPromptSubmit` | Activates on `/hermes` prefixed prompts |
+| `pull_on_prompt` | `UserPromptSubmit` | Activates on `/amaru` prefixed prompts |
 | `exit_reminder` | `Stop` | Reminds about unacked messages |
 
 Hooks are cross-platform (no bash dependency), invoked as `python -m amaru.hooks <cmd>`.
@@ -192,7 +192,7 @@ Hooks are cross-platform (no bash dependency), invoked as `python -m amaru.hooks
 
 ## Adapter Pattern — Agent-Agnostic Bridge
 
-The **Adapter** ([`adapter.py`](../reference/python/hermes/adapter.py)) bridges HERMES's canonical filesystem structure (`~/.amaru/`) to each AI assistant's native config format.
+The **Adapter** ([`adapter.py`](../reference/python/amaru/adapter.py)) bridges Amaru's canonical filesystem structure (`~/.amaru/`) to each AI assistant's native config format.
 
 **Claude Code Adapter** reads `~/.amaru/config.toml` and generates:
 
@@ -206,8 +206,8 @@ The **Adapter** ([`adapter.py`](../reference/python/hermes/adapter.py)) bridges 
 ```
 
 ```bash
-hermes adapt claude-code                    # default paths
-hermes adapt claude-code --hermes-dir /opt/hermes --target-dir ~/.claude
+amaru adapt claude-code                    # default paths
+amaru adapt claude-code --amaru-dir /opt/amaru --target-dir ~/.claude
 ```
 
 Adapters are idempotent (safe to re-run) and follow the contract in [installable-model.md](architecture/installable-model.md).
@@ -217,7 +217,7 @@ Adapters are idempotent (safe to re-run) and follow the contract in [installable
 | Adapter | Target | Output Strategy | Command |
 |---------|--------|----------------|---------|
 | Claude Code | `~/.claude/` | Symlinks + CLAUDE.md | `amaru adapt claude-code` |
-| Cursor | Project root | Compiled `.cursorrules` (HERMES markers) | `amaru adapt cursor` |
+| Cursor | Project root | Compiled `.cursorrules` (Amaru:BEGIN/END markers) | `amaru adapt cursor` |
 | OpenCode | `~/.config/opencode/` | AGENTS.md + opencode.json merge + symlinks | `amaru adapt opencode` |
 | Gemini CLI | `~/.gemini/` | GEMINI.md + settings.json merge + symlinks | `amaru adapt gemini` |
 
@@ -225,7 +225,7 @@ Auto-detect and adapt all: `amaru adapt --all`. List available: `amaru adapt --l
 
 ## Token Telemetry
 
-The **Telemetry** module ([`llm/telemetry.py`](../reference/python/hermes/llm/telemetry.py)) monitors token usage across LLM providers in real time.
+The **Telemetry** module ([`llm/telemetry.py`](../reference/python/amaru/llm/telemetry.py)) monitors token usage across LLM providers in real time.
 
 - **TokenTracker**: Records `input_tokens`, `output_tokens`, and estimates cost per call
 - **COST_PER_MTOK**: Built-in pricing table for 10 models (Claude, Gemini, OpenAI)
@@ -235,7 +235,7 @@ The **Telemetry** module ([`llm/telemetry.py`](../reference/python/hermes/llm/te
 
 ## Agent Service Platform (ARC-0369)
 
-The **ASP** ([`asp.py`](../reference/python/hermes/asp.py)) extends the daemon with structured agent management:
+The **ASP** ([`asp.py`](../reference/python/amaru/asp.py)) extends the daemon with structured agent management:
 
 - **F1 Bus Convergence**: `MessageClassifier` categorizes every bus message as `internal`, `outbound`, `inbound`, or `expired`. Internal-only namespaces are enforced. Source integrity is verified.
 - **F2 Agent Registration**: `AgentRegistry` loads declarative agent profiles from `agents/*.json`. Each profile declares capabilities, dispatch rules (event-driven or scheduled), resource limits, and approval gates.
@@ -244,16 +244,16 @@ The **ASP** ([`asp.py`](../reference/python/hermes/asp.py)) extends the daemon w
 - **F5 Notification Flow**: `NotificationThrottler` enforces max 5 notifications/min/source with suppression rules for dispatch results, `data_cross`, and `state` messages.
 
 ```bash
-hermes agent list       # list registered agents
-hermes agent show <id>  # show agent profile JSON
-hermes agent validate   # validate all profiles
+amaru agent list       # list registered agents
+amaru agent show <id>  # show agent profile JSON
+amaru agent validate   # validate all profiles
 ```
 
 See [ARC-0369](../spec/ARC-0369.md) for the full specification.
 
 ## Bus Integrity (ARC-9001)
 
-The **Bus Integrity Protocol** ([`integrity.py`](../reference/python/hermes/integrity.py)) provides message sequencing and write ownership for the Amaru bus:
+The **Bus Integrity Protocol** ([`integrity.py`](../reference/python/amaru/integrity.py)) provides message sequencing and write ownership for the Amaru bus:
 
 - **F1 Message Sequencing**: `SequenceTracker` assigns monotonic `seq` numbers per source namespace. Detects gaps (missing messages) and duplicates (replay). Inspired by SS7 FSN/BSN (ITU-T Q.703 §5.2).
 - **F2 Write Ownership**: `OwnershipRegistry` maps namespaces to authorized writers. Only the registered owner can write `src=namespace`. Default: daemon owns all local namespaces; ASP agents get ownership of their namespace.
@@ -266,7 +266,7 @@ See [ARC-9001](../spec/ARC-9001.md) for the full specification.
 
 ## Hub Mode (ARC-4601 §15)
 
-The **Hub** ([`hub.py`](../reference/python/hermes/hub.py)) extends the Agent Node with a server mode that routes encrypted messages between peer daemons:
+The **Hub** ([`hub.py`](../reference/python/amaru/hub.py)) extends the Agent Node with a server mode that routes encrypted messages between peer daemons:
 
 - **WebSocket transport**: Bidirectional messaging over a single TCP connection (RFC 6455)
 - **Ed25519 challenge-response auth**: Peers authenticate using existing ARC-8446 keys — no new crypto
@@ -278,11 +278,11 @@ The **Hub** ([`hub.py`](../reference/python/hermes/hub.py)) extends the Agent No
 The Hub is a **routing convenience, not a trust boundary** — ARC-8446 E2E encryption ensures the Hub cannot see message content. Phase B (§16 DRAFT) adds optional P2P tunnels using Noise IK for direct peer connectivity.
 
 ```bash
-hermes hub init        # bootstrap hub-peers.json from peer registry
-hermes hub start       # start Hub server (--foreground for interactive)
-hermes hub stop        # graceful shutdown
-hermes hub status      # show PID, uptime, messages routed
-hermes hub peers       # list registered peers
+amaru hub init        # bootstrap hub-peers.json from peer registry
+amaru hub start       # start Hub server (--foreground for interactive)
+amaru hub stop        # graceful shutdown
+amaru hub status      # show PID, uptime, messages routed
+amaru hub peers       # list registered peers
 ```
 
 See [ARC-4601 §15](../spec/ARC-4601.md) for the full specification.

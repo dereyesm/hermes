@@ -1,18 +1,18 @@
-# HERMES Manifesto — Technology with Soul
+# Amaru Manifesto — Technology with Soul
 
 > *Technology with soul frees your time so you can share, create art, build community, look each other in the eyes again, and smile.*
 
 ---
 
-## Why HERMES Exists
+## Why Amaru Exists
 
 The AI revolution is creating a new divide. Not between those who have computers and those who don't — but between those who can orchestrate AI agents and those who can't. Between organizations with engineering teams that build agent infrastructure and individuals who are left consuming whatever platforms offer them.
 
-HERMES exists to close that gap.
+Amaru (formerly HERMES) exists to close that gap.
 
 Not by building another platform. By building an open protocol that any human can use to coordinate AI agents — with nothing more than a text file on a filesystem. No servers. No subscriptions. No gatekeepers.
 
-**The mission**: Every human who wants to grow — in skills, in knowledge, in purpose, in service — should be able to do so with AI as a companion, not a master. HERMES provides the communication layer that makes this possible.
+**The mission**: Every human who wants to grow — in skills, in knowledge, in purpose, in service — should be able to do so with AI as a companion, not a master. Amaru provides the communication layer that makes this possible.
 
 ---
 
@@ -20,7 +20,7 @@ Not by building another platform. By building an open protocol that any human ca
 
 Human growth is not a ladder. It is a world.
 
-Inspired by Maslow's hierarchy but liberated from its linearity, HERMES maps growth into five **realms** — interconnected territories that every human navigates in their own order, at their own pace, returning to earlier realms as life demands.
+Inspired by Maslow's hierarchy but liberated from its linearity, Amaru maps growth into five **realms** — interconnected territories that every human navigates in their own order, at their own pace, returning to earlier realms as life demands.
 
 ```
                         ┌─────────────────┐
@@ -107,11 +107,11 @@ Realm 5 is not the end. Guides return to earlier realms — because life changes
 
 ---
 
-## How HERMES Enables This
+## How Amaru Enables This
 
-HERMES is not a game. It is communication infrastructure that happens to map naturally to a growth framework:
+Amaru is not a game. It is communication infrastructure that happens to map naturally to a growth framework:
 
-| HERMES Concept | RPG Equivalent | Human Growth |
+| Amaru Concept | RPG Equivalent | Human Growth |
 |----------------|----------------|--------------|
 | **Namespace** | Character | Your identity and workspace |
 | **Clan** | Guild | Your community of practice |
@@ -126,7 +126,7 @@ HERMES is not a game. It is communication infrastructure that happens to map nat
 
 ### The Protocol is the Platform
 
-HERMES does not run on a server you don't control. It runs on your filesystem. Your data is yours. Your clan is yours. Your growth record is yours. You can verify every message with `cat bus.jsonl`. You can move your entire identity to a new computer with `cp -r ~/.amaru/ /new/machine/`.
+Amaru does not run on a server you don't control. It runs on your filesystem. Your data is yours. Your clan is yours. Your growth record is yours. You can verify every message with `cat bus.jsonl`. You can move your entire identity to a new computer with `cp -r ~/.amaru/ /new/machine/`.
 
 This is sovereignty. Not as ideology — as architecture.
 
@@ -142,19 +142,19 @@ The most important design principle: **the AI companion becomes less present as 
 | 4 — Mastery | **Assistant** | Human leads, AI supports on request |
 | 5 — Service | **Tool** | Human guides others, AI handles logistics |
 
-A system that makes you permanently dependent on it is not serving you — it is extracting from you. HERMES is designed to make itself less necessary over time. That is technology with soul.
+A system that makes you permanently dependent on it is not serving you — it is extracting from you. Amaru is designed to make itself less necessary over time. That is technology with soul.
 
 ---
 
 ## The Social Contract
 
-HERMES is open source (MIT). But open source is a license, not a promise. This is the promise:
+Amaru is open source (MIT). But open source is a license, not a promise. This is the promise:
 
 1. **No human is classified by tier or value.** Realm 1 players are not "lower" than Realm 5. They are earlier in their current chapter.
 2. **No community is told what growth looks like.** Each clan defines its own realm map. A clan in Lagos, a clan in Bogota, and a clan in Tokyo may have entirely different quests for the same realm.
 3. **No progression is monetized.** XP is not currency. Levels are not paywalled. Growth is not a product.
 4. **No data is extracted.** Your bus, your keys, your identity — all local, all yours, all verifiable.
-5. **No AI replaces human connection.** HERMES facilitates communication between humans. The agents are companions, not substitutes.
+5. **No AI replaces human connection.** Amaru facilitates communication between humans. The agents are companions, not substitutes.
 
 ---
 
@@ -163,14 +163,14 @@ HERMES is open source (MIT). But open source is a license, not a promise. This i
 This manifesto is a compass, not a map. The map emerges as we build:
 
 - [ ] **QUEST-000** — The first universal quest: install, communicate, receive. Three doors of entry.
-- [ ] **ETHICS.md** — The anti-patterns. What HERMES will never do.
+- [ ] **ETHICS.md** — The anti-patterns. What Amaru will never do.
 - [ ] **ARC-SOCIAL** — Formal spec: realms, transitions, quest structure, XP semantics.
 - [ ] **Realm maps** — Community-defined growth paths, starting with Clan DANI and Clan JEI.
 - [ ] **Governance Council** — When 5+ clans are active, representatives define shared ethics and standards.
-- [ ] **Non-CLI interfaces** — HERMES cannot serve humanity if it only speaks terminal. Mobile, web, voice — the bus is the same, the interface adapts.
+- [ ] **Non-CLI interfaces** — Amaru cannot serve humanity if it only speaks terminal. Mobile, web, voice — the bus is the same, the interface adapts.
 
 ---
 
 *"The technology that frees your time so you can dedicate it to sharing, to art, to the collective, to looking each other in the eyes and smiling again."*
 
-*That is HERMES. That is technology with soul.*
+*That is Amaru. That is technology with soul.*

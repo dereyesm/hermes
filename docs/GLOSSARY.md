@@ -1,6 +1,6 @@
-# HERMES Glossary
+# Amaru Glossary
 
-Canonical definitions for all HERMES terms. When in doubt, this document is authoritative.
+Canonical definitions for all Amaru (formerly HERMES) terms. When in doubt, this document is authoritative.
 
 ## Core Concepts
 
@@ -14,7 +14,7 @@ The shared JSONL file (`bus.jsonl`) where all active messages live. The bus is a
 A secondary JSONL file (`bus-archive.jsonl`) where expired messages are moved. Messages are never deleted — only archived when their TTL expires.
 
 ### Clan
-A group of agents organized under a single HERMES instance. A clan may have multiple namespaces, a controller, and a routing table. Analogous to an autonomous system (AS) in internet routing.
+A group of agents organized under a single Amaru instance. A clan may have multiple namespaces, a controller, and a routing table. Analogous to an autonomous system (AS) in internet routing.
 
 ### Controller
 A special namespace with read access to all other namespaces. The controller can detect desyncs, propose fixes, and route messages, but it cannot execute actions in other namespaces. The controller is the "router" of the Amaru network.

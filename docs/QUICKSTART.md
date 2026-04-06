@@ -1,6 +1,6 @@
-# Quickstart: Deploy HERMES in 5 Minutes
+# Quickstart: Deploy Amaru in 5 Minutes
 
-Set up a working HERMES instance for your team of AI agents.
+Set up a working Amaru (formerly HERMES) instance for your team of AI agents.
 
 ## Prerequisites
 
@@ -11,8 +11,8 @@ Set up a working HERMES instance for your team of AI agents.
 ## Step 1: Create the Directory Structure
 
 ```bash
-mkdir -p ~/.hermes
-cd ~/.hermes
+mkdir -p ~/.amaru
+cd ~/.amaru
 ```
 
 ## Step 2: Create the Bus
@@ -91,7 +91,7 @@ done
 
 ## Step 6: Instruct Your Agents
 
-Add HERMES instructions to each agent's system prompt or configuration file. The core instructions are:
+Add Amaru instructions to each agent's system prompt or configuration file. The core instructions are:
 
 ```
 ## Amaru Protocol
@@ -117,7 +117,7 @@ Message format (one JSON object per line):
 Test the bus by writing a message directly:
 
 ```bash
-echo '{"ts":"2026-01-01","src":"controller","dst":"*","type":"event","msg":"hermes_instance_initialized. welcome_to_the_network","ttl":7,"ack":[]}' >> ~/.amaru/bus.jsonl
+echo '{"ts":"2026-01-01","src":"controller","dst":"*","type":"event","msg":"amaru_instance_initialized. welcome_to_the_network","ttl":7,"ack":[]}' >> ~/.amaru/bus.jsonl
 ```
 
 Now start a session in any namespace — the agent should pick up this message during SYN.
@@ -129,7 +129,7 @@ Now start a session in any namespace — the agent should pick up this message d
 cat ~/.amaru/bus.jsonl | python -m json.tool --no-ensure-ascii
 
 # If using the reference implementation:
-cd /path/to/hermes/reference/python
+cd /path/to/amaru-protocol/reference/python
 pip install -e .
 python -c "
 from amaru.bus import read_bus
@@ -154,6 +154,8 @@ HERMES_BUS=examples/bus-sample.jsonl python examples/simple_agent.py engineering
 python examples/simple_agent.py [your-namespace]
 ```
 
+> Note: `HERMES_BUS` is the legacy env var name still read by `examples/simple_agent.py`. It will be renamed to `AMARU_BUS` in a future release. The canonical clan directory env var (used by `amaru` CLI and MCP server) is `AMARU_DIR`.
+
 The example agent (`examples/simple_agent.py`) is a working template — copy it and adapt the WORK phase for your own logic.
 
 ## Automated Setup
@@ -164,7 +166,7 @@ Instead of steps 1-8 above, run:
 
 ```bash
 cd reference/python && pip install -e .
-hermes install --clan-id my-clan --display-name "My Clan"
+amaru install --clan-id my-clan --display-name "My Clan"
 ```
 
 What it does:
@@ -181,34 +183,34 @@ What it does:
 All steps are idempotent — safe to re-run. To reverse:
 
 ```bash
-hermes uninstall              # stop + remove service (keeps ~/.hermes data)
-hermes uninstall --purge      # also remove ~/.hermes and all keys
-hermes uninstall --keep-hooks # remove service but preserve Claude Code hooks
+amaru uninstall              # stop + remove service (keeps ~/.amaru data)
+amaru uninstall --purge      # also remove ~/.amaru and all keys
+amaru uninstall --keep-hooks # remove service but preserve Claude Code hooks
 ```
 
 ### Step 2 — Connect to your AI agent
 
-After installing, surface HERMES config to your AI coding agent:
+After installing, surface Amaru config to your AI coding agent:
 
 ```bash
-hermes adapt --list              # see available adapters (auto-detects installed agents)
-hermes adapt claude-code         # for Claude Code → generates ~/.claude/
-hermes adapt gemini              # for Gemini CLI → generates ~/.gemini/GEMINI.md
-hermes adapt cursor              # for Cursor → generates .cursorrules
-hermes adapt opencode            # for OpenCode → generates ~/.config/opencode/
-hermes adapt --all               # adapt all detected agents at once
+amaru adapt --list              # see available adapters (auto-detects installed agents)
+amaru adapt claude-code         # for Claude Code → generates ~/.claude/
+amaru adapt gemini              # for Gemini CLI → generates ~/.gemini/GEMINI.md
+amaru adapt cursor              # for Cursor → generates .cursorrules
+amaru adapt opencode            # for OpenCode → generates ~/.config/opencode/
+amaru adapt --all               # adapt all detected agents at once
 ```
 
-Each adapter reads `~/.amaru/` and generates the agent's native config format. Idempotent — safe to re-run whenever your HERMES config changes.
+Each adapter reads `~/.amaru/` and generates the agent's native config format. Idempotent — safe to re-run whenever your Amaru config changes.
 
 ### Step 3 — Monitor token usage (optional)
 
 Track your LLM token consumption across all providers:
 
 ```bash
-hermes llm usage                  # show usage dashboard
-hermes llm usage --backend claude # filter by provider
-hermes llm usage --export csv     # export for analysis
+amaru llm usage                  # show usage dashboard
+amaru llm usage --backend claude # filter by provider
+amaru llm usage --export csv     # export for analysis
 ```
 
 Telemetry is recorded automatically when using `AdapterManager.complete()`.
@@ -217,13 +219,13 @@ Telemetry is recorded automatically when using `AdapterManager.complete()`.
 
 ```bash
 # Default namespaces (controller, engineering, operations, finance):
-bash scripts/init_hermes.sh
+bash scripts/init_amaru.sh
 
 # Custom namespaces for your team:
-bash scripts/init_hermes.sh sales engineering support
+bash scripts/init_amaru.sh sales engineering support
 
 # Custom location:
-HERMES_HOME=/path/to/shared/dir bash scripts/init_hermes.sh
+AMARU_HOME=/path/to/shared/dir bash scripts/init_amaru.sh
 ```
 
 This creates the directory structure, bus files, routing table template, and namespace configs. Safe to re-run. Does not install OS services or Claude Code hooks.
@@ -234,13 +236,13 @@ If you want to receive messages from other clans in real-time:
 
 ```bash
 # Initialize hub peers from your peer registry
-hermes hub init
+amaru hub init
 
 # Install hub + listener as persistent services (survives reboot)
-hermes hub install
+amaru hub install
 
 # Verify
-hermes hub status
+amaru hub status
 ```
 
 The hub runs a WebSocket server on port 8443 and the listener delivers incoming messages to your AI agent via the `hub_inject` hook. See the [Hub Operations Guide](hub-operations.md) for details.

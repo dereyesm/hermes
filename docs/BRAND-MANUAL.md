@@ -1,10 +1,12 @@
-# HERMES — Brand Manual
+# Amaru — Brand Manual
 
 > *The protocol is the value, not the pipe.*
 
-**Version**: 1.0
-**Date**: 2026-03-08
+**Version**: 1.1
+**Date**: 2026-04-06
 **Classification**: Public
+
+> Amaru (formerly HERMES) — rebranded 2026-04-05.
 
 ---
 
@@ -12,12 +14,13 @@
 
 ### 1.1 Name
 
-**HERMES** — Named after the Greek messenger god who crosses boundaries between worlds. The name encodes the protocol's purpose: enabling communication across boundaries that no single platform controls.
+**Amaru** — Named after the Quechua cosmic serpent that connects worlds — sky, earth, and the inner realm. The name encodes the protocol's purpose: enabling communication across boundaries that no single platform controls.
 
 - **Full name**: Amaru Protocol
-- **Never**: Hermes (lowercase after H), hermes (all lowercase in prose), HERMÉS
-- **In code/CLI**: `hermes` (all lowercase, per Unix convention)
-- **Repo**: `amaru-protocol/amaru`
+- **Formerly**: HERMES (Greek messenger god). Rebranded 2026-04-05.
+- **Never**: amaru (all lowercase in prose), AMARÚ, Amarú
+- **In code/CLI**: `amaru` (all lowercase, per Unix convention)
+- **Repo**: `dereyesm/amaru-protocol`
 
 ### 1.2 Tagline
 
@@ -30,7 +33,7 @@
 
 ### 1.3 Positioning Statement
 
-HERMES is an **open, sovereign protocol** for inter-agent AI communication — what TCP/IP did for computers, HERMES does for AI agents. Unlike cloud-dependent frameworks, HERMES works anywhere files work: air-gapped networks, local machines, sovereign infrastructure. It provides end-to-end encryption, verifiable reputation, and protocol-level interoperability with A2A and MCP — without requiring any single vendor's cloud.
+Amaru is an **open, sovereign protocol** for inter-agent AI communication — what TCP/IP did for computers, Amaru does for AI agents. Unlike cloud-dependent frameworks, Amaru works anywhere files work: air-gapped networks, local machines, sovereign infrastructure. It provides end-to-end encryption, verifiable reputation, and protocol-level interoperability with A2A and MCP — without requiring any single vendor's cloud.
 
 ### 1.4 Core Values
 
@@ -48,19 +51,19 @@ HERMES is an **open, sovereign protocol** for inter-agent AI communication — w
 
 ### 2.1 Brand Voice
 
-HERMES speaks like a **telecom engineer who reads philosophy** — technically precise, architecturally grounded, but aware that protocols shape societies.
+Amaru speaks like a **telecom engineer who reads philosophy** — technically precise, architecturally grounded, but aware that protocols shape societies.
 
 | Attribute | Description | Example |
 |-----------|-------------|---------|
 | **Technical** | Grounded in RFCs, ITU-T, IEEE standards | "ARC-8446 implements Ed25519 + X25519 + AES-256-GCM, aligned with TLS 1.3 verify-before-decrypt." |
 | **Concise** | Shannon-inspired brevity | "Signaling, not data." (ATR-Q.700) |
 | **Principled** | Clear design philosophy | "The Agora is not a marketplace. It's a public square." |
-| **Inclusive** | Welcomes builders from any stack | "HERMES doesn't care if you're running Claude Code, Cursor, or a custom LLM pipeline." |
+| **Inclusive** | Welcomes builders from any stack | "Amaru doesn't care if you're running Claude Code, Cursor, or a custom LLM pipeline." |
 
 ### 2.2 Writing Rules
 
 1. **English** for all public-facing content (global audience)
-2. **Active voice** — "HERMES routes messages" not "Messages are routed by HERMES"
+2. **Active voice** — "Amaru routes messages" not "Messages are routed by Amaru"
 3. **Concrete analogies** over abstract descriptions:
    - Gateway = NAT (not "boundary component")
    - Bus = shared file (not "message broker")
@@ -126,7 +129,7 @@ The Amaru logo represents **a messenger crossing boundaries** — two domains co
 
 ```
 ╔═══════════════════════════════════════╗
-║  H E R M E S    P R O T O C O L       ║
+║  A M A R U    P R O T O C O L         ║
 ║  ─────────────────────────────────    ║
 ║  Open Inter-Agent Communication       ║
 ╚═══════════════════════════════════════╝
@@ -140,11 +143,11 @@ Use ASCII box drawing for terminal-friendly branding. No Unicode emoji in protoc
 
 ### 4.1 Elevator Pitch (30 seconds)
 
-> "AI agents are proliferating, but they can't talk to each other without going through a vendor's cloud. HERMES is an open protocol — like TCP/IP for AI agents — that lets any agent on any platform communicate with end-to-end encryption, even offline. It bridges to Google A2A and Anthropic MCP, but doesn't depend on either."
+> "AI agents are proliferating, but they can't talk to each other without going through a vendor's cloud. Amaru is an open protocol — like TCP/IP for AI agents — that lets any agent on any platform communicate with end-to-end encryption, even offline. It bridges to Google A2A and Anthropic MCP, but doesn't depend on either."
 
 ### 4.2 Technical Pitch (2 minutes)
 
-> "HERMES is a file-based inter-agent communication protocol inspired by TCP/IP and the 3GPP service-based architecture. It uses JSONL as its wire format with a 120-character Shannon-constrained payload, supports both datagram and reliable transport modes, and implements Ed25519 + X25519 + AES-256-GCM encryption aligned with TLS 1.3.
+> "Amaru is a file-based inter-agent communication protocol inspired by TCP/IP and the 3GPP service-based architecture. It uses JSONL as its wire format with a 120-character Shannon-constrained payload, supports both datagram and reliable transport modes, and implements Ed25519 + X25519 + AES-256-GCM encryption aligned with TLS 1.3.
 >
 > What makes it different: it works anywhere files work — no servers, no Docker, no cloud. Air-gapped military networks, local development machines, sovereign infrastructure. The protocol bridges bidirectionally to Google A2A and Anthropic MCP via ARC-7231, so Amaru agents can participate in broader ecosystems without lock-in.
 >
@@ -152,7 +155,7 @@ Use ASCII box drawing for terminal-friendly branding. No Unicode emoji in protoc
 
 ### 4.3 Competitive Positioning
 
-| Dimension | HERMES | A2A (Google) | MCP (Anthropic) | NLIP (Ecma) | ANP |
+| Dimension | Amaru | A2A (Google) | MCP (Anthropic) | NLIP (Ecma) | ANP |
 |-----------|--------|-------------|-----------------|-------------|-----|
 | **Transport** | File (JSONL) + future Hub | HTTP/gRPC/SSE | HTTP/stdio/SSE | HTTP | DID-based |
 | **Encryption** | E2E (Ed25519+X25519+AES-256-GCM) | TLS (transport) | TLS (transport) | Profile-based | DID-Auth |
@@ -172,11 +175,11 @@ Use ASCII box drawing for terminal-friendly branding. No Unicode emoji in protoc
 
 | Objection | Response |
 |-----------|----------|
-| "Just use A2A" | A2A is excellent for cloud-native enterprise agents. HERMES serves the sovereign/offline/E2E-encrypted space that A2A doesn't address. They interop via ARC-7231. |
-| "Just use MCP" | MCP is vertical (LLM ↔ tools). HERMES is horizontal (agent ↔ agent). They're complementary. Amaru bridges to MCP natively. |
-| "Just use HTTP" | HTTP adds 40-60% overhead for agent-to-agent signaling. HERMES file-based transport has near-zero overhead for co-located agents. For remote, the Hub mode uses HTTP — but with HERMES semantics. |
-| "Files don't scale" | Correct — that's why HERMES has dual-mode (Sovereign + Hosted). Files for <50 agents, Hub for scale. Same wire format both modes. |
-| "Nobody uses this" | TCP/IP had 4 nodes in 1969. HERMES has 2 clans with encrypted bilateral communication in 2026. Protocols grow by being useful, not by being popular. |
+| "Just use A2A" | A2A is excellent for cloud-native enterprise agents. Amaru serves the sovereign/offline/E2E-encrypted space that A2A doesn't address. They interop via ARC-7231. |
+| "Just use MCP" | MCP is vertical (LLM ↔ tools). Amaru is horizontal (agent ↔ agent). They're complementary. Amaru bridges to MCP natively. |
+| "Just use HTTP" | HTTP adds 40-60% overhead for agent-to-agent signaling. Amaru file-based transport has near-zero overhead for co-located agents. For remote, the Hub mode uses HTTP — but with Amaru semantics. |
+| "Files don't scale" | Correct — that's why Amaru has dual-mode (Sovereign + Hosted). Files for <50 agents, Hub for scale. Same wire format both modes. |
+| "Nobody uses this" | TCP/IP had 4 nodes in 1969. Amaru has 2 clans with encrypted bilateral communication in 2026. Protocols grow by being useful, not by being popular. |
 
 ---
 
@@ -229,7 +232,7 @@ Amaru specs follow three tracks inspired by real-world standards bodies:
 | **JEI (La Triada)** | Jeimmy Gomez | Active | Security review, bilateral crypto |
 
 New clans join by:
-1. Deploying an Amaru instance (Sovereign mode: `scripts/init_hermes.sh`)
+1. Deploying an Amaru instance (Sovereign mode: `scripts/init_amaru.sh`)
 2. Generating keypair (`amaru keygen`)
 3. Exchanging fingerprints with an existing clan (in-person or verified channel)
 4. First encrypted handshake via relay or direct file exchange
@@ -265,15 +268,15 @@ Use `docs/QUEST-002-AAD-BILATERAL.md` as template. Every quest includes:
 
 ## 8. Anti-Patterns
 
-Things HERMES **never** does in communication:
+Things Amaru **never** does in communication:
 
 1. **Never claims to replace A2A, MCP, or any protocol** — we bridge, we don't compete
 2. **Never uses "revolutionary", "disruptive", "game-changing"** — we use benchmarks
 3. **Never promises scale we haven't tested** — file-based works for <50 agents, Hub for more
 4. **Never hides limitations** — sovereign mode has tradeoffs, we document them
 5. **Never uses corporate jargon** — "synergy", "leverage", "ecosystem play" are banned
-6. **Never anthropomorphizes the protocol** — HERMES routes messages, it doesn't "think" or "decide"
+6. **Never anthropomorphizes the protocol** — Amaru routes messages, it doesn't "think" or "decide"
 
 ---
 
-*"The protocol is named after Hermes — the messenger who crosses boundaries. That's what this does."*
+*"The protocol is named after Amaru — the cosmic serpent that connects worlds. That's what this does."*
