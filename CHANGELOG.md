@@ -1,11 +1,36 @@
 # Changelog
 
-All notable changes to the HERMES protocol are documented here.
+All notable changes to the Amaru protocol are documented here.
 
 This project follows a versioning scheme where:
 - **Phase 0** = intra-clan protocol (file-based, single instance)
 - **Phase 1** = inter-clan protocol (gateway, Agora, attestations)
 - **v1.0** = consolidated spec across all five research lines (L1-L5)
+
+---
+
+## [Unreleased] — ATR-Q.931 SENT Receipt (2026-04-06)
+
+### Added
+
+- **ATR-Q.931 §8.1 SENT receipt** — first implemented stage of the four-stage delivery model:
+  - Hub `MessageRouter` emits a signaling frame (`channel: "sig"`, `type: "SENT"`) back to the sender's local connection(s) when an inbound envelope opts in via `receipt: ["SENT"]` and carries a `ref` (§8.3 correlation requirement).
+  - Conforms to ATR-Q.931 §6.2 frame schema: `channel`/`type`/`src`/`dst`/`ref`/`ts` (sub-second ISO-8601 with `Z` suffix).
+  - Backward compatible: absence of `receipt` array preserves fire-and-forget default.
+  - E2E crypto passthrough preserved — the router does not inspect or mutate `msg`.
+  - Unicast and broadcast both supported. Exactly one SENT per message, addressed to the sender.
+  - 7 new tests in `tests/test_hub.py::TestMessageRouterSentReceipt` covering happy path, opt-in absent, only-later-stages, missing `ref`, broadcast, sender offline (S2S-origin), and E2E passthrough preservation.
+  - Spec status updated: `ATR-Q.931` listed as `DRAFT (§8.1 IMPL)` in `spec/INDEX.md` (new status legend entry).
+
+### Spec
+
+- **ATR-Q.931 — Session Setup Signaling** (DRAFT, ~945 lines) merged Apr 5: 23rd standard, 11 primitives, 5-state machine, 4-stage delivery receipts, multicast addressing. Phase 1 normative; Phase 2 + Phase 3 informative. First ATR spec with its own sub-second timestamp contract (vs day-granularity ARC-5322).
+
+### Out of scope (intentional)
+
+- `DELIVERED`, `READ`, `PROCESSED` stages — pending bilateral validation with Clan JEI before peer-side hooks land.
+- §5 primitives (REGISTER/INVITE/BYE/etc) and §6.1 channel discrimination — held until DRAFT → PROPOSED.
+- §6.3 rate limiting (60 frames/min) and §6.2 512-byte frame bound enforcement — Phase 2.
 
 ---
 

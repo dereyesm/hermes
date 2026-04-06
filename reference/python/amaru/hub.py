@@ -470,6 +470,12 @@ class MessageRouter:
 
     Federation (§17): If dst is not a local peer, the router checks
     the FederationTable and forwards to the responsible hub via S2S link.
+
+    Signaling (ATR-Q.931 §8): If the inbound envelope includes a
+    `receipt` array containing "SENT" (and carries a `ref`), the router
+    emits a SENT signaling frame back to the sender's local connection(s)
+    before routing the data envelope. Later stages (DELIVERED, READ,
+    PROCESSED) are out of scope for the initial impl.
     """
 
     def __init__(
@@ -477,11 +483,14 @@ class MessageRouter:
         connections: ConnectionTable,
         queue: StoreForwardQueue,
         federation: FederationTable | None = None,
+        hub_id: str = "local-hub",
     ):
         self._connections = connections
         self._queue = queue
         self._federation = federation
+        self._hub_id = hub_id
         self.total_routed = 0
+        self.receipts_emitted = 0
 
     async def route(self, payload: dict, sender: str) -> dict:
         """Route a message. Returns status dict.
@@ -489,12 +498,68 @@ class MessageRouter:
         payload: ARC-5322 message as dict (with src, dst, type, msg, etc.)
         sender: clan_id of the sender (for broadcast exclusion)
         """
+        # ATR-Q.931 §8.1 + §8.4: emit SENT receipt before dispatching.
+        # "Hub has accepted the message from the sender and queued it
+        # for routing" — this is precisely the moment we hand off below.
+        await self._emit_sent_receipt(payload, sender)
+
         dst = payload.get("dst", "")
 
         if dst == "*":
             return await self._broadcast(payload, sender)
         else:
             return await self._unicast(payload, dst)
+
+    async def _emit_sent_receipt(self, payload: dict, sender: str) -> None:
+        """Emit ATR-Q.931 SENT signaling frame back to sender if requested.
+
+        Rules (ATR-Q.931 §8.4):
+        - No receipt array on envelope → silent no-op (backward compatible).
+        - "SENT" not in receipt array → no SENT frame for this message.
+        - Missing `ref` → cannot correlate, skip with warning (§8.3).
+        - Sender offline → skip (cannot deliver receipt anywhere sensible).
+        """
+        receipt_stages = payload.get("receipt")
+        if not isinstance(receipt_stages, list) or "SENT" not in receipt_stages:
+            return
+
+        ref = payload.get("ref")
+        if not isinstance(ref, str) or not ref:
+            logger.warning(
+                "ATR-Q.931: receipt requested but no 'ref' on message from %s",
+                sender,
+            )
+            return
+
+        sender_entries = self._connections.get_all(sender)
+        if not sender_entries:
+            # Sender not connected locally (S2S-origin message). Out of
+            # scope for the initial SENT impl — the originating hub owns
+            # that receipt path (§8.4 peer-local semantics).
+            return
+
+        # ATR-Q.931 §6.2: full-instant ISO-8601 with Z suffix.
+        ts = datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
+        frame = {
+            "channel": "sig",
+            "type": "SENT",
+            "src": self._hub_id,
+            "dst": sender,
+            "ref": ref,
+            "ts": ts,
+        }
+        envelope = json.dumps({"type": "sig", "payload": frame})
+
+        delivered_any = False
+        for entry in sender_entries:
+            try:
+                await entry.ws.send(envelope)
+                delivered_any = True
+            except Exception as e:
+                logger.debug("ATR-Q.931: SENT receipt send failed to %s: %s", sender, e)
+
+        if delivered_any:
+            self.receipts_emitted += 1
 
     async def _unicast(self, payload: dict, dst: str) -> dict:
         # 1. Try local delivery (all connections for this clan)
@@ -643,10 +708,17 @@ class HubServer:
         # S2S Federation (ARC-4601 §17)
         fed_path = hub_dir / config.federation_file
         self.federation = FederationTable.load(fed_path)
-        self.router = MessageRouter(self.connections, self.queue, self.federation)
 
-        # Hub identity for S2S auth
+        # Hub identity for S2S auth (also used as `src` on ATR-Q.931
+        # signaling frames emitted by this hub, per §6.2 + §8.2).
         self._hub_id = self._load_hub_id(fed_path)
+
+        self.router = MessageRouter(
+            self.connections,
+            self.queue,
+            self.federation,
+            hub_id=self._hub_id,
+        )
 
         self.state = HubState(
             pid=os.getpid(),

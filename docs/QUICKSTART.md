@@ -247,6 +247,40 @@ amaru hub status
 
 The hub runs a WebSocket server on port 8443 and the listener delivers incoming messages to your AI agent via the `hub_inject` hook. See the [Hub Operations Guide](hub-operations.md) for details.
 
+### Step 5 — Request delivery receipts (optional)
+
+By default, Amaru is fire-and-forget: you publish a message and the hub routes it without telling you anything back. If you want acknowledgement that the hub accepted your message for routing, opt in by adding a `receipt` array and a `ref` to your envelope:
+
+```json
+{
+  "src": "engineering",
+  "dst": "operations",
+  "type": "dispatch",
+  "msg": "<encrypted-payload>",
+  "ref": "engineering-042",
+  "receipt": ["SENT"]
+}
+```
+
+When the hub accepts and queues this message for routing, it emits a signaling frame back on your WebSocket connection:
+
+```json
+{
+  "channel": "sig",
+  "type": "SENT",
+  "src": "<hub-id>",
+  "dst": "engineering",
+  "ref": "engineering-042",
+  "ts": "2026-04-06T18:23:11Z"
+}
+```
+
+Notes:
+- `ref` is **required** when requesting receipts — it is how your client correlates the SENT frame to the original message.
+- Receipts are advisory: if your connection drops between message and receipt, the hub does not retry.
+- The hub never inspects your `msg` field — E2E crypto passthrough is preserved.
+- Only the `SENT` stage is implemented today. `DELIVERED`, `READ`, and `PROCESSED` are specified in [ATR-Q.931 §8](../spec/ATR-Q931.md) but not yet wired up.
+
 ## What's Next?
 
 - Read the [Architecture Guide](ARCHITECTURE.md) for the full picture

@@ -622,6 +622,229 @@ class TestMessageRouter:
 
 
 # ---------------------------------------------------------------------------
+# TestMessageRouter_SentReceipt — ATR-Q.931 §8.1 + §8.4
+# ---------------------------------------------------------------------------
+
+
+class TestMessageRouterSentReceipt:
+    """SENT receipt emission (ATR-Q.931 §8.1 + §8.4).
+
+    The hub MUST emit a SENT signaling frame back to the sender when:
+    - the envelope carries a `receipt` array containing "SENT", AND
+    - the envelope carries a `ref` (§8.3), AND
+    - the sender has at least one local connection.
+
+    Otherwise the router remains silent (backward compatible default).
+    """
+
+    def _make_router(self, hub_id: str = "test-hub"):
+        ct = ConnectionTable()
+        q = StoreForwardQueue()
+        return MessageRouter(ct, q, hub_id=hub_id), ct, q
+
+    @staticmethod
+    def _sent_frames(ws_mock) -> list[dict]:
+        """Extract sig/SENT frames from a mock WS's send calls."""
+        frames = []
+        for call in ws_mock.send.call_args_list:
+            raw = call[0][0]
+            outer = json.loads(raw)
+            if outer.get("type") == "sig":
+                frames.append(outer.get("payload", {}))
+        return frames
+
+    def test_sent_emitted_when_requested(self):
+        router, ct, _q = self._make_router(hub_id="test-hub")
+        sender_ws = _make_ws_mock()
+        recipient_ws = _make_ws_mock()
+        ct.add("momoshod", sender_ws)
+        ct.add("jei", recipient_ws)
+
+        payload = {
+            "src": "momoshod",
+            "dst": "jei",
+            "type": "dispatch",
+            "msg": "encrypted-envelope",
+            "ref": "momoshod-042",
+            "receipt": ["SENT"],
+        }
+
+        loop = asyncio.new_event_loop()
+        try:
+            loop.run_until_complete(router.route(payload, "momoshod"))
+        finally:
+            loop.close()
+
+        sent_frames = self._sent_frames(sender_ws)
+        assert len(sent_frames) == 1
+        frame = sent_frames[0]
+        assert frame["channel"] == "sig"
+        assert frame["type"] == "SENT"
+        assert frame["src"] == "test-hub"
+        assert frame["dst"] == "momoshod"
+        assert frame["ref"] == "momoshod-042"
+        # ATR-Q.931 §6.2: full instant, Z suffix.
+        assert frame["ts"].endswith("Z")
+        assert "T" in frame["ts"]
+        # Recipient still receives the data envelope (routing unaffected).
+        assert router.receipts_emitted == 1
+        assert recipient_ws.send.call_count == 1
+
+    def test_sent_not_emitted_without_receipt_array(self):
+        """Default fire-and-forget semantics — absence of receipt = silent."""
+        router, ct, _q = self._make_router()
+        sender_ws = _make_ws_mock()
+        ct.add("momoshod", sender_ws)
+        ct.add("jei", _make_ws_mock())
+
+        payload = {
+            "src": "momoshod",
+            "dst": "jei",
+            "msg": "x",
+            "ref": "momoshod-099",
+        }
+
+        loop = asyncio.new_event_loop()
+        try:
+            loop.run_until_complete(router.route(payload, "momoshod"))
+        finally:
+            loop.close()
+
+        assert self._sent_frames(sender_ws) == []
+        assert router.receipts_emitted == 0
+
+    def test_sent_not_emitted_when_only_later_stages_requested(self):
+        """receipt=[DELIVERED] must not synthesise SENT (§8.1 order rule)."""
+        router, ct, _q = self._make_router()
+        sender_ws = _make_ws_mock()
+        ct.add("momoshod", sender_ws)
+        ct.add("jei", _make_ws_mock())
+
+        payload = {
+            "src": "momoshod",
+            "dst": "jei",
+            "msg": "x",
+            "ref": "momoshod-100",
+            "receipt": ["DELIVERED", "READ"],
+        }
+
+        loop = asyncio.new_event_loop()
+        try:
+            loop.run_until_complete(router.route(payload, "momoshod"))
+        finally:
+            loop.close()
+
+        assert self._sent_frames(sender_ws) == []
+
+    def test_sent_skipped_without_ref(self, caplog):
+        """receipt=[SENT] but missing ref → cannot correlate, skip."""
+        router, ct, _q = self._make_router()
+        sender_ws = _make_ws_mock()
+        ct.add("momoshod", sender_ws)
+        ct.add("jei", _make_ws_mock())
+
+        payload = {
+            "src": "momoshod",
+            "dst": "jei",
+            "msg": "x",
+            "receipt": ["SENT"],
+        }
+
+        loop = asyncio.new_event_loop()
+        try:
+            with caplog.at_level("WARNING", logger="amaru.hub"):
+                loop.run_until_complete(router.route(payload, "momoshod"))
+        finally:
+            loop.close()
+
+        assert self._sent_frames(sender_ws) == []
+        assert any("ref" in rec.message for rec in caplog.records)
+        assert router.receipts_emitted == 0
+
+    def test_sent_on_broadcast_emits_once_to_sender(self):
+        """Broadcast: one SENT to the sender, not one per recipient."""
+        router, ct, _q = self._make_router()
+        sender_ws = _make_ws_mock()
+        ct.add("momoshod", sender_ws)
+        ct.add("a", _make_ws_mock())
+        ct.add("b", _make_ws_mock())
+
+        payload = {
+            "src": "momoshod",
+            "dst": "*",
+            "msg": "broadcast payload",
+            "ref": "momoshod-bcast-1",
+            "receipt": ["SENT"],
+        }
+
+        loop = asyncio.new_event_loop()
+        try:
+            loop.run_until_complete(router.route(payload, "momoshod"))
+        finally:
+            loop.close()
+
+        sent_frames = self._sent_frames(sender_ws)
+        assert len(sent_frames) == 1
+        assert sent_frames[0]["ref"] == "momoshod-bcast-1"
+        assert router.receipts_emitted == 1
+
+    def test_sent_when_sender_offline_is_silent(self):
+        """Sender not in local connection table → skip silently."""
+        router, ct, _q = self._make_router()
+        ct.add("jei", _make_ws_mock())
+
+        payload = {
+            "src": "remote-peer",
+            "dst": "jei",
+            "msg": "x",
+            "ref": "remote-001",
+            "receipt": ["SENT"],
+        }
+
+        loop = asyncio.new_event_loop()
+        try:
+            loop.run_until_complete(router.route(payload, "remote-peer"))
+        finally:
+            loop.close()
+
+        assert router.receipts_emitted == 0
+
+    def test_sent_does_not_touch_msg_field(self):
+        """E2E passthrough preserved: SENT emission MUST NOT inspect msg."""
+        router, ct, _q = self._make_router()
+        sender_ws = _make_ws_mock()
+        recipient_ws = _make_ws_mock()
+        ct.add("momoshod", sender_ws)
+        ct.add("jei", recipient_ws)
+
+        opaque_payload = {
+            "enc": "ECDHE",
+            "ciphertext": "deadbeef" * 20,
+            "nonce": "aabb" * 6,
+        }
+        payload = {
+            "src": "momoshod",
+            "dst": "jei",
+            "type": "dispatch",
+            "msg": opaque_payload,
+            "ref": "momoshod-043",
+            "receipt": ["SENT"],
+        }
+
+        loop = asyncio.new_event_loop()
+        try:
+            loop.run_until_complete(router.route(payload, "momoshod"))
+        finally:
+            loop.close()
+
+        # Data frame to recipient must carry identical msg.
+        data_call = recipient_ws.send.call_args[0][0]
+        outer = json.loads(data_call)
+        assert outer["type"] == "msg"
+        assert outer["payload"]["msg"] == opaque_payload
+
+
+# ---------------------------------------------------------------------------
 # TestHubState
 # ---------------------------------------------------------------------------
 
