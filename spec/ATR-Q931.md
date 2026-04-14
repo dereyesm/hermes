@@ -5,11 +5,23 @@
 | **Number**   | ATR-Q.931                                                                   |
 | **Title**    | Session Setup Signaling                                                     |
 | **Lineage**  | ITU-T Recommendation Q.931 (ISDN Layer 3 Call Control) + IETF RFC 3261 (SIP)|
-| **Status**   | DRAFT                                                                       |
-| **Date**     | 2026-04-05                                                                  |
+| **Status**   | PROPOSED                                                                    |
+| **Date**     | 2026-04-06                                                                  |
 | **Authors**  | Daniel Reyes, Protocol Architect                                            |
 | **Requires** | ARC-2119 (Requirement Keywords), ARC-5322 (Message Format), ARC-4601 §15 (Hub Mode), ATR-Q.700 (Out-of-Band Signaling) |
 | **Extends**  | ARC-2314 (Skill Gateway Plane Architecture) — refines control plane        |
+
+> **Editorial Review Window — 2026-04-06 → 2026-04-12**
+>
+> Promoted from DRAFT to PROPOSED on 2026-04-06. First-clan feedback
+> (JEI) is explicitly invited via the Amaru bus (ARC-5322 alert frame)
+> and via mention on `dereyesm/amaru-protocol#5`. Editorial revisions
+> submitted before 2026-04-12 will be incorporated without a status
+> bump. Structural changes after that date will require a new revision
+> tag.
+>
+> §8.1 (`SENT` receipt) is already implemented in the reference hub
+> (commit 611b88a). §8.2–§8.4 are gated on the ARC-4601 §18 amendment.
 
 ---
 
