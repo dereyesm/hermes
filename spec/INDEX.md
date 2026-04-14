@@ -9,6 +9,8 @@ Master index of all Amaru standards across the three tracks: ARC, ATR, and AES.
 | Status | Meaning |
 |--------|---------|
 | **IMPLEMENTED** | Complete spec with working reference implementation |
+| **PROPOSED** | Spec body stable, under editorial review window before promotion |
+| **PROPOSED (§X IMPL)** | PROPOSED spec, with a named subsection covered by reference impl |
 | **DRAFT** | Spec in progress, subject to change |
 | **DRAFT (§X IMPL)** | DRAFT spec, with a named stable subsection covered by reference impl |
 | **PLANNED** | Outlined but not yet written |
@@ -39,7 +41,7 @@ Core protocol standards governing message formats, transport, addressing, and se
 | [ARC-2606](ARC-2606.md) | Agent Profile & Discovery | RFC 2606 (Reserved Domains) | A2A Agent Cards; ANP capability files; ECMA-432 (NLIP) agent discovery | IMPLEMENTED | Extension |
 | [ARC-2314](ARC-2314.md) | Skill Gateway Plane Architecture | -- (3GPP TS 23.214 CUPS) | 3GPP TS 23.501 (SBA); TS 23.502 (SMF); TS 29.244 (PFCP); TS 29.510 (NRF) | IMPLEMENTED | Core |
 | [ARC-3022](ARC-3022.md) | Agent Gateway Protocol | RFC 3022 (NAT) | 3GPP TS 23.214 (CUPS); BBF TR-369 gateway; 3GPP inter-PLMN roaming | IMPLEMENTED | Extension |
-| [ARC-4601](ARC-4601.md) | Agent Node Protocol (§1-§15 IMPL, §16 P2P DRAFT) | RFC 4601 (PIM-SM), RFC 6455 (WebSocket) | 3GPP TS 23.501 NF lifecycle; PIM-SM rendezvous point; Hub server (§15, BR-018); Noise IK (§16) | IMPLEMENTED | Extension |
+| [ARC-4601](ARC-4601.md) | Agent Node Protocol (§1-§15 IMPL, §16 P2P DRAFT, §18 amendment DRAFT) | RFC 4601 (PIM-SM), RFC 6455 (WebSocket) | 3GPP TS 23.501 NF lifecycle; PIM-SM rendezvous point; Hub server (§15, BR-018); Noise IK (§16); ATR-Q.931 §7.4 hub-side companion (§18) | IMPLEMENTED | Extension |
 | [ARC-7231](ARC-7231.md) | Agent Semantics — Bridge Protocol Mapping | RFC 7231 (HTTP Semantics) | BBF TR-369 CRUD+Operate+Notify; FIPA ACL performatives; A2A v0.3/MCP bridge mapping | IMPLEMENTED | Extension |
 | ARC-7519 | Message Authentication | RFC 7519 (JWT) | IETF draft-goswami-agentic-jwt; 3GPP TS 29.510 (NRF) OAuth 2.0 model | PLANNED | Security |
 | ARC-7540 | Multiplexed Bus Channels | RFC 7540 (HTTP/2) | A2A multiplexed task streams; 3GPP TS 23.501 PDU sessions | PLANNED | Extension |
@@ -59,7 +61,7 @@ Architecture, reference models, and telecom-inspired patterns.
 | ATR-X.680 | Message Schema Notation | X.680 (ASN.1) | RFC 8949 (CBOR); ECMA-433 (NLIP) data packaging; JSON Schema | PLANNED | Extension |
 | ATR-E.164 | Global Agent Addressing | E.164 (Phone Numbers) | ANP DID identifiers; A2A Agent Card URLs; 3GPP SUPI/GPSI (TS 23.003) | PLANNED | Extension |
 | [ATR-Q.700](ATR-Q700.md) | Out-of-Band Signaling | Q.700 (SS7) | 3GPP TS 29.244 (PFCP) signaling; SIP (RFC 3261); ECMA-431 (NLIP) signaling | INFORMATIONAL | Philosophy |
-| [ATR-Q.931](ATR-Q931.md) | Session Setup Signaling | Q.931 (ISDN) | A2A task initiation; MCP session negotiation; SIP INVITE (RFC 3261) | DRAFT (§8.1 IMPL) | Extension |
+| [ATR-Q.931](ATR-Q931.md) | Session Setup Signaling | Q.931 (ISDN) | A2A task initiation; MCP session negotiation; SIP INVITE (RFC 3261) | PROPOSED (§8.1 IMPL) | Extension |
 | [ATR-G.711](ATR-G711.md) | Payload Encoding & Wire Efficiency | G.711 (Audio Codec) | RFC 8949 (CBOR); BBF TR-181 data model encoding; MessagePack | IMPLEMENTED | Extension |
 
 ## AES -- Agent Engineering Standards (IEEE Lineage)
