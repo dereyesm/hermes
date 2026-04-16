@@ -648,7 +648,9 @@ class TestECDHEPostSunset:
 
         raw_shared = eph_private.exchange(dani.dh_public)
         hkdf = HKDF(
-            algorithm=hashes.SHA256(), length=32, salt=None,
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=None,
             info=b"HERMES-ARC8446-v3-ECDHE",  # Non-canonical
         )
         shared_secret = hkdf.derive(raw_shared)
@@ -690,7 +692,9 @@ class TestECDHEPostSunset:
 
         raw_shared = eph_private.exchange(dani.dh_public)
         hkdf = HKDF(
-            algorithm=hashes.SHA256(), length=32, salt=None,
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=None,
             info=b"HERMES-ARC8446-ECDHE-v1",  # Canonical HKDF
         )
         shared_secret = hkdf.derive(raw_shared)

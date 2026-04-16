@@ -243,8 +243,6 @@ def _build_aad_ecdhe(envelope_meta: dict, eph_pub_hex: str) -> bytes:
     return json.dumps(extended, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
 
-
-
 def seal_bus_message(
     my_keys: ClanKeyPair,
     peer_dh_public: X25519PublicKey,
@@ -419,9 +417,7 @@ def open_bus_message(
                 info=b"HERMES-ARC8446-ECDHE-v1",
             )
             shared_secret = hkdf.derive(raw_shared)
-            return decrypt_message(
-                shared_secret, sealed["nonce"], sealed["ciphertext"], aad=aad
-            )
+            return decrypt_message(shared_secret, sealed["nonce"], sealed["ciphertext"], aad=aad)
         except Exception:
             return None
     else:
