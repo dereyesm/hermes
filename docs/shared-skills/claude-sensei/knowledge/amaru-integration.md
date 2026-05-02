@@ -1,32 +1,33 @@
 # Amaru Protocol — Integration with Claude Code
 
-> How HERMES inter-agent communication works within the Claude/Anthropic ecosystem.
+> How Amaru inter-agent communication works within the Claude/Anthropic ecosystem.
+> (Formerly known as HERMES; rebranded to Amaru on 2026-04-05.)
 
-## What is HERMES?
+## What is Amaru?
 
-HERMES is an open-source protocol for inter-agent AI communication, inspired by TCP/IP and telecom standards (3GPP, ITU-T, IETF). It enables AI agents to coordinate across tools, sessions, and teams using a lightweight file-based message bus.
+Amaru is an open-source protocol for inter-agent AI communication, inspired by TCP/IP and telecom standards (3GPP, ITU-T, IETF). It enables AI agents to coordinate across tools, sessions, and teams using a lightweight file-based message bus.
 
-- **Repo**: https://github.com/amaru-protocol/amaru (MIT license)
-- **Version**: v0.4.2-alpha (20 spec files, 1146 tests, 17 Python modules)
+- **Repo**: https://github.com/dereyesm/amaru-protocol (MIT license)
+- **Version**: v0.5.0a1 (24 spec files, 1570 tests, 19 Python modules)
 - **Philosophy**: Sovereign-first (runs on local files, no cloud required), with optional Hub Mode for real-time connectivity
 
-## How HERMES Integrates with Claude Code
+## How Amaru Integrates with Claude Code
 
-### 1. Hooks (Claude Code → HERMES)
+### 1. Hooks (Claude Code → Amaru)
 
-HERMES registers three Claude Code hooks that activate automatically:
+Amaru registers three Claude Code hooks that activate automatically:
 
 | Hook | Event | What it does |
 |------|-------|-------------|
 | `pull_on_start` | SessionStart | Reads bus.jsonl, shows pending messages as systemMessage |
-| `pull_on_prompt` | UserPromptSubmit | Activates on `/hermes` commands, refreshes bus state |
+| `pull_on_prompt` | UserPromptSubmit | Activates on `/amaru` commands, refreshes bus state |
 | `exit_reminder` | Stop | Reminds about unacked messages before session close |
 
 Hooks are installed via `amaru install` and configured in Claude Code's `settings.json`. They use stdin/stdout JSON (no bash dependency, cross-platform).
 
-**Implementation**: `~/.amaru/hooks.py` (or venv wrapper at `~/.amaru/bin/hermes-hook`)
+**Implementation**: `~/.amaru/hooks.py` (or venv wrapper at `~/.amaru/bin/amaru-hook`)
 
-### 2. Adapter Pattern (HERMES → Claude Code)
+### 2. Adapter Pattern (Amaru → Claude Code)
 
 The `amaru adapt claude-code` command generates Claude Code configuration from the canonical `~/.amaru/` directory:
 
@@ -47,18 +48,18 @@ Other agents get their own adapter: `amaru adapt cursor` compiles a `.cursorrule
 The Amaru bus (`bus.jsonl`) enables communication between Claude Code sessions, even across different projects:
 
 ```jsonl
-{"ts":"2026-03-28","src":"hermes","dst":"*","type":"state","msg":"ARC-1122 spec DONE","ttl":7,"ack":[]}
+{"ts":"2026-03-28","src":"amaru","dst":"*","type":"state","msg":"ARC-1122 spec DONE","ttl":7,"ack":[]}
 ```
 
 - **SYN**: At session start, read bus for pending messages (messages where your namespace is not in `ack[]`)
 - **FIN**: At session close, write state changes to bus, ACK consumed messages
 - **TTL**: Messages expire after N days — bus is self-cleaning
 
-### 4. Skills as HERMES Nodes
+### 4. Skills as Amaru Nodes
 
-Claude Code skills (`.claude/skills/*.md`) can be HERMES nodes — they read from and write to the bus. Example: the `protocol-architect` skill in the Amaru dimension reads quest dispatches from the bus and writes progress updates.
+Claude Code skills (`.claude/skills/*.md`) can be Amaru nodes — they read from and write to the bus. Example: the `protocol-architect` skill in the Amaru dimension reads quest dispatches from the bus and writes progress updates.
 
-Skills don't need special HERMES code. They just follow the SYN/FIN protocol naturally as part of their session lifecycle.
+Skills don't need special Amaru code. They just follow the SYN/FIN protocol naturally as part of their session lifecycle.
 
 ### 5. Agent Node Daemon
 
@@ -78,7 +79,7 @@ This runs alongside Claude Code, not inside it.
 | 2 | Clan-Ready | Sessions, namespaces, gateway, isolation |
 | 3 | Network-Ready | Crypto (Ed25519 + ECDHE), integrity, hub connectivity |
 
-Claude Code with HERMES hooks = **Level 2** (Clan-Ready). With daemon + crypto = **Level 3**.
+Claude Code with Amaru hooks = **Level 2** (Clan-Ready). With daemon + crypto = **Level 3**.
 
 ## Key Specs for Claude Code Users
 
@@ -93,14 +94,14 @@ Claude Code with HERMES hooks = **Level 2** (Clan-Ready). With daemon + crypto =
 ## CLI Quick Reference
 
 ```bash
-hermes install          # One-command setup (hooks + config + keys)
-hermes status           # Show clan status, bus stats, peers
-hermes bus              # Show bus messages
-hermes bus --pending    # Show unacked messages
-hermes adapt claude-code  # Generate Claude Code config from ~/.amaru/
-hermes adapt cursor     # Generate .cursorrules from ~/.amaru/
-hermes agent start      # Start persistent daemon
-hermes hub start        # Start hub server (for multi-peer routing)
+amaru install            # One-command setup (hooks + config + keys)
+amaru status             # Show clan status, bus stats, peers
+amaru bus                # Show bus messages
+amaru bus --pending      # Show unacked messages
+amaru adapt claude-code  # Generate Claude Code config from ~/.amaru/
+amaru adapt cursor       # Generate .cursorrules from ~/.amaru/
+amaru agent start        # Start persistent daemon
+amaru hub start          # Start hub server (for multi-peer routing)
 ```
 
 ## Architecture Relationship
@@ -108,11 +109,15 @@ hermes hub start        # Start hub server (for multi-peer routing)
 ```
 Claude Code Session
     ↕ hooks (stdin/stdout JSON)
-~/.amaru/ (canonical HERMES config)
+~/.amaru/ (canonical Amaru config)
     ↕ bus.jsonl (JSONL message bus)
 Agent Node Daemon (optional)
     ↕ WebSocket
 Hub Server (optional, for real-time multi-clan)
 ```
 
-HERMES is NOT a Claude Code plugin — it's an independent protocol that integrates with Claude Code through hooks and adapters. The same HERMES installation can also serve Cursor, VS Code, or any future AI assistant.
+Amaru is NOT a Claude Code plugin — it's an independent protocol that integrates with Claude Code through hooks and adapters. The same Amaru installation can also serve Cursor, VS Code, or any future AI assistant.
+
+## Naming Note
+
+The crypto labels `HERMES-ARC8446-ECDHE-v1` and `HERMES-ARC8446-X25519-v1` retain the legacy `HERMES-` prefix for backward compatibility — they are spec-bound constants serialized into key derivation. Renaming them would break interop with peers running older versions. The runtime symlink `~/.hermes → ~/.amaru` is preserved for the same reason.
