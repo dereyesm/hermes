@@ -10,12 +10,14 @@ Usage:
 
 from __future__ import annotations
 
+import errno
 import json
 import os
 import platform
 import shutil
 import subprocess
 import sys
+import time
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -1002,6 +1004,34 @@ def run_install(
     return result
 
 
+def _purge_clan_dir(
+    clan_dir: Path, *, max_retries: int = 3, retry_delay: float = 0.5
+) -> None:
+    """Remove ``clan_dir`` with retry tolerance for daemon teardown races.
+
+    Python 3.12 hardened ``shutil.rmtree`` (``_rmtree_safe_fd``) against TOCTOU
+    races between directory enumeration and unlink. If the agent daemon's
+    writer threads are still flushing during teardown, ``OSError(ENOTEMPTY)``
+    or ``OSError(EBUSY)`` raises before filesystem activity quiesces. We retry
+    a bounded number of times with a short delay to absorb the race window.
+
+    Non-transient errors (e.g., permission denied) re-raise immediately.
+    """
+    last_exc: OSError | None = None
+    for attempt in range(max_retries):
+        try:
+            shutil.rmtree(clan_dir)
+            return
+        except OSError as e:
+            if e.errno not in (errno.ENOTEMPTY, errno.EBUSY):
+                raise
+            last_exc = e
+            if attempt + 1 < max_retries:
+                time.sleep(retry_delay)
+    assert last_exc is not None
+    raise last_exc
+
+
 def run_uninstall(
     clan_dir: Path | None = None,
     purge: bool = False,
@@ -1055,7 +1085,7 @@ def run_uninstall(
     # 4. Purge clan directory
     if purge:
         if clan_dir.exists():
-            shutil.rmtree(clan_dir)
+            _purge_clan_dir(clan_dir)
             _print_step(True, f"Clan directory purged: {clan_dir}")
             result.steps.append(f"Purged {clan_dir}")
         else:
