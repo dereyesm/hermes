@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import errno
 import io
 import json
+import shutil
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -15,6 +17,7 @@ from amaru.installer import (
     _LAUNCHAGENT_LABEL,
     Platform,
     _atomic_json_write,
+    _purge_clan_dir,
     _sanitize_for_shell,
     add_agent_node_section,
     default_clan_dir,
@@ -633,6 +636,69 @@ class TestRunUninstall:
 
         assert result.success is True
         assert tmp_path.exists()  # Preserved
+
+
+class TestPurgeClanDirRetry:
+    """Test the _purge_clan_dir helper that absorbs daemon teardown races.
+
+    Python 3.12 hardened shutil.rmtree against TOCTOU between enumerate and
+    unlink, exposing a latent race when the agent daemon's writer threads are
+    still flushing during teardown. The helper retries on ENOTEMPTY/EBUSY.
+    """
+
+    def test_succeeds_on_first_try(self, tmp_path, monkeypatch):
+        clan_dir = tmp_path / "clan"
+        clan_dir.mkdir()
+        (clan_dir / "marker").write_text("x")
+        _purge_clan_dir(clan_dir, max_retries=3, retry_delay=0.0)
+        assert not clan_dir.exists()
+
+    def test_retries_on_enotempty_then_succeeds(self, tmp_path, monkeypatch):
+        clan_dir = tmp_path / "clan"
+        clan_dir.mkdir()
+        (clan_dir / "marker").write_text("x")
+
+        call_count = {"n": 0}
+        real_rmtree = shutil.rmtree
+
+        def flaky_rmtree(path):
+            call_count["n"] += 1
+            if call_count["n"] < 2:
+                raise OSError(errno.ENOTEMPTY, "Directory not empty", str(path))
+            real_rmtree(path)
+
+        monkeypatch.setattr("amaru.installer.shutil.rmtree", flaky_rmtree)
+        _purge_clan_dir(clan_dir, max_retries=3, retry_delay=0.0)
+        assert call_count["n"] == 2
+        assert not clan_dir.exists()
+
+    def test_raises_after_max_retries(self, tmp_path, monkeypatch):
+        clan_dir = tmp_path / "clan"
+        clan_dir.mkdir()
+        (clan_dir / "marker").write_text("x")
+
+        def always_fail(path):
+            raise OSError(errno.ENOTEMPTY, "Directory not empty", str(path))
+
+        monkeypatch.setattr("amaru.installer.shutil.rmtree", always_fail)
+        with pytest.raises(OSError) as exc_info:
+            _purge_clan_dir(clan_dir, max_retries=2, retry_delay=0.0)
+        assert exc_info.value.errno == errno.ENOTEMPTY
+
+    def test_non_transient_errors_reraise_immediately(self, tmp_path, monkeypatch):
+        clan_dir = tmp_path / "clan"
+        clan_dir.mkdir()
+        call_count = {"n": 0}
+
+        def permission_denied(path):
+            call_count["n"] += 1
+            raise OSError(errno.EACCES, "Permission denied", str(path))
+
+        monkeypatch.setattr("amaru.installer.shutil.rmtree", permission_denied)
+        with pytest.raises(OSError) as exc_info:
+            _purge_clan_dir(clan_dir, max_retries=5, retry_delay=0.0)
+        assert exc_info.value.errno == errno.EACCES
+        assert call_count["n"] == 1  # No retry on non-transient error
 
 
 # ---------------------------------------------------------------------------

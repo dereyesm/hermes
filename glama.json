@@ -1,21 +1,21 @@
 {
   "$schema": "https://glama.ai/mcp/schemas/server.json",
-  "name": "hermes-bus",
-  "description": "Inter-agent communication protocol — bus messaging, crypto, federation, session lifecycle. HERMES protocol.",
-  "version": "0.4.2",
+  "name": "amaru-bus",
+  "description": "Inter-agent communication protocol — bus messaging, crypto, federation, session lifecycle. Amaru protocol.",
+  "version": "0.5.0a1",
   "tools": [
-    "hermes_bus_read", "hermes_bus_write", "hermes_bus_ack",
-    "hermes_syn", "hermes_fin",
-    "hermes_status", "hermes_peers",
-    "hermes_seal", "hermes_open",
-    "hermes_integrity_check", "hermes_hub_send"
+    "amaru_bus_read", "amaru_bus_write", "amaru_bus_ack",
+    "amaru_syn", "amaru_fin",
+    "amaru_status", "amaru_peers",
+    "amaru_seal", "amaru_open",
+    "amaru_integrity_check", "amaru_hub_send"
   ],
   "resources": [
-    "hermes://protocol/version",
-    "hermes://bus/stats",
-    "hermes://config/clan"
+    "amaru://protocol/version",
+    "amaru://bus/stats",
+    "amaru://config/clan"
   ],
   "transport": ["stdio"],
   "maintainers": [{"github": "dereyesm"}],
-  "repository": "https://github.com/dereyesm/hermes"
+  "repository": "https://github.com/dereyesm/amaru-protocol"
 }

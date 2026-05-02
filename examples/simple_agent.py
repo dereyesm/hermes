@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-HERMES Simple Agent Example
-============================
+Amaru Simple Agent Example
+==========================
 
-A minimal agent that demonstrates the full HERMES session lifecycle:
+A minimal agent that demonstrates the full Amaru session lifecycle:
   SYN (read pending messages) -> WORK (do something) -> FIN (write state + ACK)
 
 Usage:
-    # First, set up HERMES (if you haven't already):
-    #   bash scripts/init_hermes.sh
+    # First, set up Amaru (if you haven't already):
+    #   bash scripts/init_amaru.sh
     #
     # Then install the reference implementation:
     #   cd reference/python && pip install -e . && cd ../..
@@ -20,15 +20,16 @@ Usage:
     python examples/simple_agent.py finance
 
     # Use a custom bus path:
-    HERMES_BUS=./my-bus.jsonl python examples/simple_agent.py
+    AMARU_BUS=./my-bus.jsonl python examples/simple_agent.py
 """
 
 import sys
 import os
+import warnings
 from pathlib import Path
 
-from hermes.sync import syn, syn_report, fin, FinAction
-from hermes.bus import ack_message
+from amaru.sync import syn, syn_report, fin, FinAction
+from amaru.bus import ack_message
 
 # ---------------------------------------------------------------------------
 # CONFIGURATION
@@ -37,12 +38,27 @@ from hermes.bus import ack_message
 # Which namespace is this agent? Default: "engineering"
 NAMESPACE = sys.argv[1] if len(sys.argv) > 1 else "engineering"
 
-# Where is the bus? Default: ~/.hermes/bus.jsonl
-BUS = Path(os.environ.get("HERMES_BUS", Path.home() / ".hermes" / "bus.jsonl"))
+
+def _resolve_bus_path() -> Path:
+    """Resolve bus path with backward-compat for legacy HERMES_BUS env var."""
+    if "AMARU_BUS" in os.environ:
+        return Path(os.environ["AMARU_BUS"])
+    if "HERMES_BUS" in os.environ:
+        warnings.warn(
+            "HERMES_BUS env var is deprecated; use AMARU_BUS instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return Path(os.environ["HERMES_BUS"])
+    return Path.home() / ".amaru" / "bus.jsonl"
+
+
+# Where is the bus? Default: ~/.amaru/bus.jsonl
+BUS = _resolve_bus_path()
 
 
 def main():
-    print(f"=== HERMES Agent [{NAMESPACE}] ===\n")
+    print(f"=== Amaru Agent [{NAMESPACE}] ===\n")
 
     # ------------------------------------------------------------------
     # PHASE 1: SYN — Read the bus, find messages for this namespace
@@ -50,7 +66,7 @@ def main():
     print("--- SYN (session start) ---")
 
     if not BUS.exists():
-        print(f"Bus not found at {BUS}. Run 'bash scripts/init_hermes.sh' first.")
+        print(f"Bus not found at {BUS}. Run 'bash scripts/init_amaru.sh' first.")
         sys.exit(1)
 
     result = syn(BUS, NAMESPACE)
