@@ -1004,9 +1004,7 @@ def run_install(
     return result
 
 
-def _purge_clan_dir(
-    clan_dir: Path, *, max_retries: int = 3, retry_delay: float = 0.5
-) -> None:
+def _purge_clan_dir(clan_dir: Path, *, max_retries: int = 3, retry_delay: float = 0.5) -> None:
     """Remove ``clan_dir`` with retry tolerance for daemon teardown races.
 
     Python 3.12 hardened ``shutil.rmtree`` (``_rmtree_safe_fd``) against TOCTOU
