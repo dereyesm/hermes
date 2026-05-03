@@ -1189,7 +1189,7 @@ class TestAutoPeerDiscovery:
         gw = {
             "clan_id": "momoshod",
             "display_name": "Clan MomoshoD",
-            "protocol_version": "0.4.2a1",
+            "protocol_version": "0.5.0a1",
             "keys": {"private": ".keys/momoshod.key", "public": ".keys/momoshod.pub"},
             "peers": [],
             "outbound": {},

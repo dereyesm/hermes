@@ -295,14 +295,18 @@ class TestBurstProtection:
                 await _drain(alice)
                 await _drain(bob)
 
-                for i in range(100):
+                # Burst sized under the per-client sig budget (60/min, ARC-4601
+                # §15.X rate limit, Bruja audit check #1). Exceeding the budget
+                # is correct behavior post-QC002 — we test that the hub stays
+                # responsive within budget, not that it ignores rate limits.
+                for i in range(50):
                     await alice.send_msg("bob", "event", f"burst-{i}")
 
                 await alice.send_msg("bob", "dispatch", "post-burst-test")
 
                 received_post_burst = False
                 try:
-                    for _ in range(110):
+                    for _ in range(60):
                         frame = await asyncio.wait_for(bob.ws.recv(), timeout=2.0)
                         parsed = json.loads(frame)
                         if (
