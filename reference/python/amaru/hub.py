@@ -172,9 +172,7 @@ class RateBuckets:
         now = now if now is not None else time.monotonic()
         elapsed = max(0.0, now - self.last_refill)
         self.sig_tokens = min(self.sig_max, self.sig_tokens + elapsed * (self.sig_max / 60.0))
-        self.data_tokens = min(
-            self.data_max, self.data_tokens + elapsed * (self.data_max / 60.0)
-        )
+        self.data_tokens = min(self.data_max, self.data_tokens + elapsed * (self.data_max / 60.0))
         self.last_refill = now
 
     def consume(self, sig: int = 1, data: int = 0) -> bool:
