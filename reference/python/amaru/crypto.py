@@ -222,6 +222,99 @@ def derive_shared_secret_ecdhe(
     return hkdf.derive(raw_shared)
 
 
+def _validate_v2_identity_inputs(
+    src_id: str, dst_id: str, peer_sign_pub_hex: str
+) -> None:
+    """Validate KCI v2 identity binding inputs per ARC-8446 §4.4.
+
+    Pipe is the field separator in the canonical info string; clan_ids
+    containing '|' would allow injection of fake identity fields. The
+    Ed25519 raw public key MUST be 64 lowercase hex chars (32 bytes) —
+    NOT the colon-grouped fingerprint format defined in §4.3.
+    """
+    if "|" in src_id or "|" in dst_id:
+        raise ValueError(
+            "clan_id MUST NOT contain '|' (ARC-8446 §4.4 — KCI v2 identity binding)"
+        )
+    if len(peer_sign_pub_hex) != 64:
+        raise ValueError(
+            "peer_sign_pub_hex MUST be 64 hex chars (raw Ed25519, not fingerprint)"
+        )
+    try:
+        bytes.fromhex(peer_sign_pub_hex)
+    except ValueError as exc:
+        raise ValueError(
+            "peer_sign_pub_hex MUST be valid lowercase hex"
+        ) from exc
+
+
+def derive_shared_secret_v2(
+    my_dh_private: X25519PrivateKey,
+    peer_dh_public: X25519PublicKey,
+    src_id: str,
+    dst_id: str,
+    peer_sign_pub_hex: str,
+    session_id: str | None = None,
+) -> bytes:
+    """ARC-8446 v2 — KCI-resistant static shared secret derivation.
+
+    Binds (src_id, dst_id, peer_sign_pub_hex) into the HKDF info string so
+    that compromising a peer's long-term X25519 key cannot be used to
+    impersonate a third clan toward that peer (Key Compromise Impersonation
+    attack, QC002 KCI-001).
+
+    Info string canonical form (ARC-8446 §4.4, JEI bilateral 2026-05-04):
+
+        AMARU-ARC8446-v2|src=<src_id>|dst=<dst_id>|fp=<peer_sign_pub_hex>
+
+    Optional `session_id` is consumed as HKDF salt for session-scoped keys.
+
+    Coexists with `derive_shared_secret` (v1) — no negotiation, cross-version
+    isolation enforced by distinct info strings.
+
+    Reference: ARC-8446 §4.4, QC002 KCI-001 (msg `19df3a50976ca745`).
+    """
+    _validate_v2_identity_inputs(src_id, dst_id, peer_sign_pub_hex)
+    raw_shared = my_dh_private.exchange(peer_dh_public)
+    info = (
+        f"AMARU-ARC8446-v2|src={src_id}|dst={dst_id}|fp={peer_sign_pub_hex}"
+    ).encode("utf-8")
+    salt = session_id.encode("utf-8") if session_id else None
+    hkdf = HKDF(algorithm=hashes.SHA256(), length=32, salt=salt, info=info)
+    return hkdf.derive(raw_shared)
+
+
+def derive_shared_secret_ecdhe_v2(
+    eph_private: X25519PrivateKey,
+    peer_static_dh_public: X25519PublicKey,
+    src_id: str,
+    dst_id: str,
+    peer_sign_pub_hex: str,
+    session_id: str | None = None,
+) -> bytes:
+    """ARC-8446 v2 — KCI-resistant ephemeral shared secret derivation (ECDHE).
+
+    Combines forward secrecy (ephemeral DH) with identity binding. The
+    `peer_sign_pub_hex` is the peer's STATIC Ed25519 sign-pub (not the
+    ephemeral key) — this is what binds derivation to a specific clan
+    identity, even when the X25519 long-term is compromised.
+
+    Info string canonical form:
+
+        AMARU-ARC8446-ECDHE-v2|src=<src_id>|dst=<dst_id>|fp=<peer_sign_pub_hex>
+
+    Reference: ARC-8446 §4.4 + §11.2 (QC002 KCI-001).
+    """
+    _validate_v2_identity_inputs(src_id, dst_id, peer_sign_pub_hex)
+    raw_shared = eph_private.exchange(peer_static_dh_public)
+    info = (
+        f"AMARU-ARC8446-ECDHE-v2|src={src_id}|dst={dst_id}|fp={peer_sign_pub_hex}"
+    ).encode("utf-8")
+    salt = session_id.encode("utf-8") if session_id else None
+    hkdf = HKDF(algorithm=hashes.SHA256(), length=32, salt=salt, info=info)
+    return hkdf.derive(raw_shared)
+
+
 def _build_aad(envelope_meta: dict | None) -> bytes | None:
     """Build canonical AAD bytes from envelope metadata."""
     if envelope_meta is None:
