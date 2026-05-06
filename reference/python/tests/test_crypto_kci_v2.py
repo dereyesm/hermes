@@ -1,4 +1,4 @@
-"""Tests for ARC-8446 §4.3 — KCI v2 identity-binding shared secret derivation.
+"""Tests for ARC-8446 §4.4 — KCI v2 identity-binding shared secret derivation.
 
 Covers:
 - Symmetric derivation (DANI ↔ JEI compute same secret with bound identities)
@@ -11,7 +11,7 @@ Covers:
 
 Self-contained: generates fresh keypairs per test (no fixtures_jei/ dependency).
 
-Reference: ARC-8446 §4.3, QC002 KCI-001, JEI bilateral 2026-05-04 (msg
+Reference: ARC-8446 §4.4, QC002 KCI-001, JEI bilateral 2026-05-04 (msg
 19df3a50976ca745).
 """
 
@@ -59,7 +59,7 @@ class TestKciV2Symmetric:
         assert dani_secret == jei_secret
         assert len(dani_secret) == 32
         # Sanity: dani_sign_pub is unused by both sides in this test (peer_sign
-        # binds to JEI on both ends per §4.3 outbound convention).
+        # binds to JEI on both ends per §4.4 outbound convention).
         assert dani_sign_pub != jei_sign_pub
 
 
@@ -113,7 +113,7 @@ class TestKciV2FingerprintFormat:
     def test_grouped_fingerprint_format_rejected(self):
         """Colon-grouped fingerprint format (8x4-hex) MUST be rejected.
 
-        ARC-8446 §4.3 mandates raw 64-char Ed25519 hex, not the human-readable
+        ARC-8446 §4.4 mandates raw 64-char Ed25519 hex, not the human-readable
         fingerprint() output (e.g. 'a1b2:c3d4:...').
         """
         dani_dh, jei_dh = _x25519_pair()
