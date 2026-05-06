@@ -381,7 +381,7 @@ async def tool_hub_send(dst: str, msg_type: str, msg: str, ttl: int = 14) -> dic
                 "type": "hello",
                 "clan_id": clan_id,
                 "sign_pub": keys.sign_public.public_bytes_raw().hex(),
-                "protocol_version": "0.4.2a1",
+                "protocol_version": "0.5.0a1",
                 "capabilities": ["e2e_crypto", "store_forward"],
             }
             await ws.send(json.dumps(hello))

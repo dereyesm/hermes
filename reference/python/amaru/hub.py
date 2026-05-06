@@ -25,6 +25,37 @@ from typing import Any
 
 logger = logging.getLogger("amaru.hub")
 
+# Minimum protocol version accepted by this hub (ARC-4601 §15.1).
+# Peers reporting a lower version are rejected with err code 1002 (downgrade
+# protection). Bumped from implicit 0.0 to "0.5" on 2026-05-02 in response to
+# Bruja audit (QC002 Phase 1, check #9).
+MIN_PROTOCOL_VERSION = "0.5"
+
+
+def _parse_version(v: str) -> tuple[int, ...]:
+    """Parse a semver-ish string into a comparable tuple of ints.
+
+    Strips pre-release suffixes per component ('0.5.0a1' -> (0, 5, 0)).
+    Empty or unparseable strings collapse to (0,).
+    """
+    parts: list[int] = []
+    for p in v.split("."):
+        digits = ""
+        for c in p:
+            if c.isdigit():
+                digits += c
+            else:
+                break
+        if digits:
+            parts.append(int(digits))
+    return tuple(parts) if parts else (0,)
+
+
+def _version_at_least(client: str, minimum: str) -> bool:
+    """Return True iff client version >= minimum (semver-aware)."""
+    return _parse_version(client) >= _parse_version(minimum)
+
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
@@ -48,6 +79,11 @@ class HubConfig:
     auth_timeout: int = 10
     s2s_reconnect_interval: int = 30
     s2s_max_backoff: int = 300
+    # Per-client rate limiting (Bruja audit check #1, QC002).
+    # Token-bucket per client_id with two independent buckets: signatures and
+    # data bytes. Refilled linearly over the period (60s).
+    sig_budget_per_min: int = 60
+    data_budget_bytes_per_min: int = 1_048_576  # 1 MiB / minute
 
     @classmethod
     def from_dict(cls, d: dict) -> HubConfig:
@@ -113,6 +149,43 @@ VALID_READINESS = frozenset({"online", "ready", "in_quest", "busy", "cooldown"})
 
 
 @dataclass
+class RateBuckets:
+    """Per-client token-bucket rate limiter (ARC-4601 §15.X, Bruja check #1).
+
+    Two independent buckets — signatures (msg count) and data bytes — refill
+    linearly at `<budget>/60` tokens per second up to their respective caps.
+    `consume()` returns False atomically when either bucket would go negative,
+    so a too-large message cannot partially drain the data bucket.
+    """
+
+    sig_max: float = 60.0
+    data_max: float = 1_048_576.0
+    sig_tokens: float = field(init=False)
+    data_tokens: float = field(init=False)
+    last_refill: float = field(default_factory=time.monotonic)
+
+    def __post_init__(self) -> None:
+        self.sig_tokens = self.sig_max
+        self.data_tokens = self.data_max
+
+    def _refill(self, now: float | None = None) -> None:
+        now = now if now is not None else time.monotonic()
+        elapsed = max(0.0, now - self.last_refill)
+        self.sig_tokens = min(self.sig_max, self.sig_tokens + elapsed * (self.sig_max / 60.0))
+        self.data_tokens = min(self.data_max, self.data_tokens + elapsed * (self.data_max / 60.0))
+        self.last_refill = now
+
+    def consume(self, sig: int = 1, data: int = 0) -> bool:
+        """Try to consume tokens. Returns False on either bucket exhausted."""
+        self._refill()
+        if self.sig_tokens < sig or self.data_tokens < data:
+            return False
+        self.sig_tokens -= sig
+        self.data_tokens -= data
+        return True
+
+
+@dataclass
 class ConnectionEntry:
     """An active WebSocket connection with presence metadata."""
 
@@ -126,6 +199,7 @@ class ConnectionEntry:
     quest_slots_max: int = 1
     active_quests: list[str] = field(default_factory=list)
     status_message: str = ""
+    rate: RateBuckets | None = None  # set post-AUTH_OK by HubServer
 
     def presence_dict(self) -> dict:
         """Return presence info for roster/broadcast."""
@@ -863,6 +937,10 @@ class HubServer:
                 # Regular peer connection
                 # Step 2: Register connection
                 conn_entry = self.connections.add(clan_id, ws)
+                conn_entry.rate = RateBuckets(
+                    sig_max=float(self.config.sig_budget_per_min),
+                    data_max=float(self.config.data_budget_bytes_per_min),
+                )
                 logger.info("Peer connected: %s", clan_id)
 
                 # Step 3: Notify other peers + S2S links
@@ -885,10 +963,7 @@ class HubServer:
                     frame_type = frame.get("type", "")
 
                     if frame_type == "msg":
-                        payload = frame.get("payload", {})
-                        if not isinstance(payload, dict) or "dst" not in payload:
-                            continue
-                        await self.router.route(payload, clan_id)
+                        await self._route_msg_frame(ws, frame, clan_id, conn_entry)
 
                     elif frame_type == "set_status":
                         # Client updates their readiness/presence
@@ -982,6 +1057,31 @@ class HubServer:
         client_caps = hello.get("capabilities", [])
         client_role = hello.get("role", "peer")
         client_local_peers = hello.get("local_peers", [])
+
+        # ARC-4601 §15.1: downgrade protection. Reject peers below the minimum
+        # supported protocol version with err code 1002. Coordinated bump on
+        # 2026-05-02 in response to Bruja audit check #9.
+        if not _version_at_least(client_version, MIN_PROTOCOL_VERSION):
+            logger.warning(
+                "Rejecting %s: protocol_version %s below minimum %s",
+                client_clan_id or "<unknown>",
+                client_version,
+                MIN_PROTOCOL_VERSION,
+            )
+            await ws.send(
+                json.dumps(
+                    {
+                        "type": "err",
+                        "code": 1002,
+                        "reason": (
+                            f"protocol version {client_version} below minimum "
+                            f"{MIN_PROTOCOL_VERSION}"
+                        ),
+                    }
+                )
+            )
+            await ws.close()
+            return fail
 
         logger.info(
             "HELLO from %s (v%s, role=%s, caps=%s)",
@@ -1121,6 +1221,54 @@ class HubServer:
         depth = self.queue.depth(clan_id)
         await ws.send(json.dumps({"type": "auth_ok", "clan_id": clan_id, "queue_depth": depth}))
         return clan_id
+
+    async def _route_msg_frame(
+        self,
+        ws: Any,
+        frame: dict,
+        clan_id: str,
+        conn_entry: ConnectionEntry | None = None,
+    ) -> None:
+        """Route a single 'msg' frame and emit backpressure on overflow.
+
+        ARC-4601 §15.7 — when the destination queue is full, send an err frame
+        with code 503 to the sender so it can retry/back off (Bruja audit
+        check #10).
+        ARC-4601 §15.X — when the per-client rate budget is exhausted, send err
+        429 and drop the frame without routing (Bruja audit check #1).
+        """
+        payload = frame.get("payload", {})
+        if not isinstance(payload, dict) or "dst" not in payload:
+            return
+
+        if conn_entry is not None and conn_entry.rate is not None:
+            data_bytes = len(json.dumps(payload))
+            if not conn_entry.rate.consume(sig=1, data=data_bytes):
+                await ws.send(
+                    json.dumps(
+                        {
+                            "type": "err",
+                            "code": 429,
+                            "reason": "rate limit exceeded",
+                            "ref": payload.get("id"),
+                        }
+                    )
+                )
+                return
+
+        result = await self.router.route(payload, clan_id)
+        if result.get("status") == "queue_full":
+            await ws.send(
+                json.dumps(
+                    {
+                        "type": "err",
+                        "code": 503,
+                        "reason": "destination queue full",
+                        "dst": result.get("dst"),
+                        "ref": payload.get("id"),
+                    }
+                )
+            )
 
     async def _drain_queue(self, ws: Any, clan_id: str) -> None:
         """Send queued messages to a newly connected peer (§15.7.2)."""
@@ -1657,7 +1805,7 @@ def cmd_hub_listen(hub_dir: Path, daemon: bool = False) -> int:
                                 "type": "hello",
                                 "clan_id": clan_id,
                                 "sign_pub": sign_pub_hex,
-                                "protocol_version": "0.4.2a1",
+                                "protocol_version": "0.5.0a1",
                                 "capabilities": ["e2e_crypto"],
                             }
                         )

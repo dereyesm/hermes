@@ -620,6 +620,239 @@ class TestMessageRouter:
 
         assert result["status"] == "queue_full"
 
+    # ARC-4601 §15.7 — backpressure (Bruja audit check #10, QC002)
+    def test_queue_full_emits_err_503_to_sender(self, tmp_hub, sample_config):
+        """When destination queue is full, hub MUST send err 503 to the sender."""
+        server = HubServer(sample_config, tmp_hub)
+        # Pre-fill jei queue to capacity
+        server.queue = StoreForwardQueue(max_depth=1)
+        server.queue.enqueue("jei", {"old": True})
+        server.router = MessageRouter(server.connections, server.queue)
+
+        ws = _make_ws_mock()
+        frame = {
+            "type": "msg",
+            "payload": {"dst": "jei", "id": "new-123", "msg": "test"},
+        }
+
+        loop = asyncio.new_event_loop()
+        try:
+            loop.run_until_complete(server._route_msg_frame(ws, frame, "momoshod"))
+        finally:
+            loop.close()
+
+        ws.send.assert_called_once()
+        sent = json.loads(ws.send.call_args[0][0])
+        assert sent["type"] == "err"
+        assert sent["code"] == 503
+        assert sent["dst"] == "jei"
+        assert sent["ref"] == "new-123"
+        assert "queue full" in sent["reason"]
+
+    def test_queue_full_silent_on_successful_delivery(self, tmp_hub, sample_config):
+        """No err frame when message delivers successfully (online peer)."""
+        server = HubServer(sample_config, tmp_hub)
+        # Register jei as online
+        peer_ws = _make_ws_mock()
+        server.connections.add("jei", peer_ws)
+
+        ws = _make_ws_mock()
+        frame = {
+            "type": "msg",
+            "payload": {"dst": "jei", "id": "ok-1", "msg": "test"},
+        }
+
+        loop = asyncio.new_event_loop()
+        try:
+            loop.run_until_complete(server._route_msg_frame(ws, frame, "momoshod"))
+        finally:
+            loop.close()
+
+        # The sender ws should NOT receive an err frame
+        for call in ws.send.call_args_list:
+            sent = json.loads(call[0][0])
+            assert sent.get("code") != 503
+
+    def test_route_msg_frame_ignores_payload_without_dst(self, tmp_hub, sample_config):
+        """Malformed payloads (no dst) are silently dropped, no err emitted."""
+        server = HubServer(sample_config, tmp_hub)
+        ws = _make_ws_mock()
+        frame = {"type": "msg", "payload": {"msg": "no dst here"}}
+
+        loop = asyncio.new_event_loop()
+        try:
+            loop.run_until_complete(server._route_msg_frame(ws, frame, "momoshod"))
+        finally:
+            loop.close()
+
+        ws.send.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# TestRateBuckets — ARC-4601 §15.X (Bruja audit check #1, QC002)
+# ---------------------------------------------------------------------------
+
+
+class TestRateBuckets:
+    def test_initial_bucket_full(self):
+        from amaru.hub import RateBuckets
+
+        rb = RateBuckets(sig_max=10, data_max=1000)
+        assert rb.sig_tokens == 10
+        assert rb.data_tokens == 1000
+
+    def test_consume_within_budget(self):
+        import pytest
+
+        from amaru.hub import RateBuckets
+
+        rb = RateBuckets(sig_max=10, data_max=1000)
+        assert rb.consume(sig=1, data=100) is True
+        assert rb.sig_tokens == pytest.approx(9, abs=0.01)
+        assert rb.data_tokens == pytest.approx(900, abs=1.0)
+
+    def test_consume_sig_budget_exhausted(self):
+        from amaru.hub import RateBuckets
+
+        rb = RateBuckets(sig_max=2, data_max=10_000)
+        assert rb.consume(sig=1) is True
+        assert rb.consume(sig=1) is True
+        assert rb.consume(sig=1) is False  # exhausted
+
+    def test_consume_data_budget_exhausted(self):
+        from amaru.hub import RateBuckets
+
+        rb = RateBuckets(sig_max=100, data_max=200)
+        assert rb.consume(sig=1, data=200) is True
+        assert rb.consume(sig=1, data=1) is False  # data exhausted
+
+    def test_consume_atomic_no_partial_drain(self):
+        """When sig is OK but data would underflow, consume MUST NOT drain sig."""
+        import pytest
+
+        from amaru.hub import RateBuckets
+
+        rb = RateBuckets(sig_max=10, data_max=100)
+        rb.consume(sig=1, data=50)  # remaining: sig=9, data=50
+        # Try to consume something that exceeds data budget
+        assert rb.consume(sig=1, data=200) is False
+        # sig MUST NOT have been decremented (tolerance for refill drift)
+        assert rb.sig_tokens == pytest.approx(9, abs=0.01)
+        assert rb.data_tokens == pytest.approx(50, abs=1.0)
+
+    def test_refill_over_time(self):
+        from amaru.hub import RateBuckets
+
+        rb = RateBuckets(sig_max=60, data_max=600)
+        rb.consume(sig=60, data=600)  # drain
+        assert rb.consume(sig=1) is False
+        # Simulate 10 seconds elapsed
+        rb.last_refill -= 10
+        rb._refill()
+        # After 10s, sig refilled by 60 * (10/60) = 10
+        assert rb.sig_tokens >= 9.9  # tolerance for floating
+        assert rb.data_tokens >= 99.0
+
+    def test_per_client_isolation(self):
+        """Two RateBuckets instances are independent (per-client isolation)."""
+        from amaru.hub import RateBuckets
+
+        rb_jei = RateBuckets(sig_max=2, data_max=100)
+        rb_dani = RateBuckets(sig_max=2, data_max=100)
+        rb_jei.consume(sig=1)
+        rb_jei.consume(sig=1)
+        # dani is untouched
+        assert rb_dani.sig_tokens == 2
+        assert rb_dani.consume(sig=1) is True
+
+
+# ---------------------------------------------------------------------------
+# TestRouteMsgFrameRateLimit — integration, _route_msg_frame + RateBuckets
+# ---------------------------------------------------------------------------
+
+
+class TestRouteMsgFrameRateLimit:
+    def test_rate_limit_emits_err_429(self, tmp_hub, sample_config):
+        """When per-client budget is exhausted, hub MUST send err 429."""
+        from amaru.hub import RateBuckets
+
+        server = HubServer(sample_config, tmp_hub)
+        # Register a fake conn with a rate bucket pre-drained
+        peer_ws = _make_ws_mock()
+        server.connections.add("jei", peer_ws)  # dst online
+        sender_ws = _make_ws_mock()
+        sender_entry = server.connections.add("momoshod", sender_ws)
+        sender_entry.rate = RateBuckets(sig_max=1, data_max=10_000)
+        sender_entry.rate.consume(sig=1)  # drain
+
+        frame = {
+            "type": "msg",
+            "payload": {"dst": "jei", "id": "rl-1", "msg": "blocked"},
+        }
+        loop = asyncio.new_event_loop()
+        try:
+            loop.run_until_complete(
+                server._route_msg_frame(sender_ws, frame, "momoshod", sender_entry)
+            )
+        finally:
+            loop.close()
+
+        sender_ws.send.assert_called_once()
+        sent = json.loads(sender_ws.send.call_args[0][0])
+        assert sent["type"] == "err"
+        assert sent["code"] == 429
+        assert sent["ref"] == "rl-1"
+        # The msg MUST NOT have been delivered to jei
+        peer_ws.send.assert_not_called()
+
+    def test_rate_limit_data_budget_exhausted(self, tmp_hub, sample_config):
+        """A large payload exhausting the data bucket triggers err 429."""
+        from amaru.hub import RateBuckets
+
+        server = HubServer(sample_config, tmp_hub)
+        sender_ws = _make_ws_mock()
+        sender_entry = server.connections.add("momoshod", sender_ws)
+        sender_entry.rate = RateBuckets(sig_max=100, data_max=50)
+
+        big_payload = {"dst": "jei", "id": "big", "msg": "x" * 200}
+        frame = {"type": "msg", "payload": big_payload}
+
+        loop = asyncio.new_event_loop()
+        try:
+            loop.run_until_complete(
+                server._route_msg_frame(sender_ws, frame, "momoshod", sender_entry)
+            )
+        finally:
+            loop.close()
+
+        sender_ws.send.assert_called_once()
+        sent = json.loads(sender_ws.send.call_args[0][0])
+        assert sent["code"] == 429
+
+    def test_rate_limit_disabled_when_no_buckets(self, tmp_hub, sample_config):
+        """Frames pass through when conn_entry has no rate buckets (back-compat)."""
+        server = HubServer(sample_config, tmp_hub)
+        peer_ws = _make_ws_mock()
+        server.connections.add("jei", peer_ws)
+        sender_ws = _make_ws_mock()
+        # No rate bucket on this entry
+        sender_entry = server.connections.add("momoshod", sender_ws)
+        assert sender_entry.rate is None
+
+        frame = {"type": "msg", "payload": {"dst": "jei", "id": "ok", "msg": "test"}}
+        loop = asyncio.new_event_loop()
+        try:
+            loop.run_until_complete(
+                server._route_msg_frame(sender_ws, frame, "momoshod", sender_entry)
+            )
+        finally:
+            loop.close()
+
+        # Sender did not get any err frame
+        sender_ws.send.assert_not_called()
+        # Peer did receive it
+        peer_ws.send.assert_called_once()
+
 
 # ---------------------------------------------------------------------------
 # TestMessageRouter_SentReceipt — ATR-Q.931 §8.1 + §8.4
@@ -969,7 +1202,7 @@ class TestHubServer:
                         "type": "hello",
                         "clan_id": "test_clan",
                         "sign_pub": pubkey_hex,
-                        "protocol_version": "0.4.2a1",
+                        "protocol_version": "0.5.0a1",
                         "capabilities": [],
                     }
                 )
@@ -1038,6 +1271,83 @@ class TestHubServer:
             loop.close()
 
         assert result[0] is None
+
+    # ARC-4601 §15.1 — downgrade protection (Bruja audit check #9, QC002)
+    def test_downgrade_protection_old_version_rejected(self, tmp_hub, sample_config):
+        """A peer reporting protocol_version < 0.5 must be rejected before AUTH."""
+        server = HubServer(sample_config, tmp_hub)
+        ws = _make_ws_mock()
+
+        async def mock_recv():
+            return json.dumps(
+                {
+                    "type": "hello",
+                    "clan_id": "old_clan",
+                    "sign_pub": "aa" * 32,
+                    "protocol_version": "0.4.2a1",
+                    "capabilities": [],
+                }
+            )
+
+        ws.recv = mock_recv
+
+        loop = asyncio.new_event_loop()
+        try:
+            result = loop.run_until_complete(server._authenticate(ws))
+        finally:
+            loop.close()
+
+        assert result[0] is None
+        ws.close.assert_called_once()
+
+    def test_downgrade_protection_err_1002_emitted(self, tmp_hub, sample_config):
+        """Rejection must surface as err frame with code 1002."""
+        server = HubServer(sample_config, tmp_hub)
+        ws = _make_ws_mock()
+
+        async def mock_recv():
+            return json.dumps(
+                {
+                    "type": "hello",
+                    "clan_id": "old_clan",
+                    "sign_pub": "aa" * 32,
+                    "protocol_version": "0.4",
+                    "capabilities": [],
+                }
+            )
+
+        ws.recv = mock_recv
+
+        loop = asyncio.new_event_loop()
+        try:
+            loop.run_until_complete(server._authenticate(ws))
+        finally:
+            loop.close()
+
+        sent = json.loads(ws.send.call_args[0][0])
+        assert sent["type"] == "err"
+        assert sent["code"] == 1002
+        assert "0.4" in sent["reason"]
+        assert "0.5" in sent["reason"]
+
+    def test_version_parse_handles_prerelease(self):
+        """0.5.0a1 must parse to >= 0.5 (suffix stripped per component)."""
+        from amaru.hub import _parse_version, _version_at_least
+
+        assert _parse_version("0.5.0a1") == (0, 5, 0)
+        assert _parse_version("0.5") == (0, 5)
+        assert _parse_version("unknown") == (0,)
+        assert _parse_version("") == (0,)
+
+        assert _version_at_least("0.5", "0.5") is True
+        assert _version_at_least("0.5.0", "0.5") is True
+        assert _version_at_least("0.5.0a1", "0.5") is True
+        assert _version_at_least("0.6", "0.5") is True
+        assert _version_at_least("1.0", "0.5") is True
+        assert _version_at_least("0.4.9", "0.5") is False
+        assert _version_at_least("0.4", "0.5") is False
+        assert _version_at_least("unknown", "0.5") is False
+        assert _version_at_least("", "0.5") is False
 
 
 # ---------------------------------------------------------------------------
