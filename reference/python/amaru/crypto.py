@@ -225,7 +225,7 @@ def derive_shared_secret_ecdhe(
 def _validate_v2_identity_inputs(
     src_id: str, dst_id: str, peer_sign_pub_hex: str
 ) -> None:
-    """Validate KCI v2 identity binding inputs per ARC-8446 §4.3.
+    """Validate KCI v2 identity binding inputs per ARC-8446 §4.4.
 
     Pipe is the field separator in the canonical info string; clan_ids
     containing '|' would allow injection of fake identity fields. The
@@ -234,7 +234,7 @@ def _validate_v2_identity_inputs(
     """
     if "|" in src_id or "|" in dst_id:
         raise ValueError(
-            "clan_id MUST NOT contain '|' (ARC-8446 §4.3 — KCI v2 identity binding)"
+            "clan_id MUST NOT contain '|' (ARC-8446 §4.4 — KCI v2 identity binding)"
         )
     if len(peer_sign_pub_hex) != 64:
         raise ValueError(
@@ -263,7 +263,7 @@ def derive_shared_secret_v2(
     impersonate a third clan toward that peer (Key Compromise Impersonation
     attack, QC002 KCI-001).
 
-    Info string canonical form (ARC-8446 §4.3, JEI bilateral 2026-05-04):
+    Info string canonical form (ARC-8446 §4.4, JEI bilateral 2026-05-04):
 
         AMARU-ARC8446-v2|src=<src_id>|dst=<dst_id>|fp=<peer_sign_pub_hex>
 
@@ -272,7 +272,7 @@ def derive_shared_secret_v2(
     Coexists with `derive_shared_secret` (v1) — no negotiation, cross-version
     isolation enforced by distinct info strings.
 
-    Reference: ARC-8446 §4.3, QC002 KCI-001 (msg `19df3a50976ca745`).
+    Reference: ARC-8446 §4.4, QC002 KCI-001 (msg `19df3a50976ca745`).
     """
     _validate_v2_identity_inputs(src_id, dst_id, peer_sign_pub_hex)
     raw_shared = my_dh_private.exchange(peer_dh_public)
@@ -303,7 +303,7 @@ def derive_shared_secret_ecdhe_v2(
 
         AMARU-ARC8446-ECDHE-v2|src=<src_id>|dst=<dst_id>|fp=<peer_sign_pub_hex>
 
-    Reference: ARC-8446 §4.3 + §11.2 (QC002 KCI-001).
+    Reference: ARC-8446 §4.4 + §11.2 (QC002 KCI-001).
     """
     _validate_v2_identity_inputs(src_id, dst_id, peer_sign_pub_hex)
     raw_shared = eph_private.exchange(peer_static_dh_public)
