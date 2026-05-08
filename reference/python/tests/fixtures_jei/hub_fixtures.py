@@ -2,9 +2,9 @@
 
 Replicates StoreForwardQueue and MessageRouter APIs from amaru/hub.py.
 """
+
 import time
 from dataclasses import dataclass, field
-from typing import Any
 
 import pytest
 

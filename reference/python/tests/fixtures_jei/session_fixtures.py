@@ -1,4 +1,5 @@
 """Session state machine fixtures — QUEST-CROSS-002 bilateral tests."""
+
 import time
 import uuid
 from enum import Enum, auto

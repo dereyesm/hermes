@@ -2,17 +2,15 @@
 
 Uses real cryptography primitives (Ed25519 + X25519 + HKDF-SHA256 + AES-256-GCM).
 """
-import os
 
 import pytest
+from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PrivateKey,
     Ed25519PublicKey,
 )
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
-from cryptography.hazmat.primitives import hashes, serialization
-
 
 HKDF_INFO = b"AMARU-ARC8446-ECDHE-v1"
 HKDF_ALGO = hashes.SHA256()
@@ -100,6 +98,7 @@ def old_session_key(shared_secret_bilateral) -> bytes:
 def sign_test_frame(private_key: Ed25519PrivateKey, frame_dict: dict) -> str:
     """Sign a frame dict with Ed25519. Returns hex-encoded signature."""
     import json
+
     data = json.dumps(frame_dict, sort_keys=True).encode()
     return private_key.sign(data).hex()
 
@@ -107,6 +106,7 @@ def sign_test_frame(private_key: Ed25519PrivateKey, frame_dict: dict) -> str:
 def verify_test_frame(public_key: Ed25519PublicKey, frame_dict: dict, sig_hex: str) -> bool:
     """Verify Ed25519 signature of a frame dict."""
     import json
+
     data = json.dumps(frame_dict, sort_keys=True).encode()
     try:
         public_key.verify(bytes.fromhex(sig_hex), data)

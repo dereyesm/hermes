@@ -2,6 +2,7 @@
 
 All frames use the real HELLO→CHALLENGE→AUTH→AUTH_OK protocol from amaru/hub.py.
 """
+
 import os
 import time
 import uuid
@@ -74,6 +75,7 @@ def frame_message(bilateral_session_id) -> dict:
 def frame_sent_receipt(frame_message, ed25519_keypair_jei) -> dict:
     """SENT receipt emitted by hub (Ed25519 signed)."""
     import json
+
     receipt = {
         "type": "receipt",
         "stage": "SENT",
