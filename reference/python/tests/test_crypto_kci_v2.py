@@ -262,10 +262,6 @@ class TestKciV2PeerBinding:
             src_id="dani",
             dst_id="jei",
         )
-        secret_a = derive_shared_secret_v2(
-            **kwargs, peer_sign_pub_hex=_ed25519_pub_hex()
-        )
-        secret_b = derive_shared_secret_v2(
-            **kwargs, peer_sign_pub_hex=_ed25519_pub_hex()
-        )
+        secret_a = derive_shared_secret_v2(**kwargs, peer_sign_pub_hex=_ed25519_pub_hex())
+        secret_b = derive_shared_secret_v2(**kwargs, peer_sign_pub_hex=_ed25519_pub_hex())
         assert secret_a != secret_b

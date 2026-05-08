@@ -222,9 +222,7 @@ def derive_shared_secret_ecdhe(
     return hkdf.derive(raw_shared)
 
 
-def _validate_v2_identity_inputs(
-    src_id: str, dst_id: str, peer_sign_pub_hex: str
-) -> None:
+def _validate_v2_identity_inputs(src_id: str, dst_id: str, peer_sign_pub_hex: str) -> None:
     """Validate KCI v2 identity binding inputs per ARC-8446 §4.4.
 
     Pipe is the field separator in the canonical info string; clan_ids
@@ -233,19 +231,13 @@ def _validate_v2_identity_inputs(
     NOT the colon-grouped fingerprint format defined in §4.3.
     """
     if "|" in src_id or "|" in dst_id:
-        raise ValueError(
-            "clan_id MUST NOT contain '|' (ARC-8446 §4.4 — KCI v2 identity binding)"
-        )
+        raise ValueError("clan_id MUST NOT contain '|' (ARC-8446 §4.4 — KCI v2 identity binding)")
     if len(peer_sign_pub_hex) != 64:
-        raise ValueError(
-            "peer_sign_pub_hex MUST be 64 hex chars (raw Ed25519, not fingerprint)"
-        )
+        raise ValueError("peer_sign_pub_hex MUST be 64 hex chars (raw Ed25519, not fingerprint)")
     try:
         bytes.fromhex(peer_sign_pub_hex)
     except ValueError as exc:
-        raise ValueError(
-            "peer_sign_pub_hex MUST be valid lowercase hex"
-        ) from exc
+        raise ValueError("peer_sign_pub_hex MUST be valid lowercase hex") from exc
 
 
 def derive_shared_secret_v2(
@@ -276,9 +268,7 @@ def derive_shared_secret_v2(
     """
     _validate_v2_identity_inputs(src_id, dst_id, peer_sign_pub_hex)
     raw_shared = my_dh_private.exchange(peer_dh_public)
-    info = (
-        f"AMARU-ARC8446-v2|src={src_id}|dst={dst_id}|fp={peer_sign_pub_hex}"
-    ).encode()
+    info = (f"AMARU-ARC8446-v2|src={src_id}|dst={dst_id}|fp={peer_sign_pub_hex}").encode()
     salt = session_id.encode("utf-8") if session_id else None
     hkdf = HKDF(algorithm=hashes.SHA256(), length=32, salt=salt, info=info)
     return hkdf.derive(raw_shared)
@@ -307,9 +297,7 @@ def derive_shared_secret_ecdhe_v2(
     """
     _validate_v2_identity_inputs(src_id, dst_id, peer_sign_pub_hex)
     raw_shared = eph_private.exchange(peer_static_dh_public)
-    info = (
-        f"AMARU-ARC8446-ECDHE-v2|src={src_id}|dst={dst_id}|fp={peer_sign_pub_hex}"
-    ).encode()
+    info = (f"AMARU-ARC8446-ECDHE-v2|src={src_id}|dst={dst_id}|fp={peer_sign_pub_hex}").encode()
     salt = session_id.encode("utf-8") if session_id else None
     hkdf = HKDF(algorithm=hashes.SHA256(), length=32, salt=salt, info=info)
     return hkdf.derive(raw_shared)
