@@ -47,6 +47,8 @@ Core protocol standards governing message formats, transport, addressing, and se
 | ARC-7540 | Multiplexed Bus Channels | RFC 7540 (HTTP/2) | A2A multiplexed task streams; 3GPP TS 23.501 PDU sessions | PLANNED | Extension |
 | [ARC-8446](ARC-8446.md) | Encrypted Bus Protocol | RFC 8446 (TLS 1.3) | ECMA-434 (NLIP) security levels; IETF SLIM (MLS); NIST FIPS 203-205 (PQC) | IMPLEMENTED | Security |
 | [ARC-9001](ARC-9001.md) | Bus Integrity Protocol | — (MVCC/OCC) | SS7 sequence numbering (ITU-T Q.703); Database OCC; 3GPP TS 23.501 NF state | IMPLEMENTED | Core |
+| [ARC-COORD-01](ARC-COORD-01.md) | Coordinated Dispatch Type | — (Original) | FIPA Contract Net (1→N task announcement); 3GPP TS 23.502 (procedural orchestration); SIP forking (RFC 3261) | DRAFT | Extension |
+| [ARC-REFLECT-01](ARC-REFLECT-01.md) | Reflection Message Type | — (Original) | OODA loop (Boyd); FIPA ACL `inform` performative; SBA NF observability (3GPP TS 28.531) | DRAFT | Extension |
 
 ## ATR -- Agent Telecom Recommendations (ITU-T Lineage)
 
