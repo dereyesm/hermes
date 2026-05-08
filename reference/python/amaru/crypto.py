@@ -278,7 +278,7 @@ def derive_shared_secret_v2(
     raw_shared = my_dh_private.exchange(peer_dh_public)
     info = (
         f"AMARU-ARC8446-v2|src={src_id}|dst={dst_id}|fp={peer_sign_pub_hex}"
-    ).encode("utf-8")
+    ).encode()
     salt = session_id.encode("utf-8") if session_id else None
     hkdf = HKDF(algorithm=hashes.SHA256(), length=32, salt=salt, info=info)
     return hkdf.derive(raw_shared)
@@ -309,7 +309,7 @@ def derive_shared_secret_ecdhe_v2(
     raw_shared = eph_private.exchange(peer_static_dh_public)
     info = (
         f"AMARU-ARC8446-ECDHE-v2|src={src_id}|dst={dst_id}|fp={peer_sign_pub_hex}"
-    ).encode("utf-8")
+    ).encode()
     salt = session_id.encode("utf-8") if session_id else None
     hkdf = HKDF(algorithm=hashes.SHA256(), length=32, salt=salt, info=info)
     return hkdf.derive(raw_shared)
