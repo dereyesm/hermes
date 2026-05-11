@@ -262,13 +262,23 @@ def tool_peers() -> list[dict]:
         return []
 
 
+def _resolve_keys_dir() -> str:
+    """Resolve canonical keys directory — try `keys/` (legacy) then `.keys/` (current).
+
+    Mirrors cli.py:435-437 fallback. Some installs predate the dot-prefix
+    convention and still hold material in `keys/`; new installs use `.keys/`.
+    """
+    legacy = _AMARU_DIR / "keys"
+    return str(legacy if legacy.exists() else _AMARU_DIR / ".keys")
+
+
 def tool_seal(peer_clan_id: str, msg: str, envelope_meta: dict | None = None) -> dict:
     """Encrypt + sign a message for a peer using ECDHE (ARC-8446)."""
     from amaru.config import load_config
     from amaru.crypto import ClanKeyPair, seal_bus_message_ecdhe
 
     cfg = load_config(str(_AMARU_DIR))
-    my_keys = ClanKeyPair.load(str(_AMARU_DIR / ".keys"), cfg.clan_id)
+    my_keys = ClanKeyPair.load(_resolve_keys_dir(), cfg.clan_id)
 
     peer_pub_path = None
     for p in cfg.peers:
@@ -297,7 +307,7 @@ def tool_open(sealed_json: dict, sender_clan_id: str, envelope_meta: dict | None
     from amaru.crypto import ClanKeyPair, open_bus_message
 
     cfg = load_config(str(_AMARU_DIR))
-    my_keys = ClanKeyPair.load(str(_AMARU_DIR / ".keys"), cfg.clan_id)
+    my_keys = ClanKeyPair.load(_resolve_keys_dir(), cfg.clan_id)
 
     peer_pub_path = None
     for p in cfg.peers:
