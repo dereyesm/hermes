@@ -1640,7 +1640,7 @@ def main(argv: list[str] | None = None) -> int:
                                 "type": "hello",
                                 "clan_id": gw.clan_id,
                                 "sign_pub": pub_hex,
-                                "protocol_version": "0.4.2a1",
+                                "protocol_version": "0.5.0a1",
                                 "capabilities": [],
                             }
                         )
@@ -1709,7 +1709,7 @@ def main(argv: list[str] | None = None) -> int:
                                 "type": "hello",
                                 "clan_id": gw.clan_id,
                                 "sign_pub": pub_hex,
-                                "protocol_version": "0.4.2a1",
+                                "protocol_version": "0.5.0a1",
                                 "capabilities": [],
                             }
                         )

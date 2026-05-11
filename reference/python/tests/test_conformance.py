@@ -1436,7 +1436,7 @@ class TestLevel3Bridge:
                         "type": "hello",
                         "clan_id": "test_clan",
                         "sign_pub": pubkey_hex,
-                        "protocol_version": "0.4.2a1",
+                        "protocol_version": "0.5.0a1",
                         "capabilities": ["e2e_crypto"],
                     }
                 )

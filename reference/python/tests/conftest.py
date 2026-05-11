@@ -169,7 +169,7 @@ async def connect_hub_client(
     uri: str,
     clan_id: str,
     sign_key: Ed25519PrivateKey,
-    protocol_version: str = "0.4.2a1",
+    protocol_version: str = "0.5.0a1",
 ) -> HubTestClient:
     """Connect to a hub and perform HELLO/CHALLENGE/AUTH handshake.
 
