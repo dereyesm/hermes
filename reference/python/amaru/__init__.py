@@ -6,7 +6,7 @@ Inspired by TCP/IP. No servers, no databases — just files and convention.
 Formerly known as HERMES (Heterogeneous Event Routing for Multi-agent Ephemeral Sessions).
 """
 
-__version__ = "0.5.0a1"
+__version__ = "0.6.0a1"
 
 from .agora import AgoraDirectory
 from .bus import (
