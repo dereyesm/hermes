@@ -9,6 +9,44 @@ This project follows a versioning scheme where:
 
 ---
 
+## [0.6.0a1] — QC002 Phase 1 + KCI v2 (2026-05-12)
+
+### Added
+
+- **KCI v2 identity binding** (`derive_shared_secret_v2`, `derive_shared_secret_ecdhe_v2`) — `crypto.py`:
+  - Pipe-delimited info string: `"AMARU-ARC8446-v2|src=<clan>|dst=<clan>|fp=<sign_pub_hex>"`
+  - Raw Ed25519 64-char hex peer signing key (no fingerprint collapse)
+  - `_validate_v2_identity_inputs()` rejects pipe injection + non-hex
+  - Salt = `session_id` when available
+  - v1 derivation preserved — coexistence without negotiation or fallback
+- **Bruja audit remediation** (QC002 Phase 1 P0/P1):
+  - Downgrade attack mitigation (#9 in audit)
+  - Rate limiting (#1)
+  - 503 backpressure queue (#10)
+- **Tests**: 13 KCI v2 unit tests (`test_crypto_kci_v2.py`) + 20 Bachue fixtures from Clan JEI (`tests/fixtures_jei/`, `test_qc002_p0_jei.py`)
+- **MCP keys path resolution**: legacy/canonical fallback in `mcp_server.py` (`_resolve_keys_dir()`) — fixes amaru_seal post-rebrand
+
+### Spec
+
+- **ARC-8446 v1.3** — §4.4 Identity Binding + v2 derivation profile + §4.4.2.1 dst-binding calling convention (TLS 1.3 client/server-write model). Scope documented in §4.4.2.2.
+- **ARC-4601 §18.1.1** — clarifies §15.6 state machine vs §18 INVITE/ACK equivalence (no code change).
+- **ARC-REFLECT-01** (DRAFT) + **ARC-COORD-01** (DRAFT) — landing of Consejo 2026-04-28 drafts.
+
+### Bilateral
+
+- JEI APPROVED PR #15 (re-ACK over HEAD `7795203`) + PR #17 on 2026-05-11.
+- Atomic cut coordinated for 2026-05-13 10:00 COT with simultaneous v0.6.0a1 pull by both clans.
+- Bilateral live test session post-cut: tests 1-8 (ALTA) + 17-20 (KCI/Downgrade/DoS/Oracle) recorded to `docs/comms/2026-05-13_qc002_p0_bilateral.cast`.
+
+### Out of scope (deferred to v0.6.0a2+)
+
+- Production wiring of `seal_bus_message` to v2 (Issue #18).
+- §18.5 channel whitelist.
+- Mutual binding §4.4.2.3.
+- ATR-KEP-002 metrics dataset (PR #9/#10/#11/#15/#17 quintet).
+
+---
+
 ## [Unreleased] — ATR-Q.931 SENT Receipt (2026-04-06)
 
 ### Added
