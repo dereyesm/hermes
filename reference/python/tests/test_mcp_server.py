@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from amaru import __version__
 from amaru.bus import read_bus, write_message
 from amaru.mcp_server import (
     SessionCursor,
@@ -213,7 +214,7 @@ class TestStatus:
     def test_status_returns_version(self, setup_amaru_dir):
         result = tool_status()
         assert "protocol_version" in result
-        assert result["protocol_version"] == "0.5.0a1"
+        assert result["protocol_version"] == __version__
 
     def test_status_bus_stats(self, setup_amaru_dir):
         bus = setup_amaru_dir / "bus.jsonl"
