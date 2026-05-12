@@ -647,6 +647,8 @@ def cmd_send(args: argparse.Namespace) -> int:
         for uri in hub_uris:
             try:
                 async with websockets.connect(uri, open_timeout=5) as ws:
+                    from . import __version__ as _amaru_version
+
                     # Auth
                     await ws.send(
                         json.dumps(
@@ -654,6 +656,7 @@ def cmd_send(args: argparse.Namespace) -> int:
                                 "type": "hello",
                                 "clan_id": config.clan_id,
                                 "sign_pub": sign_pub_hex,
+                                "protocol_version": _amaru_version,
                             }
                         )
                     )
