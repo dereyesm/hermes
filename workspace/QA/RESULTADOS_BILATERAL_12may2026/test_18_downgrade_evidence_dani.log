@@ -1,0 +1,11 @@
+=== Test 18 Evidence — DANI side (post-fix CLI dfe60b4) ===
+
+[1] Probe local hub with legacy HELLO (no protocol_version):
+    Response: {"type": "err", "code": 1002, "reason": "protocol version unknown below minimum 0.5"}
+    ✅ Test 18 PASS: hub correctly rejects HELLO without protocol_version (ARC-4601 §15.1, Bruja #9)
+
+[2] Probe local hub with current HELLO (protocol_version=0.6.0a1):
+    Response type: challenge
+    ✅ Current CLI HELLO accepted, hub issued CHALLENGE — downgrade gate honors current version
+
+=== Conclusion: QC002 P0 #9 downgrade protection working as specified ===
