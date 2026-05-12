@@ -211,14 +211,30 @@ class TestParseBusMessagePermissive:
         assert m is not None
         assert m.msg == "hola mundo"
 
-    def test_msg_invalid_utf8_bytes_fallback_to_str(self):
+    def test_msg_invalid_utf8_bytes_flagged_and_logged(self, caplog):
+        """ASI02 traceability: invalid UTF-8 in msg payload MUST emit a
+        warning and prefix the fallback with [ENCODING_ERROR] so
+        downstream observers can filter encoding-errored messages.
+
+        Reviewer: Bachue (JEI) — PR #26 review 2026-05-12.
+        """
+        import logging as _logging
+
         from amaru.agent import _parse_bus_message_permissive
 
         payload = b"\xff\xfe\xfd"  # invalid UTF-8
-        m = _parse_bus_message_permissive(self._base_msg(payload))
+        with caplog.at_level(_logging.WARNING, logger="amaru.agent"):
+            m = _parse_bus_message_permissive(self._base_msg(payload))
+
         assert m is not None
-        # falls back to str(bytes) repr — does not crash, no data loss flag
-        assert m.msg.startswith("b'") or m.msg.startswith("b\"")
+        assert m.msg.startswith("[ENCODING_ERROR]")
+        # Trazabilidad: warning emitted with src/dst/type context
+        assert any(
+            "permissive_parser: invalid utf-8" in r.message
+            and "src=momoshod" in r.message
+            and "dst=jei" in r.message
+            for r in caplog.records
+        )
 
     def test_msg_int_fallback_to_str(self):
         from amaru.agent import _parse_bus_message_permissive
@@ -1306,6 +1322,244 @@ class TestHubInboxLoop:
             await node._hub_inbox_loop()
 
         asyncio.run(run_once())
+
+
+class TestHubInboxLoopErrors:
+    """Coverage of error paths in _hub_inbox_loop.
+
+    JEI/Bachue PR #26 review condition: AgentNode is the ICAP gateway,
+    high-criticality. Error paths in inbox loop must be tested.
+    """
+
+    @pytest.fixture
+    def hub_inbox_config(self, tmp_clan):
+        inbox = tmp_clan / "hub-inbox.jsonl"
+        inbox.touch()
+        return AgentNodeConfig(
+            bus_path=tmp_clan / "bus.jsonl",
+            gateway_url="",
+            namespace="test-node",
+            clan_dir=tmp_clan,
+            hub_inbox_path=inbox,
+            hub_inbox_poll_interval=0.05,
+            poll_interval=0.05,
+        )
+
+    def test_inbox_missing_logs_and_returns(self, tmp_clan, caplog):
+        """If hub_inbox_path does not exist, loop logs and returns immediately."""
+        import logging as _logging
+
+        config = AgentNodeConfig(
+            bus_path=tmp_clan / "bus.jsonl",
+            gateway_url="",
+            namespace="test",
+            clan_dir=tmp_clan,
+            hub_inbox_path=tmp_clan / "nonexistent-inbox.jsonl",
+        )
+        node = AgentNode(config)
+
+        async def run_once():
+            node._running = True
+            await node._hub_inbox_loop()
+
+        with caplog.at_level(_logging.INFO, logger="amaru.agent"):
+            asyncio.run(run_once())
+
+        assert any("Hub inbox not found" in r.message for r in caplog.records)
+
+    def test_corrupt_cursor_resets_to_zero(self, hub_inbox_config):
+        """If hub-inbox.daemon.cursor contains non-int, offset resets to 0."""
+        cursor = hub_inbox_config.hub_inbox_path.parent / "hub-inbox.daemon.cursor"
+        cursor.write_text("not-an-int")
+
+        hub_msg = {
+            "ts": "2026-05-12T15:00:00+00:00",
+            "from": "jei",
+            "msg": "post-corrupt-cursor",
+            "type": "event",
+            "dst": "momoshod",
+        }
+        hub_inbox_config.hub_inbox_path.write_text(json.dumps(hub_msg) + "\n")
+
+        node = AgentNode(hub_inbox_config)
+
+        async def run_once():
+            node._running = True
+            task = asyncio.ensure_future(node._hub_inbox_loop())
+            await asyncio.sleep(0.25)
+            node._running = False
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+        asyncio.run(run_once())
+
+        from amaru.bus import read_bus
+
+        msgs = read_bus(hub_inbox_config.bus_path)
+        assert any(m.src == "jei" for m in msgs), "corrupt cursor should reset and bridge anyway"
+
+    def test_file_truncated_resets_cursor(self, hub_inbox_config, caplog):
+        """If hub_inbox file_size < offset, cursor is reset and we log."""
+        import logging as _logging
+
+        # First write some data
+        hub_msg = {
+            "ts": "2026-05-12T15:00:00+00:00",
+            "from": "jei",
+            "msg": "first-message",
+            "type": "event",
+            "dst": "momoshod",
+        }
+        hub_inbox_config.hub_inbox_path.write_text(json.dumps(hub_msg) + "\n")
+
+        # Pre-position the cursor past the (yet-to-be-truncated) file size
+        cursor = hub_inbox_config.hub_inbox_path.parent / "hub-inbox.daemon.cursor"
+        cursor.write_text("999999")  # cursor way past actual size
+
+        node = AgentNode(hub_inbox_config)
+
+        async def run_once():
+            node._running = True
+            task = asyncio.ensure_future(node._hub_inbox_loop())
+            await asyncio.sleep(0.25)
+            node._running = False
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+        with caplog.at_level(_logging.INFO, logger="amaru.agent"):
+            asyncio.run(run_once())
+
+        assert any("truncated" in r.message.lower() for r in caplog.records)
+
+    def test_malformed_json_line_skipped(self, hub_inbox_config):
+        """A line that is not valid JSON is silently skipped."""
+        inbox = hub_inbox_config.hub_inbox_path
+        good = {
+            "ts": "2026-05-12T15:00:00+00:00",
+            "from": "jei",
+            "msg": "good-line",
+            "type": "event",
+            "dst": "momoshod",
+        }
+        # Mix valid + invalid lines
+        inbox.write_text(json.dumps(good) + "\n" + "{not valid json\n" + json.dumps(good) + "\n")
+
+        node = AgentNode(hub_inbox_config)
+
+        async def run_once():
+            node._running = True
+            task = asyncio.ensure_future(node._hub_inbox_loop())
+            await asyncio.sleep(0.25)
+            node._running = False
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+        asyncio.run(run_once())
+
+        from amaru.bus import read_bus
+
+        msgs = read_bus(hub_inbox_config.bus_path)
+        jei_msgs = [m for m in msgs if m.src == "jei"]
+        # The good line bridges (dedup may reduce duplicates to 1)
+        assert len(jei_msgs) >= 1, "valid lines bridge even when malformed lines are present"
+
+    def test_write_failure_logged_non_fatal(self, hub_inbox_config, caplog, monkeypatch):
+        """If write_message raises, loop logs a warning and continues."""
+        import logging as _logging
+
+        from amaru import agent as agent_module
+
+        good = {
+            "ts": "2026-05-12T15:00:00+00:00",
+            "from": "jei",
+            "msg": "will-fail-to-write",
+            "type": "event",
+            "dst": "momoshod",
+        }
+        hub_inbox_config.hub_inbox_path.write_text(json.dumps(good) + "\n")
+
+        def boom(*args, **kwargs):
+            raise OSError("simulated disk full")
+
+        monkeypatch.setattr(agent_module, "write_message", boom)
+
+        node = AgentNode(hub_inbox_config)
+
+        async def run_once():
+            node._running = True
+            task = asyncio.ensure_future(node._hub_inbox_loop())
+            await asyncio.sleep(0.25)
+            node._running = False
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+        with caplog.at_level(_logging.WARNING, logger="amaru.agent"):
+            asyncio.run(run_once())
+
+        assert any(
+            "Hub bridge write failed" in r.message or "simulated disk full" in r.message
+            for r in caplog.records
+        )
+
+
+class TestForwardTypesFiltering:
+    """Coverage: forward_types default + filtering for ICAP wire types.
+
+    JEI/Bachue PR #26 review condition: dispatch path for coord-dispatch
+    and reflection must be exercised.
+    """
+
+    def test_default_forward_types_include_icap(self):
+        """Default forward_types includes the ICAP wire types."""
+        config = AgentNodeConfig(
+            bus_path=Path("/tmp/x"),
+            gateway_url="",
+            namespace="test",
+        )
+        assert "coord-dispatch" in config.forward_types
+        assert "reflection" in config.forward_types
+        assert "alert" in config.forward_types
+        assert "dispatch" in config.forward_types
+        assert "event" in config.forward_types
+
+    def test_load_agent_config_default_forward_types(self, tmp_clan):
+        """Gateway.json without forward_types picks up ICAP defaults."""
+        gw = {
+            "agent_node": {"enabled": True, "bus_path": "bus.jsonl", "namespace": "test"}
+        }
+        cf = tmp_clan / "gateway.json"
+        cf.write_text(json.dumps(gw))
+        cfg = load_agent_config(cf)
+        assert "coord-dispatch" in cfg.forward_types
+        assert "reflection" in cfg.forward_types
+
+    def test_load_agent_config_explicit_overrides_default(self, tmp_clan):
+        """If gateway.json sets forward_types explicitly, it overrides."""
+        gw = {
+            "agent_node": {
+                "enabled": True,
+                "bus_path": "bus.jsonl",
+                "namespace": "test",
+                "forward_types": ["alert"],  # narrow override
+            }
+        }
+        cf = tmp_clan / "gateway.json"
+        cf.write_text(json.dumps(gw))
+        cfg = load_agent_config(cf)
+        assert cfg.forward_types == ["alert"]
+        assert "coord-dispatch" not in cfg.forward_types
 
 
 class TestAutoPeerDiscovery:

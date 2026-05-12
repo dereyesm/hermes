@@ -72,8 +72,19 @@ def _parse_bus_message_permissive(data: dict) -> Message | None:
     elif isinstance(raw_msg, (bytes, bytearray)):
         try:
             msg_text = raw_msg.decode("utf-8")
-        except UnicodeDecodeError:
-            msg_text = str(raw_msg)
+        except UnicodeDecodeError as exc:
+            # Trazabilidad ASI02 (JEI / Bachue review condition):
+            # invalid UTF-8 must not be swallowed silently. Log the
+            # event and prefix the fallback so downstream observers
+            # can filter encoding-errored messages.
+            logging.getLogger(__name__).warning(
+                "permissive_parser: invalid utf-8 in msg field src=%s dst=%s type=%s err=%s",
+                data.get("src"),
+                data.get("dst"),
+                data.get("type"),
+                exc,
+            )
+            msg_text = f"[ENCODING_ERROR] {raw_msg!r}"
     else:
         msg_text = str(raw_msg)
     ttl = int(data["ttl"]) if isinstance(data["ttl"], int) else 7
