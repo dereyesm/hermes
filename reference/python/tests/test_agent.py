@@ -133,7 +133,135 @@ class TestAgentNodeConfig:
         assert config.dispatch_command == "claude"
         assert config.poll_interval == 2.0
         assert config.escalation_threshold_hours == 4
-        assert config.forward_types == ["alert", "dispatch", "event"]
+        assert config.forward_types == [
+            "alert",
+            "dispatch",
+            "event",
+            "coord-dispatch",
+            "reflection",
+        ]
+
+
+# ---------------------------------------------------------------------------
+# Permissive Parser Tests (ICAP Fase 2 — structured msg payloads)
+# ---------------------------------------------------------------------------
+
+
+class TestParseBusMessagePermissive:
+    """QUEST-CROSS-003 / ICAP Fase 2 — _parse_bus_message_permissive accepts
+    msg as str, dict, list, or bytes. Round-trips structured payloads to
+    canonical JSON so peers see the same representation."""
+
+    def _base_msg(self, msg_value):
+        return {
+            "ts": "2026-05-12",
+            "src": "momoshod",
+            "dst": "jei",
+            "type": "coord-dispatch",
+            "msg": msg_value,
+            "ttl": 7,
+            "ack": [],
+        }
+
+    def test_msg_str_passthrough(self):
+        from amaru.agent import _parse_bus_message_permissive
+
+        m = _parse_bus_message_permissive(self._base_msg("hello"))
+        assert m is not None
+        assert m.msg == "hello"
+
+    def test_msg_dict_serialized_canonical(self):
+        from amaru.agent import _parse_bus_message_permissive
+
+        payload = {"action": "ratify", "spec": "AES-7531", "priority": 1}
+        m = _parse_bus_message_permissive(self._base_msg(payload))
+        assert m is not None
+        # canonical JSON: sorted keys, compact separators
+        assert m.msg == '{"action":"ratify","priority":1,"spec":"AES-7531"}'
+
+    def test_msg_list_serialized_canonical(self):
+        from amaru.agent import _parse_bus_message_permissive
+
+        payload = ["amaru", "research", "community"]
+        m = _parse_bus_message_permissive(self._base_msg(payload))
+        assert m is not None
+        assert m.msg == '["amaru","research","community"]'
+
+    def test_msg_nested_dict_serialized(self):
+        from amaru.agent import _parse_bus_message_permissive
+
+        payload = {
+            "quest_id": "Q-2026-05-12-001",
+            "targets": ["jei", "nymyka"],
+            "deadline": {"date": "2026-05-15", "hard": True},
+        }
+        m = _parse_bus_message_permissive(self._base_msg(payload))
+        assert m is not None
+        # nested keys also sorted
+        assert (
+            m.msg
+            == '{"deadline":{"date":"2026-05-15","hard":true},"quest_id":"Q-2026-05-12-001","targets":["jei","nymyka"]}'
+        )
+
+    def test_msg_bytes_decoded_utf8(self):
+        from amaru.agent import _parse_bus_message_permissive
+
+        payload = "hola mundo".encode("utf-8")
+        m = _parse_bus_message_permissive(self._base_msg(payload))
+        assert m is not None
+        assert m.msg == "hola mundo"
+
+    def test_msg_invalid_utf8_bytes_fallback_to_str(self):
+        from amaru.agent import _parse_bus_message_permissive
+
+        payload = b"\xff\xfe\xfd"  # invalid UTF-8
+        m = _parse_bus_message_permissive(self._base_msg(payload))
+        assert m is not None
+        # falls back to str(bytes) repr — does not crash, no data loss flag
+        assert m.msg.startswith("b'") or m.msg.startswith("b\"")
+
+    def test_msg_int_fallback_to_str(self):
+        from amaru.agent import _parse_bus_message_permissive
+
+        m = _parse_bus_message_permissive(self._base_msg(42))
+        assert m is not None
+        assert m.msg == "42"
+
+    def test_msg_none_fallback_to_str(self):
+        from amaru.agent import _parse_bus_message_permissive
+
+        m = _parse_bus_message_permissive(self._base_msg(None))
+        assert m is not None
+        assert m.msg == "None"
+
+    def test_missing_field_returns_none(self):
+        from amaru.agent import _parse_bus_message_permissive
+
+        data = {"ts": "2026-05-12", "src": "momoshod"}  # incomplete
+        assert _parse_bus_message_permissive(data) is None
+
+    def test_invalid_ts_returns_none(self):
+        from amaru.agent import _parse_bus_message_permissive
+
+        data = self._base_msg("hello")
+        data["ts"] = "not-a-date"
+        assert _parse_bus_message_permissive(data) is None
+
+    def test_coord_dispatch_type_preserved(self):
+        from amaru.agent import _parse_bus_message_permissive
+
+        m = _parse_bus_message_permissive(self._base_msg({"k": "v"}))
+        assert m is not None
+        assert m.type == "coord-dispatch"
+
+    def test_reflection_type_preserved(self):
+        from amaru.agent import _parse_bus_message_permissive
+
+        d = self._base_msg({"insight": "the bug was never in the code"})
+        d["type"] = "reflection"
+        m = _parse_bus_message_permissive(d)
+        assert m is not None
+        assert m.type == "reflection"
 
 
 # ---------------------------------------------------------------------------
