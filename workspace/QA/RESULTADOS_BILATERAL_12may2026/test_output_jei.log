@@ -1,0 +1,28 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.11.15, pytest-9.0.2, pluggy-1.6.0 -- /opt/homebrew/opt/python@3.11/bin/python3.11
+cachedir: .pytest_cache
+rootdir: /Users/patito/Dev/la-triada/workspace/QA
+collecting ... collected 20 items
+
+test_qc002_p0_jei.py::TestBachueFixtureImports::test_crypto_fixtures_import PASSED [  5%]
+test_qc002_p0_jei.py::TestBachueFixtureImports::test_hkdf_info_is_not_legacy_hermes PASSED [ 10%]
+test_qc002_p0_jei.py::TestBachueFixtureImports::test_session_fixtures_import PASSED [ 15%]
+test_qc002_p0_jei.py::TestBachueFixtureImports::test_hub_fixtures_import PASSED [ 20%]
+test_qc002_p0_jei.py::TestBachueFixtureImports::test_message_fixtures_frame_shapes PASSED [ 25%]
+test_qc002_p0_jei.py::TestDowngradeProtection::test_parse_version_stable PASSED [ 30%]
+test_qc002_p0_jei.py::TestDowngradeProtection::test_parse_version_pre_release PASSED [ 35%]
+test_qc002_p0_jei.py::TestDowngradeProtection::test_version_at_least_accepts_current PASSED [ 40%]
+test_qc002_p0_jei.py::TestDowngradeProtection::test_version_at_least_rejects_old PASSED [ 45%]
+test_qc002_p0_jei.py::TestDowngradeProtection::test_frame_hello_version_passes_gate PASSED [ 50%]
+test_qc002_p0_jei.py::TestDowngradeProtection::test_old_hello_version_rejected_by_gate PASSED [ 55%]
+test_qc002_p0_jei.py::TestRateLimitingP0::test_rate_buckets_fresh_has_full_budget PASSED [ 60%]
+test_qc002_p0_jei.py::TestRateLimitingP0::test_sig_budget_exhausted_returns_false PASSED [ 65%]
+test_qc002_p0_jei.py::TestRateLimitingP0::test_data_budget_exhausted_returns_false PASSED [ 70%]
+test_qc002_p0_jei.py::TestRateLimitingP0::test_consume_is_atomic_no_partial_drain PASSED [ 75%]
+test_qc002_p0_jei.py::TestRateLimitingP0::test_two_clients_are_isolated PASSED [ 80%]
+test_qc002_p0_jei.py::TestQueueBackpressureP0::test_store_forward_queue_full_returns_false PASSED [ 85%]
+test_qc002_p0_jei.py::TestQueueBackpressureP0::test_message_router_reports_queue_full_status PASSED [ 90%]
+test_qc002_p0_jei.py::TestQueueBackpressureP0::test_mock_queue_matches_real_enqueue_bool_interface PASSED [ 95%]
+test_qc002_p0_jei.py::TestQueueBackpressureP0::test_mock_router_returns_queue_full_status PASSED [100%]
+
+============================== 20 passed in 0.05s ==============================
