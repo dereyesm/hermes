@@ -1831,9 +1831,7 @@ class TestLegacyDispatchICAP:
 
         async def fake_dispatch(message, cid):
             calls.append((message.type, cid))
-            return DispatchSlot(
-                pid=12345, cid=cid, started_at=time.time(), command=["x"]
-            )
+            return DispatchSlot(pid=12345, cid=cid, started_at=time.time(), command=["x"])
 
         monkeypatch.setattr(node.dispatcher, "dispatch", fake_dispatch)
 
@@ -1850,9 +1848,7 @@ class TestLegacyDispatchICAP:
 
         async def fake_dispatch(message, cid):
             calls.append((message.type, cid))
-            return DispatchSlot(
-                pid=23456, cid=cid, started_at=time.time(), command=["x"]
-            )
+            return DispatchSlot(pid=23456, cid=cid, started_at=time.time(), command=["x"])
 
         monkeypatch.setattr(node.dispatcher, "dispatch", fake_dispatch)
 
