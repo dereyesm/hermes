@@ -67,9 +67,9 @@ def _parse_bus_message_permissive(data: dict) -> Message | None:
     raw_msg = data["msg"]
     if isinstance(raw_msg, str):
         msg_text = raw_msg
-    elif isinstance(raw_msg, (dict, list)):
+    elif isinstance(raw_msg, dict | list):
         msg_text = json.dumps(raw_msg, sort_keys=True, separators=(",", ":"))
-    elif isinstance(raw_msg, (bytes, bytearray)):
+    elif isinstance(raw_msg, bytes | bytearray):
         try:
             msg_text = raw_msg.decode("utf-8")
         except UnicodeDecodeError as exc:

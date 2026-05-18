@@ -206,7 +206,7 @@ class TestParseBusMessagePermissive:
     def test_msg_bytes_decoded_utf8(self):
         from amaru.agent import _parse_bus_message_permissive
 
-        payload = "hola mundo".encode("utf-8")
+        payload = b"hola mundo"
         m = _parse_bus_message_permissive(self._base_msg(payload))
         assert m is not None
         assert m.msg == "hola mundo"
@@ -1536,9 +1536,7 @@ class TestForwardTypesFiltering:
 
     def test_load_agent_config_default_forward_types(self, tmp_clan):
         """Gateway.json without forward_types picks up ICAP defaults."""
-        gw = {
-            "agent_node": {"enabled": True, "bus_path": "bus.jsonl", "namespace": "test"}
-        }
+        gw = {"agent_node": {"enabled": True, "bus_path": "bus.jsonl", "namespace": "test"}}
         cf = tmp_clan / "gateway.json"
         cf.write_text(json.dumps(gw))
         cfg = load_agent_config(cf)
