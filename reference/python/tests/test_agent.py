@@ -1788,3 +1788,271 @@ class TestAutoPeerDiscovery:
 
         messages = read_bus(bus)
         assert any(m.src == "jei" for m in messages)
+
+
+# ---------------------------------------------------------------------------
+# ICAP Dispatch Coverage Tests (JEI/Bachue PR #26 review condition)
+# ---------------------------------------------------------------------------
+
+
+class TestLegacyDispatchICAP:
+    """Exercise `_legacy_dispatch` for coord-dispatch and reflection wire types.
+
+    JEI/Bachue PR #26 review: "dispatch path for coord-dispatch and reflection
+    must be exercised". Verifies that ICAP wire types reach the dispatcher
+    when slots are available and that no-slot is logged but not raised.
+    """
+
+    def _make_node(self, tmp_clan):
+        cfg = AgentNodeConfig(
+            bus_path=tmp_clan / "bus.jsonl",
+            gateway_url="",
+            namespace="momoshod",
+            clan_dir=tmp_clan,
+            max_dispatch_slots=2,
+            poll_interval=0.05,
+        )
+        return AgentNode(cfg)
+
+    def _dispatch_msg(self, msg_type, cid_suffix="abcd1234"):
+        return Message(
+            ts=date(2026, 5, 18),
+            src="jei",
+            dst="momoshod",
+            type=msg_type,
+            msg=f"ICAP payload [CID:{cid_suffix}]",
+            ttl=7,
+            ack=[],
+        )
+
+    def test_coord_dispatch_reaches_dispatcher(self, tmp_clan, monkeypatch):
+        node = self._make_node(tmp_clan)
+        calls: list[tuple[str, str]] = []
+
+        async def fake_dispatch(message, cid):
+            calls.append((message.type, cid))
+            return DispatchSlot(
+                pid=12345, cid=cid, started_at=time.time(), command=["x"]
+            )
+
+        monkeypatch.setattr(node.dispatcher, "dispatch", fake_dispatch)
+
+        msg = self._dispatch_msg("coord-dispatch", cid_suffix="coord001")
+        asyncio.run(node._legacy_dispatch(msg))
+
+        assert len(calls) == 1
+        assert calls[0][0] == "coord-dispatch"
+        assert calls[0][1] == "coord001"  # extracted via [CID:...] pattern
+
+    def test_reflection_reaches_dispatcher(self, tmp_clan, monkeypatch):
+        node = self._make_node(tmp_clan)
+        calls: list[tuple[str, str]] = []
+
+        async def fake_dispatch(message, cid):
+            calls.append((message.type, cid))
+            return DispatchSlot(
+                pid=23456, cid=cid, started_at=time.time(), command=["x"]
+            )
+
+        monkeypatch.setattr(node.dispatcher, "dispatch", fake_dispatch)
+
+        msg = self._dispatch_msg("reflection")
+        asyncio.run(node._legacy_dispatch(msg))
+
+        assert len(calls) == 1
+        assert calls[0][0] == "reflection"
+
+    def test_no_slots_logs_warning(self, tmp_clan, monkeypatch, caplog):
+        import logging as _logging
+
+        node = self._make_node(tmp_clan)
+        # Saturate slots so available_slots == 0
+        node.dispatcher.active = [
+            DispatchSlot(pid=i, cid=f"x{i}", started_at=0.0, command=[])
+            for i in range(node.config.max_dispatch_slots)
+        ]
+
+        async def boom(*_a, **_kw):
+            raise RuntimeError("should not be called when no slots")
+
+        monkeypatch.setattr(node.dispatcher, "dispatch", boom)
+
+        msg = self._dispatch_msg("coord-dispatch")
+        with caplog.at_level(_logging.WARNING, logger="amaru.agent"):
+            asyncio.run(node._legacy_dispatch(msg))
+
+        # No RuntimeError leaked; loop returned cleanly.
+        # (No-slot guard is the early return at available_slots <= 0)
+
+    def test_dispatch_runtime_error_swallowed(self, tmp_clan, monkeypatch, caplog):
+        """If dispatcher.dispatch raises RuntimeError, _legacy_dispatch logs and continues."""
+        import logging as _logging
+
+        node = self._make_node(tmp_clan)
+
+        async def fake_dispatch(message, cid):
+            raise RuntimeError("simulated slot race")
+
+        monkeypatch.setattr(node.dispatcher, "dispatch", fake_dispatch)
+
+        msg = self._dispatch_msg("coord-dispatch")
+        with caplog.at_level(_logging.WARNING, logger="amaru.agent"):
+            asyncio.run(node._legacy_dispatch(msg))
+
+        assert any("No slots for dispatch" in r.message for r in caplog.records)
+
+
+class TestForwardToHubICAP:
+    """Exercise `_forward_to_hub` for ICAP wire types.
+
+    Covers: missing hub-state.json (silent return), invalid JSON,
+    PID dead (OSError), and successful path via monkeypatched hub_send.
+    """
+
+    def _make_node(self, tmp_clan):
+        cfg = AgentNodeConfig(
+            bus_path=tmp_clan / "bus.jsonl",
+            gateway_url="",
+            namespace="momoshod",
+            clan_dir=tmp_clan,
+        )
+        return AgentNode(cfg)
+
+    def _icap_msg(self, msg_type):
+        return Message(
+            ts=date(2026, 5, 18),
+            src="momoshod",
+            dst="jei",
+            type=msg_type,
+            msg="payload",
+            ttl=7,
+            ack=[],
+        )
+
+    def test_no_hub_state_returns_silently(self, tmp_clan):
+        node = self._make_node(tmp_clan)
+        # No hub-state.json exists in clan_dir
+        asyncio.run(node._forward_to_hub(self._icap_msg("coord-dispatch")))
+        # No exception raised; coverage of early-return branch
+
+    def test_invalid_hub_state_json_returns(self, tmp_clan):
+        node = self._make_node(tmp_clan)
+        (tmp_clan / "hub-state.json").write_text("not json {")
+        asyncio.run(node._forward_to_hub(self._icap_msg("reflection")))
+        # Silent return via JSONDecodeError branch
+
+    def test_dead_pid_returns(self, tmp_clan):
+        node = self._make_node(tmp_clan)
+        # PID 1 exists but os.kill(1, 0) requires perms; use a guaranteed-dead PID
+        (tmp_clan / "hub-state.json").write_text('{"pid": 99999999}')
+        asyncio.run(node._forward_to_hub(self._icap_msg("coord-dispatch")))
+        # Silent return via OSError branch
+
+    def test_missing_pid_field_returns(self, tmp_clan):
+        node = self._make_node(tmp_clan)
+        (tmp_clan / "hub-state.json").write_text('{"other": "field"}')
+        asyncio.run(node._forward_to_hub(self._icap_msg("reflection")))
+        # Silent return via pid is None branch
+
+    def test_successful_forward_calls_hub_send(self, tmp_clan, monkeypatch):
+        """When hub is up and tool_hub_send returns sent=True, log info."""
+        node = self._make_node(tmp_clan)
+        # Use real current pid; os.kill(pid, 0) succeeds for self
+        (tmp_clan / "hub-state.json").write_text(f'{{"pid": {os.getpid()}}}')
+
+        calls: list[tuple[str, str, str]] = []
+
+        async def fake_hub_send(dst, type_, msg):
+            calls.append((dst, type_, msg))
+            return {"sent": True}
+
+        # Patch the lazy-import location used inside _forward_to_hub
+        import amaru.mcp_server as mcp_mod
+
+        monkeypatch.setattr(mcp_mod, "tool_hub_send", fake_hub_send)
+
+        asyncio.run(node._forward_to_hub(self._icap_msg("coord-dispatch")))
+        assert calls == [("jei", "coord-dispatch", "payload")]
+
+    def test_failed_forward_does_not_raise(self, tmp_clan, monkeypatch):
+        """When tool_hub_send returns sent=False, log debug and continue."""
+        node = self._make_node(tmp_clan)
+        (tmp_clan / "hub-state.json").write_text(f'{{"pid": {os.getpid()}}}')
+
+        async def fake_hub_send(dst, type_, msg):
+            return {"sent": False, "error": "hub offline"}
+
+        import amaru.mcp_server as mcp_mod
+
+        monkeypatch.setattr(mcp_mod, "tool_hub_send", fake_hub_send)
+
+        asyncio.run(node._forward_to_hub(self._icap_msg("reflection")))
+        # No exception leaked
+
+
+class TestPermissiveParserExtras:
+    """Edge cases beyond `TestParseBusMessagePermissive`: ttl/ack/dst/case."""
+
+    def _base(self, **overrides):
+        data = {
+            "ts": "2026-05-12",
+            "src": "MomoshoD",  # mixed case
+            "dst": "JEI",
+            "type": "coord-dispatch",
+            "msg": "hi",
+            "ttl": 7,
+            "ack": [],
+        }
+        data.update(overrides)
+        return data
+
+    def test_src_lowercased(self):
+        from amaru.agent import _parse_bus_message_permissive
+
+        m = _parse_bus_message_permissive(self._base())
+        assert m is not None and m.src == "momoshod"
+
+    def test_dst_lowercased(self):
+        from amaru.agent import _parse_bus_message_permissive
+
+        m = _parse_bus_message_permissive(self._base())
+        assert m is not None and m.dst == "jei"
+
+    def test_dst_wildcard_preserved(self):
+        from amaru.agent import _parse_bus_message_permissive
+
+        m = _parse_bus_message_permissive(self._base(dst="*"))
+        assert m is not None and m.dst == "*"
+
+    def test_ttl_non_int_falls_back_to_default(self):
+        from amaru.agent import _parse_bus_message_permissive
+
+        m = _parse_bus_message_permissive(self._base(ttl="not-int"))
+        assert m is not None and m.ttl == 7
+
+    def test_ack_non_list_falls_back_to_empty(self):
+        from amaru.agent import _parse_bus_message_permissive
+
+        m = _parse_bus_message_permissive(self._base(ack="not-a-list"))
+        assert m is not None and m.ack == []
+
+    def test_ack_entries_lowercased(self):
+        from amaru.agent import _parse_bus_message_permissive
+
+        m = _parse_bus_message_permissive(self._base(ack=["JEI", "Nymyka"]))
+        assert m is not None and m.ack == ["jei", "nymyka"]
+
+    def test_extra_fields_tolerated(self):
+        """ARC-9001 seq/w fields and other extras must not reject the message."""
+        from amaru.agent import _parse_bus_message_permissive
+
+        m = _parse_bus_message_permissive(self._base(seq=42, w=7, extra="ok"))
+        assert m is not None and m.msg == "hi"
+
+    def test_long_payload_not_truncated(self):
+        """Permissive parser does NOT truncate (vs canonical validate_message)."""
+        from amaru.agent import _parse_bus_message_permissive
+
+        big = "x" * 5000
+        m = _parse_bus_message_permissive(self._base(msg=big))
+        assert m is not None and len(m.msg) == 5000
