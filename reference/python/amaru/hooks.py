@@ -41,7 +41,13 @@ def _get_clan_id(clan_dir: Path) -> str:
 
 
 def _write_dojo_event(clan_dir: Path, namespace: str, msg: str) -> None:
-    """Write a dojo_event to the bus (best-effort, never blocks)."""
+    """Write a dojo_event to the bus (best-effort, never blocks).
+
+    Reserved for audit-trail events with semantic value (LLM_TRIAGE,
+    classification decisions). Skill presence (SKILL_ONLINE/OFFLINE) is
+    NOT written here — it goes to skill-presence.jsonl via
+    _write_skill_presence() to keep the bus signal-rich.
+    """
     try:
         from datetime import date
 
@@ -57,6 +63,44 @@ def _write_dojo_event(clan_dir: Path, namespace: str, msg: str) -> None:
         }
         with open(bus_path, "a", encoding="utf-8") as f:
             f.write(json.dumps(event) + "\n")
+    except Exception:
+        pass
+
+
+_SKILL_PRESENCE_RING_MAX = 1000
+
+
+def _write_skill_presence(clan_dir: Path, namespace: str, status: str, detail: str = "") -> None:
+    """Write a skill-presence record to skill-presence.jsonl (ring buffer).
+
+    Separated from the bus to avoid drowning out semantic messages
+    (state/event/dispatch/alert/data_cross) with high-frequency presence
+    signals. The presence file is a ring buffer: when it exceeds
+    `_SKILL_PRESENCE_RING_MAX` lines, the oldest half is discarded.
+
+    status: "ONLINE" or "OFFLINE"
+    detail: optional free-form context (e.g., "claude-code:dim=Amaru:caps=...")
+    """
+    try:
+        from datetime import UTC, datetime
+
+        presence_path = clan_dir / "skill-presence.jsonl"
+        record = {
+            "ts": datetime.now(UTC).isoformat(timespec="seconds"),
+            "namespace": namespace,
+            "status": status,
+            "detail": detail[:160] if detail else "",
+        }
+        # Append first (fast path); rotate after if oversized.
+        with open(presence_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(record) + "\n")
+
+        # Cheap line count; rotate when too large to keep file bounded.
+        with open(presence_path, encoding="utf-8") as f:
+            lines = f.readlines()
+        if len(lines) > _SKILL_PRESENCE_RING_MAX:
+            keep = lines[-(_SKILL_PRESENCE_RING_MAX // 2) :]
+            presence_path.write_text("".join(keep), encoding="utf-8")
     except Exception:
         pass
 
@@ -151,8 +195,8 @@ def cmd_hook_pull_on_start() -> None:
 def cmd_hook_dojo_register() -> None:
     """SessionStart hook: register Claude Code as active Dojo skill.
 
-    Writes SKILL_ONLINE dojo_event to bus so the daemon knows this
-    session is available for quest dispatch.
+    Writes ONLINE presence to skill-presence.jsonl (separated from the
+    semantic bus to keep signal-to-noise high — see _write_skill_presence).
     """
     try:
         json.load(sys.stdin)
@@ -166,10 +210,11 @@ def cmd_hook_dojo_register() -> None:
 
         cwd = os.environ.get("AMARU_CWD", os.getcwd())
         dim = Path(cwd).name if cwd else "unknown"
-        _write_dojo_event(
+        _write_skill_presence(
             clan_dir,
             namespace,
-            f"SKILL_ONLINE:claude-code:dim={dim}:caps=eng.software,creative.writing",
+            "ONLINE",
+            f"claude-code:dim={dim}:caps=eng.software,creative.writing",
         )
 
 
@@ -280,7 +325,7 @@ def cmd_hook_hub_inject() -> None:
 
 
 def cmd_hook_exit_reminder() -> None:
-    """Stop hook: count unacked messages, remind user. Write SKILL_OFFLINE.
+    """Stop hook: count unacked messages, remind user. Mark OFFLINE in presence file.
 
     Best-effort — never blocks session exit.
     """
@@ -291,10 +336,10 @@ def cmd_hook_exit_reminder() -> None:
 
     clan_dir = _default_clan_dir()
 
-    # Dojo: mark session offline
+    # Dojo: mark session offline (presence file, not the bus)
     namespace = _get_clan_id(clan_dir)
     if namespace:
-        _write_dojo_event(clan_dir, namespace, "SKILL_OFFLINE:claude-code")
+        _write_skill_presence(clan_dir, namespace, "OFFLINE", "claude-code")
 
     pending = _read_bus_pending(clan_dir)
 

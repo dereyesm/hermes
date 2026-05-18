@@ -18,6 +18,8 @@ import pytest
 
 from amaru.hooks import (
     _read_bus_pending,
+    _write_skill_presence,
+    cmd_hook_dojo_register,
     cmd_hook_exit_reminder,
     cmd_hook_pull_on_prompt,
     cmd_hook_pull_on_start,
@@ -348,6 +350,90 @@ class TestHookExitReminder:
         output = json.loads(stdout.getvalue())
         assert "reminder" in output["systemMessage"].lower()
         assert "1 unacked" in output["systemMessage"]
+
+
+# ---------------------------------------------------------------------------
+# Skill presence separation tests (bus arch decision 2026-05-18)
+# ---------------------------------------------------------------------------
+
+
+class TestSkillPresenceSeparation:
+    """SKILL_ONLINE / SKILL_OFFLINE must NOT pollute the semantic bus.
+
+    Origin: 2026-05-18 bus stats showed 96.7% of bus.jsonl entries were
+    SKILL_ONLINE/SKILL_OFFLINE dojo_events that no consumer reads. Daniel
+    chose Opción B (separate semantics) — presence goes to
+    skill-presence.jsonl, bus stays signal-rich.
+    """
+
+    def test_write_skill_presence_creates_separate_file(self, clan_dir_json):
+        _write_skill_presence(clan_dir_json, "momoshod", "ONLINE", "claude-code:dim=Test")
+        presence_path = clan_dir_json / "skill-presence.jsonl"
+        bus_path = clan_dir_json / "bus.jsonl"
+        assert presence_path.exists()
+        # bus.jsonl must NOT receive the presence record
+        assert not bus_path.exists() or bus_path.read_text() == ""
+        record = json.loads(presence_path.read_text().strip())
+        assert record["namespace"] == "momoshod"
+        assert record["status"] == "ONLINE"
+        assert "claude-code" in record["detail"]
+        assert "ts" in record
+
+    def test_write_skill_presence_ring_buffer_truncates(self, clan_dir_json):
+        from amaru.hooks import _SKILL_PRESENCE_RING_MAX
+
+        # Pre-fill above the ring limit
+        presence_path = clan_dir_json / "skill-presence.jsonl"
+        lines = [
+            json.dumps({"ts": "x", "namespace": "n", "status": "ONLINE", "detail": str(i)}) + "\n"
+            for i in range(_SKILL_PRESENCE_RING_MAX + 5)
+        ]
+        presence_path.write_text("".join(lines))
+
+        _write_skill_presence(clan_dir_json, "momoshod", "OFFLINE", "trigger-rotation")
+
+        with open(presence_path, encoding="utf-8") as f:
+            remaining = f.readlines()
+        # After rotation, file is bounded around half the max
+        assert len(remaining) <= _SKILL_PRESENCE_RING_MAX
+        assert len(remaining) >= 1  # at least the new record kept
+
+    def test_dojo_register_writes_presence_not_bus(self, clan_dir_json):
+        """cmd_hook_dojo_register MUST NOT write SKILL_ONLINE to the bus."""
+        stdin = io.StringIO("{}")
+        stdout = io.StringIO()
+        with (
+            patch.object(sys, "stdin", stdin),
+            patch.object(sys, "stdout", stdout),
+            patch("amaru.hooks._default_clan_dir", return_value=clan_dir_json),
+        ):
+            cmd_hook_dojo_register()
+        presence_path = clan_dir_json / "skill-presence.jsonl"
+        bus_path = clan_dir_json / "bus.jsonl"
+        assert presence_path.exists()
+        record = json.loads(presence_path.read_text().strip())
+        assert record["status"] == "ONLINE"
+        # Bus must not contain SKILL_ONLINE (file may not even exist)
+        if bus_path.exists():
+            assert "SKILL_ONLINE" not in bus_path.read_text()
+
+    def test_exit_reminder_writes_offline_to_presence_not_bus(self, clan_dir_json):
+        """cmd_hook_exit_reminder MUST mark OFFLINE in presence file, not bus."""
+        stdin = io.StringIO("{}")
+        stdout = io.StringIO()
+        with (
+            patch.object(sys, "stdin", stdin),
+            patch.object(sys, "stdout", stdout),
+            patch("amaru.hooks._default_clan_dir", return_value=clan_dir_json),
+        ):
+            cmd_hook_exit_reminder()
+        presence_path = clan_dir_json / "skill-presence.jsonl"
+        bus_path = clan_dir_json / "bus.jsonl"
+        assert presence_path.exists()
+        record = json.loads(presence_path.read_text().strip())
+        assert record["status"] == "OFFLINE"
+        if bus_path.exists():
+            assert "SKILL_OFFLINE" not in bus_path.read_text()
 
 
 # ---------------------------------------------------------------------------
