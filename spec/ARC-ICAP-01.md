@@ -355,10 +355,12 @@ DRAFT v0.1 awaits bilateral review. Once both soberanos sign, status transitions
 
 The empirical precedent for H-02 is the QC002 bilateral test executed on 2026-05-12, when JEI's agent autonomously moved up the human-scheduled bilateral slot and completed all 75/75 tests successfully (Issue #13 closed). This event prompted Daniel Reyes to commission this spec on 2026-05-18.
 
-The Council Ampliado deliberation on 2026-05-18 (Palas, Ares, Artemisa, MariaM, Hannah) reached consensus on minimalist authorization (only H-02 YES) with two structural conditions:
+The Council Ampliado deliberation on 2026-05-18 (Palas, Ares, Artemisa, MariaM, Hannah) reached consensus on minimalist authorization (only H-02 YES) with three structural conditions:
 
 1. Hannah's condition: named responsible human in writing for every category (§2, §3)
 2. MariaM's condition: pedagogical entry point as the first non-header section (§1)
 3. Artemisa's condition: post-facto notification mandatory for any YES category (§5)
 
 This spec embodies all three conditions.
+
+The 2026-05-19 JEI bilateral review (GitHub PR #28 review `pullrequestreview-4320455307`, plus email thread *QUEST-CROSS-003*) accepted ARC-ICAP-01 H-01..H-06 as the canonical bilateral taxonomy. JEI's response brought two concrete contributions: (a) the §6.2 inaugural-case carve-out (`federation_preflight`), and (b) a 24h roster-notice + SHA-256 hash validation condition, now in §7.2. JEI's `AGENTIC_SECURITY_POLICIES.md` v1.0 remains clan-local doctrine and maps onto this spec via §7.1. Bilateral §10 sign-off pending DANI + JEI signatures before DRAFT → RATIFIED.
