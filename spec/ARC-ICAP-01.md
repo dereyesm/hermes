@@ -282,6 +282,27 @@ When two clans federate, each clan's ICAP authorization tables are **independent
 
 If asymmetric authorization is detected (e.g., JEI tries to initiate H-02 but DANI does not have H-02 enabled), the receiving side MUST refuse and emit `type:event msg:ICAP_ASYMMETRIC_AUTH` to alert the initiator.
 
+### §7.1 Peer policy documents and the canonical taxonomy
+
+Each clan MAY publish its own internal **agent security policy document** (e.g., JEI's `AGENTIC_SECURITY_POLICIES.md`). Such documents are clan-local doctrine and MAY define additional categories or stricter conditions for purposes internal to the clan. The bilateral canonical taxonomy, however, is **ARC-ICAP-01 (this spec)**, ratified by §10 sign-off. Peer policy documents MUST map their internal categories onto ARC-ICAP-01 H-01..H-06 when discussing bilateral actions, so that both soberanos speak the same vocabulary at the federation boundary.
+
+The 2026-05-19 bilateral review established this mapping with JEI's `AGENTIC_SECURITY_POLICIES.md` v1.0:
+
+| ARC-ICAP-01 | Equivalent in JEI v1.0 | Notes |
+|---|---|---|
+| H-01 (ratify spec) | JEI H-01 (architectural changes) | 1:1 |
+| H-02 (bilateral test) | JEI §Acciones Autónomas | autonomous in JEI's model — consistent |
+| H-03 (merge to main) | JEI H-02 (merge `amaru-protocol/main`) | 1:1 |
+| H-04 (add/remove peer roster) | JEI H-07 (roster + 24h notice) | JEI adds a **bilateral 24h notice + SHA-256 roster hash validation** as an extra condition; see §7.2 below |
+| H-05 (rotate identity keys) | (none yet — JEI to add explicitly) | JEI will incorporate H-05 into the next revision of its policy |
+| H-06 (cross-dimensional capability) | JEI Firewall de Identidades | covered implicitly; JEI to make explicit |
+
+### §7.2 H-04 bilateral condition (24h roster notice)
+
+When the local clan executes H-04 (add or remove a peer from its roster) and that change is observable to a federated peer (e.g., the changed roster entry concerns the peer, or affects routes that touch the peer), the soberano humano of the local clan MUST send a **bilateral notification at least 24 hours before** the roster change takes effect. The notification MUST include the SHA-256 hash of the post-change roster file so the receiving peer's auditing agent can validate that the active roster matches the announced change.
+
+This condition originates in JEI's `AGENTIC_SECURITY_POLICIES.md` v1.0 H-07. The 2026-05-12 ↔ 2026-05-13 PR #27 roster change (sovereign-compatible roster) is the empirical precedent: DANI announced, JEI's Bruja agent validated the SHA-256 in pre-flight, and the bilateral test the next day proceeded without re-authentication friction.
+
 ---
 
 ## §8 Security Considerations
@@ -326,6 +347,7 @@ DRAFT v0.1 awaits bilateral review. Once both soberanos sign, status transitions
 - [ARC-8446](ARC-8446.md) — Encrypted Bus Protocol (identity key formats — referenced by H-05)
 - [CLAUDE.md global §Firewall Dimensional](../../.claude/CLAUDE.md) — Constitutional rule referenced by H-06
 - [Change Management Protocol](../../.claude/rules/change-management.md) — Gate 4 (branch + PR) is NOT replaced by ICAP
+- JEI `AGENTIC_SECURITY_POLICIES.md` v1.0 (2026-05-12, clan-local sister doctrine; bilateral mapping in §7.1)
 
 ---
 
