@@ -264,6 +264,8 @@ ALL five conditions MUST be satisfied:
 4. **No active production overlap** — the local clan has no `type:alert msg:PRODUCTION_FREEZE` active
 5. **Notification path is healthy** — the agent has successfully emitted at least one `dojo_event` in the last 24 hours (proves notification channel works)
 
+> **Inaugural-case note (condition 5).** For the **first ever** bilateral execution between two clans that have just opened federation, no prior `dojo_event` may yet exist on either side. In that case condition 5 is satisfied by the initiating agent emitting a `dojo_event` of subtype `federation_preflight` **within the 30 minutes preceding** the test start. This avoids the chicken-and-egg of the first run without relaxing condition 5 in subsequent sessions. JEI proposed this carve-out during the 2026-05-19 bilateral review of ARC-ICAP-01 v0.1.
+
 If any condition fails, the agent MUST refuse and emit `type:alert msg:ICAP_H02_PRECONDITION_FAILED` with the failing index.
 
 ### §6.3 Objection window (future versions)
