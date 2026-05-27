@@ -28,8 +28,7 @@ Out of scope:
 
 **Do not open a public issue for security vulnerabilities.**
 
-1. Email: [redacted] with subject line `[HERMES SECURITY]`
-2. Or use [GitHub Security Advisories](https://github.com/dereyesm/hermes/security/advisories/new)
+Report privately via [GitHub Security Advisories](https://github.com/dereyesm/amaru-protocol/security/advisories/new) ("Report a vulnerability").
 
 Include:
 - Description of the vulnerability
