@@ -855,6 +855,133 @@ class TestRouteMsgFrameRateLimit:
 
 
 # ---------------------------------------------------------------------------
+# TestChannelWhitelist — ARC-4601 §18.2 / §18.5 / §18.10 (Issue #18 FU3)
+# ---------------------------------------------------------------------------
+
+
+class TestChannelWhitelist:
+    """Channel negotiation + whitelist enforcement (ARC-4601 §18.5).
+
+    A peer advertises which `channel` values it may use during the handshake;
+    the hub rejects frames on channels the peer did not negotiate (§18.5) and
+    frames on values outside the {sig, data} set (§18.2), via §18.10 err
+    frames — without tearing down the connection.
+    """
+
+    def _route(self, server, sender_ws, frame, sender_entry):
+        loop = asyncio.new_event_loop()
+        try:
+            loop.run_until_complete(
+                server._route_msg_frame(sender_ws, frame, "momoshod", sender_entry)
+            )
+        finally:
+            loop.close()
+
+    def test_data_channel_allowed(self, tmp_hub, sample_config):
+        """A frame on the always-available data channel is routed (§18.6)."""
+        server = HubServer(sample_config, tmp_hub)
+        peer_ws = _make_ws_mock()
+        server.connections.add("jei", peer_ws)
+        sender_ws = _make_ws_mock()
+        entry = server.connections.add("momoshod", sender_ws)  # channels defaults to ["data"]
+        assert entry.channels == ["data"]
+
+        frame = {"type": "msg", "channel": "data", "payload": {"dst": "jei", "id": "d1"}}
+        self._route(server, sender_ws, frame, entry)
+
+        sender_ws.send.assert_not_called()  # no err
+        peer_ws.send.assert_called_once()  # delivered
+
+    def test_absent_channel_defaults_to_data(self, tmp_hub, sample_config):
+        """A frame with no `channel` field is treated as data (§18.6)."""
+        server = HubServer(sample_config, tmp_hub)
+        peer_ws = _make_ws_mock()
+        server.connections.add("jei", peer_ws)
+        sender_ws = _make_ws_mock()
+        entry = server.connections.add("momoshod", sender_ws)
+
+        frame = {"type": "msg", "payload": {"dst": "jei", "id": "d2"}}
+        self._route(server, sender_ws, frame, entry)
+
+        sender_ws.send.assert_not_called()
+        peer_ws.send.assert_called_once()
+
+    def test_sig_channel_allowed_when_negotiated(self, tmp_hub, sample_config):
+        """A peer that negotiated signaling may send sig frames (§18.5)."""
+        server = HubServer(sample_config, tmp_hub)
+        peer_ws = _make_ws_mock()
+        server.connections.add("jei", peer_ws)
+        sender_ws = _make_ws_mock()
+        entry = server.connections.add("momoshod", sender_ws)
+        entry.channels = ["sig", "data"]  # negotiated signaling_v1
+
+        frame = {"type": "msg", "channel": "sig", "payload": {"dst": "jei", "id": "s1"}}
+        self._route(server, sender_ws, frame, entry)
+
+        sender_ws.send.assert_not_called()
+        peer_ws.send.assert_called_once()
+
+    def test_sig_channel_rejected_when_not_negotiated(self, tmp_hub, sample_config):
+        """A data-only peer sending sig gets err signaling-not-supported (§18.5)."""
+        server = HubServer(sample_config, tmp_hub)
+        peer_ws = _make_ws_mock()
+        server.connections.add("jei", peer_ws)
+        sender_ws = _make_ws_mock()
+        entry = server.connections.add("momoshod", sender_ws)  # ["data"] only
+
+        frame = {"type": "msg", "channel": "sig", "payload": {"dst": "jei", "id": "s2"}}
+        self._route(server, sender_ws, frame, entry)
+
+        sender_ws.send.assert_called_once()
+        sent = json.loads(sender_ws.send.call_args[0][0])
+        assert sent["type"] == "err"
+        assert sent["code"] == "signaling-not-supported"
+        assert sent["ref"] == "s2"
+        peer_ws.send.assert_not_called()  # dropped, not routed
+
+    def test_unknown_channel_rejected(self, tmp_hub, sample_config):
+        """A channel value outside {sig, data} gets err unknown-channel (§18.2)."""
+        server = HubServer(sample_config, tmp_hub)
+        peer_ws = _make_ws_mock()
+        server.connections.add("jei", peer_ws)
+        sender_ws = _make_ws_mock()
+        entry = server.connections.add("momoshod", sender_ws)
+        entry.channels = ["sig", "data"]  # even a full peer cannot invent channels
+
+        frame = {"type": "msg", "channel": "admin", "payload": {"dst": "jei", "id": "u1"}}
+        self._route(server, sender_ws, frame, entry)
+
+        sender_ws.send.assert_called_once()
+        sent = json.loads(sender_ws.send.call_args[0][0])
+        assert sent["type"] == "err"
+        assert sent["code"] == "unknown-channel"
+        peer_ws.send.assert_not_called()
+
+    def test_err_frame_18_10_format(self, tmp_hub, sample_config):
+        """The err frame matches §18.10.1: type/code present, no payload leak."""
+        server = HubServer(sample_config, tmp_hub)
+        sender_ws = _make_ws_mock()
+        entry = server.connections.add("momoshod", sender_ws)
+
+        secret = "TOP-SECRET-PAYLOAD-BODY"
+        frame = {
+            "type": "msg",
+            "channel": "sig",
+            "payload": {"dst": "jei", "id": "f1", "msg": secret},
+        }
+        self._route(server, sender_ws, frame, entry)
+
+        sent = json.loads(sender_ws.send.call_args[0][0])
+        assert sent["type"] == "err"
+        assert isinstance(sent["code"], str)  # §18.10: token, not numeric
+        assert sent["ref"] == "f1"
+        # §18.10.1: detail MUST NOT carry payload contents
+        assert secret not in json.dumps(sent)
+        # §18.10: emitting err does not close the socket
+        sender_ws.close.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
 # TestMessageRouter_SentReceipt — ATR-Q.931 §8.1 + §8.4
 # ---------------------------------------------------------------------------
 
@@ -1226,7 +1353,103 @@ class TestHubServer:
         finally:
             loop.close()
 
-        assert result == ("test_clan", "peer", [])
+        # §18.5: legacy HELLO (no caps/channels) → data-only negotiated set
+        assert result == ("test_clan", "peer", [], ["data"])
+
+    def test_authenticate_advertises_caps_and_channels(self, tmp_hub):
+        """auth_ok carries caps + negotiated channels; sig granted on opt-in (§18.5)."""
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+        privkey = Ed25519PrivateKey.generate()
+        pubkey_hex = privkey.public_key().public_bytes_raw().hex()
+        (tmp_hub / "hub-peers.json").write_text(
+            json.dumps({"peers": {"sig_clan": {"sign_pub": pubkey_hex, "display_name": "Sig"}}})
+        )
+        server = HubServer(HubConfig(auth_timeout=5), tmp_hub)
+        ws = _make_ws_mock()
+
+        recv_call_count = 0
+
+        async def mock_recv():
+            nonlocal recv_call_count
+            recv_call_count += 1
+            if recv_call_count == 1:
+                return json.dumps(
+                    {
+                        "type": "hello",
+                        "clan_id": "sig_clan",
+                        "sign_pub": pubkey_hex,
+                        "protocol_version": "0.6.0a1",
+                        "capabilities": ["signaling_v1"],
+                        "channels": ["sig", "data"],
+                    }
+                )
+            challenge_frame = json.loads(ws.send.call_args[0][0])
+            nonce = challenge_frame["nonce"]
+            sig = privkey.sign(bytes.fromhex(nonce)).hex()
+            return json.dumps({"type": "auth", "nonce_response": sig})
+
+        ws.recv = mock_recv
+
+        loop = asyncio.new_event_loop()
+        try:
+            result = loop.run_until_complete(server._authenticate(ws))
+        finally:
+            loop.close()
+
+        assert result == ("sig_clan", "peer", [], ["data", "sig"])
+        # Last frame sent by the hub is auth_ok
+        auth_ok = json.loads(ws.send.call_args[0][0])
+        assert auth_ok["type"] == "auth_ok"
+        assert "signaling_v1" in auth_ok["caps"]
+        assert set(auth_ok["channels"]) == {"sig", "data"}
+
+    def test_authenticate_data_only_when_sig_not_advertised(self, tmp_hub):
+        """A peer that omits signaling_v1 cap is a legacy/data-only peer (§18.5)."""
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+        privkey = Ed25519PrivateKey.generate()
+        pubkey_hex = privkey.public_key().public_bytes_raw().hex()
+        (tmp_hub / "hub-peers.json").write_text(
+            json.dumps({"peers": {"data_clan": {"sign_pub": pubkey_hex, "display_name": "Data"}}})
+        )
+        server = HubServer(HubConfig(auth_timeout=5), tmp_hub)
+        ws = _make_ws_mock()
+
+        recv_call_count = 0
+
+        async def mock_recv():
+            nonlocal recv_call_count
+            recv_call_count += 1
+            if recv_call_count == 1:
+                # Requests "sig" in channels but does NOT advertise signaling_v1 cap
+                return json.dumps(
+                    {
+                        "type": "hello",
+                        "clan_id": "data_clan",
+                        "sign_pub": pubkey_hex,
+                        "protocol_version": "0.6.0a1",
+                        "capabilities": [],
+                        "channels": ["sig", "data"],
+                    }
+                )
+            challenge_frame = json.loads(ws.send.call_args[0][0])
+            nonce = challenge_frame["nonce"]
+            sig = privkey.sign(bytes.fromhex(nonce)).hex()
+            return json.dumps({"type": "auth", "nonce_response": sig})
+
+        ws.recv = mock_recv
+
+        loop = asyncio.new_event_loop()
+        try:
+            result = loop.run_until_complete(server._authenticate(ws))
+        finally:
+            loop.close()
+
+        # sig requested but not capability-advertised → not granted
+        assert result == ("data_clan", "peer", [], ["data"])
+        auth_ok = json.loads(ws.send.call_args[0][0])
+        assert auth_ok["channels"] == ["data"]
 
     def test_authenticate_failure(self, tmp_hub, sample_config):
         server = HubServer(sample_config, tmp_hub)

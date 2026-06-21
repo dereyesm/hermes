@@ -200,6 +200,7 @@ class ConnectionEntry:
     active_quests: list[str] = field(default_factory=list)
     status_message: str = ""
     rate: RateBuckets | None = None  # set post-AUTH_OK by HubServer
+    channels: list[str] = field(default_factory=lambda: ["data"])  # §18.5 negotiated channels
 
     def presence_dict(self) -> dict:
         """Return presence info for roster/broadcast."""
@@ -880,8 +881,8 @@ class HubServer:
         clan_id = None
         is_hub = False
         try:
-            # Step 1: Authentication (§15.6 / §17)
-            clan_id, role, remote_peers = await self._authenticate(ws)
+            # Step 1: Authentication (§15.6 / §17 / §18.5)
+            clan_id, role, remote_peers, channels = await self._authenticate(ws)
             if not clan_id:
                 return
 
@@ -941,7 +942,8 @@ class HubServer:
                     sig_max=float(self.config.sig_budget_per_min),
                     data_max=float(self.config.data_budget_bytes_per_min),
                 )
-                logger.info("Peer connected: %s", clan_id)
+                conn_entry.channels = channels  # §18.5 negotiated whitelist
+                logger.info("Peer connected: %s (channels=%s)", clan_id, channels)
 
                 # Step 3: Notify other peers + S2S links
                 await self._broadcast_presence(clan_id, "online", conn_entry)
@@ -1021,21 +1023,24 @@ class HubServer:
                     await self._broadcast_presence(clan_id, "offline")
                 self._save_state()
 
-    async def _authenticate(self, ws: Any) -> tuple[str | None, str, list[str]]:
-        """Run HELLO + challenge-response auth (ARC-4601 §15.6, §17).
+    async def _authenticate(self, ws: Any) -> tuple[str | None, str, list[str], list[str]]:
+        """Run HELLO + challenge-response auth (ARC-4601 §15.6, §17, §18.5).
 
         Wire sequence (normative):
-          1. Client → Server: HELLO  {type:"hello", clan_id, sign_pub, protocol_version, capabilities:[], [role, local_peers]}
+          1. Client → Server: HELLO  {type:"hello", clan_id, sign_pub, protocol_version, capabilities:[], [channels:[], role, local_peers]}
           2. Server → Client: CHALLENGE {type:"challenge", nonce, server_version, server_clan_id, server_capabilities:[]}
           3. Client → Server: AUTH  {type:"auth", nonce_response (Ed25519 signature of nonce)}
-          4. Server → Client: AUTH_OK {type:"auth_ok", clan_id, queue_depth}
+          4. Server → Client: AUTH_OK {type:"auth_ok", clan_id, queue_depth, caps:[], channels:[]}
 
-        Returns (clan_id, role, remote_peers) on success, (None, "", []) on failure.
-        Role is "hub" for S2S connections, "peer" for regular peers.
+        Returns (clan_id, role, remote_peers, channels) on success,
+        (None, "", [], []) on failure. Role is "hub" for S2S connections,
+        "peer" for regular peers. The channels list is the §18.5-negotiated
+        set the peer is permitted to use (always includes "data"; includes
+        "sig" only if the peer advertised signaling_v1).
         """
         from amaru import __version__
 
-        fail: tuple[str | None, str, list[str]] = (None, "", [])
+        fail: tuple[str | None, str, list[str], list[str]] = (None, "", [], [])
 
         # Step 1: Wait for client HELLO (client initiates)
         try:
@@ -1047,14 +1052,16 @@ class HubServer:
             return fail
 
         if hello.get("type") != "hello":
-            # Backward compat: any non-hello frame goes to legacy auth
+            # Backward compat: any non-hello frame goes to legacy auth.
+            # Legacy peers never negotiate signaling (§18.5) → data-only.
             clan_id = await self._authenticate_legacy(ws, hello)
-            return (clan_id, "peer", []) if clan_id else fail
+            return (clan_id, "peer", [], ["data"]) if clan_id else fail
 
         client_clan_id = hello.get("clan_id", "")
         client_pub = hello.get("sign_pub", "")
         client_version = hello.get("protocol_version", "unknown")
         client_caps = hello.get("capabilities", [])
+        client_channels = hello.get("channels", [])  # §18.5
         client_role = hello.get("role", "peer")
         client_local_peers = hello.get("local_peers", [])
 
@@ -1165,7 +1172,15 @@ class HubServer:
                 await ws.close()
                 return fail
 
-        # Step 4: AUTH_OK
+        # Step 4: AUTH_OK with §18.5 capability negotiation.
+        # The hub implements §18, so it MUST advertise signaling_v1. A peer is
+        # granted the "sig" channel only if it advertised signaling_v1 in its
+        # HELLO caps AND requested "sig" in its channels; otherwise it is a
+        # legacy/data-only peer (§18.5). "data" is always available (§18.6).
+        negotiated_channels = ["data"]
+        if "signaling_v1" in client_caps and "sig" in client_channels:
+            negotiated_channels.append("sig")
+
         depth = self.queue.depth(client_clan_id) if client_role != "hub" else 0
         await ws.send(
             json.dumps(
@@ -1173,10 +1188,12 @@ class HubServer:
                     "type": "auth_ok",
                     "clan_id": client_clan_id,
                     "queue_depth": depth,
+                    "caps": ["signaling_v1"],
+                    "channels": negotiated_channels,
                 }
             )
         )
-        return (client_clan_id, client_role, client_local_peers)
+        return (client_clan_id, client_role, client_local_peers, negotiated_channels)
 
     async def _authenticate_legacy(self, ws: Any, first_frame: dict) -> str | None:
         """Handle legacy clients that skip HELLO and send auth directly.
@@ -1222,6 +1239,24 @@ class HubServer:
         await ws.send(json.dumps({"type": "auth_ok", "clan_id": clan_id, "queue_depth": depth}))
         return clan_id
 
+    async def _send_err_channel(
+        self, ws: Any, code: str, ref: str | None, detail: str | None
+    ) -> None:
+        """Emit an ARC-4601 §18.10 err frame (token-coded, non-fatal).
+
+        Used for channel-negotiation rejections (`unknown-channel`,
+        `signaling-not-supported`). Per §18.10.1 the detail field carries no
+        payload contents and no peer identifiers beyond the offender's own —
+        callers MUST pass only static operator phrases here. The WebSocket is
+        NOT closed; the offender is responsible for backing off.
+        """
+        err: dict[str, Any] = {"type": "err", "code": code}
+        if ref is not None:
+            err["ref"] = ref
+        if detail is not None:
+            err["detail"] = detail
+        await ws.send(json.dumps(err))
+
     async def _route_msg_frame(
         self,
         ws: Any,
@@ -1240,6 +1275,27 @@ class HubServer:
         payload = frame.get("payload", {})
         if not isinstance(payload, dict) or "dst" not in payload:
             return
+
+        # ARC-4601 §18.2 / §18.5 — channel whitelist. Parse the frame channel
+        # (absent defaults to "data" per §18.6), reject unknown values, and
+        # reject "sig" from peers that did not negotiate signaling_v1. Errors
+        # are signalled with an §18.10 err frame (token code), not a teardown.
+        channel = frame.get("channel", "data")
+        if channel not in ("sig", "data"):
+            await self._send_err_channel(
+                ws, "unknown-channel", payload.get("id"), "channel must be 'sig' or 'data'"
+            )
+            return
+        if channel == "sig":
+            allowed = conn_entry.channels if conn_entry is not None else ["data"]
+            if "sig" not in allowed:
+                await self._send_err_channel(
+                    ws,
+                    "signaling-not-supported",
+                    payload.get("id"),
+                    "peer did not negotiate signaling_v1",
+                )
+                return
 
         if conn_entry is not None and conn_entry.rate is not None:
             data_bytes = len(json.dumps(payload))
