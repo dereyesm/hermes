@@ -38,6 +38,42 @@ from amaru.installer import (
 )
 
 # ---------------------------------------------------------------------------
+# Daemon spawn guard (Issue #18b)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _block_real_daemon_spawn(monkeypatch):
+    """Stop install() from spawning a real ``amaru daemon start`` subprocess.
+
+    ``install(skip_service=True)`` launches the agent daemon via
+    ``subprocess.Popen`` (installer.py). These tests mock ``subprocess.run``
+    but not ``Popen``, so every ``skip_service=True`` test used to leak an
+    orphaned daemon (reparented to PID 1) inside the pytest tmpdir — ~6
+    zombies per suite run. Substitute a no-op Popen that reports a fake PID
+    so the install flow is still exercised without starting a real process.
+    """
+
+    class _NoopPopen:
+        def __init__(self, *args, **kwargs):
+            self.pid = 99999
+
+        def poll(self):
+            return None
+
+        def terminate(self):
+            pass
+
+        def kill(self):
+            pass
+
+        def wait(self, timeout=None):
+            return 0
+
+    monkeypatch.setattr("amaru.installer.subprocess.Popen", _NoopPopen)
+
+
+# ---------------------------------------------------------------------------
 # Platform Detection
 # ---------------------------------------------------------------------------
 
