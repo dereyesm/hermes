@@ -98,5 +98,5 @@ A rotation of `sign_pub` (key compromise or routine rotation) MUST be announced 
 
 ---
 
-**Maintained by**: Daniel Reyes (DANI) — [redacted] / @dereyesm
+**Maintained by**: DANI clan — @dereyesm (contact via [GitHub Security Advisories](https://github.com/dereyesm/amaru-protocol/security/advisories/new))
 **Companion**: JEI's roster lives in her own ecosystem; the federation joins these two sovereign registries via bilateral handshake, not by merging them.

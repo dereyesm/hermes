@@ -17,7 +17,7 @@ Append this line to the relay (`dani_outbox.jsonl` via heraldo-gateway or GitHub
 
 ## 2. Email Draft for Jeimmy
 
-**From**: [redacted] (send from MomoshoD or MomoFinance dimension)
+**From**: DANI clan (bilateral channel)
 **To**: [Jeimmy's email — Daniel knows it]
 **Subject**: HERMES QUEST-002 — AAD Bilateral — Ping (7 days)
 
