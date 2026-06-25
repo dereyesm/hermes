@@ -42,7 +42,15 @@ def _parse_bus_message_permissive(data: dict) -> Message | None:
     """Parse a bus message permissively for the Agent Node observer.
 
     Tolerates: extra fields (seq, w per ARC-9001), long payloads (>120 chars),
-    mixed-case namespaces. Only rejects if core fields are missing.
+    mixed-case namespaces, and structured `msg` payloads. Only rejects if
+    core fields are missing.
+
+    The `msg` field accepts three shapes (QUEST-CROSS-003 / ICAP requirement):
+    - `str`: passed through verbatim
+    - `dict` or `list`: serialized to canonical JSON (sorted keys, compact)
+      so a round-trip preserves structure across federation
+    Bytes are decoded as UTF-8 best-effort; any other type falls back to
+    `str(...)` for backward compatibility.
     """
     required = {"ts", "src", "dst", "type", "msg", "ttl", "ack"}
     if not required.issubset(data.keys()):
@@ -56,7 +64,29 @@ def _parse_bus_message_permissive(data: dict) -> Message | None:
     src = str(data["src"]).lower()
     dst = str(data["dst"]) if data["dst"] == "*" else str(data["dst"]).lower()
     msg_type = str(data["type"])
-    msg_text = str(data["msg"])
+    raw_msg = data["msg"]
+    if isinstance(raw_msg, str):
+        msg_text = raw_msg
+    elif isinstance(raw_msg, dict | list):
+        msg_text = json.dumps(raw_msg, sort_keys=True, separators=(",", ":"))
+    elif isinstance(raw_msg, bytes | bytearray):
+        try:
+            msg_text = raw_msg.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            # Trazabilidad ASI02 (JEI / Bachue review condition):
+            # invalid UTF-8 must not be swallowed silently. Log the
+            # event and prefix the fallback so downstream observers
+            # can filter encoding-errored messages.
+            logging.getLogger(__name__).warning(
+                "permissive_parser: invalid utf-8 in msg field src=%s dst=%s type=%s err=%s",
+                data.get("src"),
+                data.get("dst"),
+                data.get("type"),
+                exc,
+            )
+            msg_text = f"[ENCODING_ERROR] {raw_msg!r}"
+    else:
+        msg_text = str(raw_msg)
     ttl = int(data["ttl"]) if isinstance(data["ttl"], int) else 7
     ack = list(data["ack"]) if isinstance(data["ack"], list) else []
 
@@ -98,7 +128,15 @@ class AgentNodeConfig:
     dispatch_allowed_tools: list[str] = field(default_factory=list)
     poll_interval: float = 2.0
     escalation_threshold_hours: int = 4
-    forward_types: list[str] = field(default_factory=lambda: ["alert", "dispatch", "event"])
+    forward_types: list[str] = field(
+        default_factory=lambda: [
+            "alert",
+            "dispatch",
+            "event",
+            "coord-dispatch",  # ARC-COORD-01: 1→N coordination (DRAFT)
+            "reflection",  # ARC-REFLECT-01: cognitive metabolism (DRAFT)
+        ]
+    )
     clan_dir: Path = field(default_factory=lambda: Path("."))
     # F4-F5 (ARC-0369): ASP integration — opt-in (auto-enabled if agents/ exists)
     agents_dir: str = "agents"
@@ -193,7 +231,12 @@ def load_agent_config(config_path: Path) -> AgentNodeConfig:
         dispatch_allowed_tools=list(section.get("dispatch_allowed_tools", [])),
         poll_interval=float(section.get("poll_interval", 2.0)),
         escalation_threshold_hours=int(section.get("escalation_threshold_hours", 4)),
-        forward_types=list(section.get("forward_types", ["alert", "dispatch", "event"])),
+        forward_types=list(
+            section.get(
+                "forward_types",
+                ["alert", "dispatch", "event", "coord-dispatch", "reflection"],
+            )
+        ),
         clan_dir=clan_dir,
         agents_dir=agents_dir_name,
         asp_enabled=bool(asp_enabled),

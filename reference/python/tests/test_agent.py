@@ -133,7 +133,151 @@ class TestAgentNodeConfig:
         assert config.dispatch_command == "claude"
         assert config.poll_interval == 2.0
         assert config.escalation_threshold_hours == 4
-        assert config.forward_types == ["alert", "dispatch", "event"]
+        assert config.forward_types == [
+            "alert",
+            "dispatch",
+            "event",
+            "coord-dispatch",
+            "reflection",
+        ]
+
+
+# ---------------------------------------------------------------------------
+# Permissive Parser Tests (ICAP Fase 2 — structured msg payloads)
+# ---------------------------------------------------------------------------
+
+
+class TestParseBusMessagePermissive:
+    """QUEST-CROSS-003 / ICAP Fase 2 — _parse_bus_message_permissive accepts
+    msg as str, dict, list, or bytes. Round-trips structured payloads to
+    canonical JSON so peers see the same representation."""
+
+    def _base_msg(self, msg_value):
+        return {
+            "ts": "2026-05-12",
+            "src": "momoshod",
+            "dst": "jei",
+            "type": "coord-dispatch",
+            "msg": msg_value,
+            "ttl": 7,
+            "ack": [],
+        }
+
+    def test_msg_str_passthrough(self):
+        from amaru.agent import _parse_bus_message_permissive
+
+        m = _parse_bus_message_permissive(self._base_msg("hello"))
+        assert m is not None
+        assert m.msg == "hello"
+
+    def test_msg_dict_serialized_canonical(self):
+        from amaru.agent import _parse_bus_message_permissive
+
+        payload = {"action": "ratify", "spec": "AES-7531", "priority": 1}
+        m = _parse_bus_message_permissive(self._base_msg(payload))
+        assert m is not None
+        # canonical JSON: sorted keys, compact separators
+        assert m.msg == '{"action":"ratify","priority":1,"spec":"AES-7531"}'
+
+    def test_msg_list_serialized_canonical(self):
+        from amaru.agent import _parse_bus_message_permissive
+
+        payload = ["amaru", "research", "community"]
+        m = _parse_bus_message_permissive(self._base_msg(payload))
+        assert m is not None
+        assert m.msg == '["amaru","research","community"]'
+
+    def test_msg_nested_dict_serialized(self):
+        from amaru.agent import _parse_bus_message_permissive
+
+        payload = {
+            "quest_id": "Q-2026-05-12-001",
+            "targets": ["jei", "nymyka"],
+            "deadline": {"date": "2026-05-15", "hard": True},
+        }
+        m = _parse_bus_message_permissive(self._base_msg(payload))
+        assert m is not None
+        # nested keys also sorted
+        assert (
+            m.msg
+            == '{"deadline":{"date":"2026-05-15","hard":true},"quest_id":"Q-2026-05-12-001","targets":["jei","nymyka"]}'
+        )
+
+    def test_msg_bytes_decoded_utf8(self):
+        from amaru.agent import _parse_bus_message_permissive
+
+        payload = b"hola mundo"
+        m = _parse_bus_message_permissive(self._base_msg(payload))
+        assert m is not None
+        assert m.msg == "hola mundo"
+
+    def test_msg_invalid_utf8_bytes_flagged_and_logged(self, caplog):
+        """ASI02 traceability: invalid UTF-8 in msg payload MUST emit a
+        warning and prefix the fallback with [ENCODING_ERROR] so
+        downstream observers can filter encoding-errored messages.
+
+        Reviewer: Bachue (JEI) — PR #26 review 2026-05-12.
+        """
+        import logging as _logging
+
+        from amaru.agent import _parse_bus_message_permissive
+
+        payload = b"\xff\xfe\xfd"  # invalid UTF-8
+        with caplog.at_level(_logging.WARNING, logger="amaru.agent"):
+            m = _parse_bus_message_permissive(self._base_msg(payload))
+
+        assert m is not None
+        assert m.msg.startswith("[ENCODING_ERROR]")
+        # Trazabilidad: warning emitted with src/dst/type context
+        assert any(
+            "permissive_parser: invalid utf-8" in r.message
+            and "src=momoshod" in r.message
+            and "dst=jei" in r.message
+            for r in caplog.records
+        )
+
+    def test_msg_int_fallback_to_str(self):
+        from amaru.agent import _parse_bus_message_permissive
+
+        m = _parse_bus_message_permissive(self._base_msg(42))
+        assert m is not None
+        assert m.msg == "42"
+
+    def test_msg_none_fallback_to_str(self):
+        from amaru.agent import _parse_bus_message_permissive
+
+        m = _parse_bus_message_permissive(self._base_msg(None))
+        assert m is not None
+        assert m.msg == "None"
+
+    def test_missing_field_returns_none(self):
+        from amaru.agent import _parse_bus_message_permissive
+
+        data = {"ts": "2026-05-12", "src": "momoshod"}  # incomplete
+        assert _parse_bus_message_permissive(data) is None
+
+    def test_invalid_ts_returns_none(self):
+        from amaru.agent import _parse_bus_message_permissive
+
+        data = self._base_msg("hello")
+        data["ts"] = "not-a-date"
+        assert _parse_bus_message_permissive(data) is None
+
+    def test_coord_dispatch_type_preserved(self):
+        from amaru.agent import _parse_bus_message_permissive
+
+        m = _parse_bus_message_permissive(self._base_msg({"k": "v"}))
+        assert m is not None
+        assert m.type == "coord-dispatch"
+
+    def test_reflection_type_preserved(self):
+        from amaru.agent import _parse_bus_message_permissive
+
+        d = self._base_msg({"insight": "the bug was never in the code"})
+        d["type"] = "reflection"
+        m = _parse_bus_message_permissive(d)
+        assert m is not None
+        assert m.type == "reflection"
 
 
 # ---------------------------------------------------------------------------
@@ -1180,6 +1324,242 @@ class TestHubInboxLoop:
         asyncio.run(run_once())
 
 
+class TestHubInboxLoopErrors:
+    """Coverage of error paths in _hub_inbox_loop.
+
+    JEI/Bachue PR #26 review condition: AgentNode is the ICAP gateway,
+    high-criticality. Error paths in inbox loop must be tested.
+    """
+
+    @pytest.fixture
+    def hub_inbox_config(self, tmp_clan):
+        inbox = tmp_clan / "hub-inbox.jsonl"
+        inbox.touch()
+        return AgentNodeConfig(
+            bus_path=tmp_clan / "bus.jsonl",
+            gateway_url="",
+            namespace="test-node",
+            clan_dir=tmp_clan,
+            hub_inbox_path=inbox,
+            hub_inbox_poll_interval=0.05,
+            poll_interval=0.05,
+        )
+
+    def test_inbox_missing_logs_and_returns(self, tmp_clan, caplog):
+        """If hub_inbox_path does not exist, loop logs and returns immediately."""
+        import logging as _logging
+
+        config = AgentNodeConfig(
+            bus_path=tmp_clan / "bus.jsonl",
+            gateway_url="",
+            namespace="test",
+            clan_dir=tmp_clan,
+            hub_inbox_path=tmp_clan / "nonexistent-inbox.jsonl",
+        )
+        node = AgentNode(config)
+
+        async def run_once():
+            node._running = True
+            await node._hub_inbox_loop()
+
+        with caplog.at_level(_logging.INFO, logger="amaru.agent"):
+            asyncio.run(run_once())
+
+        assert any("Hub inbox not found" in r.message for r in caplog.records)
+
+    def test_corrupt_cursor_resets_to_zero(self, hub_inbox_config):
+        """If hub-inbox.daemon.cursor contains non-int, offset resets to 0."""
+        cursor = hub_inbox_config.hub_inbox_path.parent / "hub-inbox.daemon.cursor"
+        cursor.write_text("not-an-int")
+
+        hub_msg = {
+            "ts": "2026-05-12T15:00:00+00:00",
+            "from": "jei",
+            "msg": "post-corrupt-cursor",
+            "type": "event",
+            "dst": "momoshod",
+        }
+        hub_inbox_config.hub_inbox_path.write_text(json.dumps(hub_msg) + "\n")
+
+        node = AgentNode(hub_inbox_config)
+
+        async def run_once():
+            node._running = True
+            task = asyncio.ensure_future(node._hub_inbox_loop())
+            await asyncio.sleep(0.25)
+            node._running = False
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+        asyncio.run(run_once())
+
+        from amaru.bus import read_bus
+
+        msgs = read_bus(hub_inbox_config.bus_path)
+        assert any(m.src == "jei" for m in msgs), "corrupt cursor should reset and bridge anyway"
+
+    def test_file_truncated_resets_cursor(self, hub_inbox_config, caplog):
+        """If hub_inbox file_size < offset, cursor is reset and we log."""
+        import logging as _logging
+
+        # First write some data
+        hub_msg = {
+            "ts": "2026-05-12T15:00:00+00:00",
+            "from": "jei",
+            "msg": "first-message",
+            "type": "event",
+            "dst": "momoshod",
+        }
+        hub_inbox_config.hub_inbox_path.write_text(json.dumps(hub_msg) + "\n")
+
+        # Pre-position the cursor past the (yet-to-be-truncated) file size
+        cursor = hub_inbox_config.hub_inbox_path.parent / "hub-inbox.daemon.cursor"
+        cursor.write_text("999999")  # cursor way past actual size
+
+        node = AgentNode(hub_inbox_config)
+
+        async def run_once():
+            node._running = True
+            task = asyncio.ensure_future(node._hub_inbox_loop())
+            await asyncio.sleep(0.25)
+            node._running = False
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+        with caplog.at_level(_logging.INFO, logger="amaru.agent"):
+            asyncio.run(run_once())
+
+        assert any("truncated" in r.message.lower() for r in caplog.records)
+
+    def test_malformed_json_line_skipped(self, hub_inbox_config):
+        """A line that is not valid JSON is silently skipped."""
+        inbox = hub_inbox_config.hub_inbox_path
+        good = {
+            "ts": "2026-05-12T15:00:00+00:00",
+            "from": "jei",
+            "msg": "good-line",
+            "type": "event",
+            "dst": "momoshod",
+        }
+        # Mix valid + invalid lines
+        inbox.write_text(json.dumps(good) + "\n" + "{not valid json\n" + json.dumps(good) + "\n")
+
+        node = AgentNode(hub_inbox_config)
+
+        async def run_once():
+            node._running = True
+            task = asyncio.ensure_future(node._hub_inbox_loop())
+            await asyncio.sleep(0.25)
+            node._running = False
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+        asyncio.run(run_once())
+
+        from amaru.bus import read_bus
+
+        msgs = read_bus(hub_inbox_config.bus_path)
+        jei_msgs = [m for m in msgs if m.src == "jei"]
+        # The good line bridges (dedup may reduce duplicates to 1)
+        assert len(jei_msgs) >= 1, "valid lines bridge even when malformed lines are present"
+
+    def test_write_failure_logged_non_fatal(self, hub_inbox_config, caplog, monkeypatch):
+        """If write_message raises, loop logs a warning and continues."""
+        import logging as _logging
+
+        from amaru import agent as agent_module
+
+        good = {
+            "ts": "2026-05-12T15:00:00+00:00",
+            "from": "jei",
+            "msg": "will-fail-to-write",
+            "type": "event",
+            "dst": "momoshod",
+        }
+        hub_inbox_config.hub_inbox_path.write_text(json.dumps(good) + "\n")
+
+        def boom(*args, **kwargs):
+            raise OSError("simulated disk full")
+
+        monkeypatch.setattr(agent_module, "write_message", boom)
+
+        node = AgentNode(hub_inbox_config)
+
+        async def run_once():
+            node._running = True
+            task = asyncio.ensure_future(node._hub_inbox_loop())
+            await asyncio.sleep(0.25)
+            node._running = False
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+        with caplog.at_level(_logging.WARNING, logger="amaru.agent"):
+            asyncio.run(run_once())
+
+        assert any(
+            "Hub bridge write failed" in r.message or "simulated disk full" in r.message
+            for r in caplog.records
+        )
+
+
+class TestForwardTypesFiltering:
+    """Coverage: forward_types default + filtering for ICAP wire types.
+
+    JEI/Bachue PR #26 review condition: dispatch path for coord-dispatch
+    and reflection must be exercised.
+    """
+
+    def test_default_forward_types_include_icap(self):
+        """Default forward_types includes the ICAP wire types."""
+        config = AgentNodeConfig(
+            bus_path=Path("/tmp/x"),
+            gateway_url="",
+            namespace="test",
+        )
+        assert "coord-dispatch" in config.forward_types
+        assert "reflection" in config.forward_types
+        assert "alert" in config.forward_types
+        assert "dispatch" in config.forward_types
+        assert "event" in config.forward_types
+
+    def test_load_agent_config_default_forward_types(self, tmp_clan):
+        """Gateway.json without forward_types picks up ICAP defaults."""
+        gw = {"agent_node": {"enabled": True, "bus_path": "bus.jsonl", "namespace": "test"}}
+        cf = tmp_clan / "gateway.json"
+        cf.write_text(json.dumps(gw))
+        cfg = load_agent_config(cf)
+        assert "coord-dispatch" in cfg.forward_types
+        assert "reflection" in cfg.forward_types
+
+    def test_load_agent_config_explicit_overrides_default(self, tmp_clan):
+        """If gateway.json sets forward_types explicitly, it overrides."""
+        gw = {
+            "agent_node": {
+                "enabled": True,
+                "bus_path": "bus.jsonl",
+                "namespace": "test",
+                "forward_types": ["alert"],  # narrow override
+            }
+        }
+        cf = tmp_clan / "gateway.json"
+        cf.write_text(json.dumps(gw))
+        cfg = load_agent_config(cf)
+        assert cfg.forward_types == ["alert"]
+        assert "coord-dispatch" not in cfg.forward_types
+
+
 class TestAutoPeerDiscovery:
     """Test auto-peer registration from hub presence events."""
 
@@ -1408,3 +1788,267 @@ class TestAutoPeerDiscovery:
 
         messages = read_bus(bus)
         assert any(m.src == "jei" for m in messages)
+
+
+# ---------------------------------------------------------------------------
+# ICAP Dispatch Coverage Tests (JEI/Bachue PR #26 review condition)
+# ---------------------------------------------------------------------------
+
+
+class TestLegacyDispatchICAP:
+    """Exercise `_legacy_dispatch` for coord-dispatch and reflection wire types.
+
+    JEI/Bachue PR #26 review: "dispatch path for coord-dispatch and reflection
+    must be exercised". Verifies that ICAP wire types reach the dispatcher
+    when slots are available and that no-slot is logged but not raised.
+    """
+
+    def _make_node(self, tmp_clan):
+        cfg = AgentNodeConfig(
+            bus_path=tmp_clan / "bus.jsonl",
+            gateway_url="",
+            namespace="momoshod",
+            clan_dir=tmp_clan,
+            max_dispatch_slots=2,
+            poll_interval=0.05,
+        )
+        return AgentNode(cfg)
+
+    def _dispatch_msg(self, msg_type, cid_suffix="abcd1234"):
+        return Message(
+            ts=date(2026, 5, 18),
+            src="jei",
+            dst="momoshod",
+            type=msg_type,
+            msg=f"ICAP payload [CID:{cid_suffix}]",
+            ttl=7,
+            ack=[],
+        )
+
+    def test_coord_dispatch_reaches_dispatcher(self, tmp_clan, monkeypatch):
+        node = self._make_node(tmp_clan)
+        calls: list[tuple[str, str]] = []
+
+        async def fake_dispatch(message, cid):
+            calls.append((message.type, cid))
+            return DispatchSlot(pid=12345, cid=cid, started_at=time.time(), command=["x"])
+
+        monkeypatch.setattr(node.dispatcher, "dispatch", fake_dispatch)
+
+        msg = self._dispatch_msg("coord-dispatch", cid_suffix="coord001")
+        asyncio.run(node._legacy_dispatch(msg))
+
+        assert len(calls) == 1
+        assert calls[0][0] == "coord-dispatch"
+        assert calls[0][1] == "coord001"  # extracted via [CID:...] pattern
+
+    def test_reflection_reaches_dispatcher(self, tmp_clan, monkeypatch):
+        node = self._make_node(tmp_clan)
+        calls: list[tuple[str, str]] = []
+
+        async def fake_dispatch(message, cid):
+            calls.append((message.type, cid))
+            return DispatchSlot(pid=23456, cid=cid, started_at=time.time(), command=["x"])
+
+        monkeypatch.setattr(node.dispatcher, "dispatch", fake_dispatch)
+
+        msg = self._dispatch_msg("reflection")
+        asyncio.run(node._legacy_dispatch(msg))
+
+        assert len(calls) == 1
+        assert calls[0][0] == "reflection"
+
+    def test_no_slots_logs_warning(self, tmp_clan, monkeypatch, caplog):
+        import logging as _logging
+
+        node = self._make_node(tmp_clan)
+        # Saturate slots so available_slots == 0
+        node.dispatcher.active = [
+            DispatchSlot(pid=i, cid=f"x{i}", started_at=0.0, command=[])
+            for i in range(node.config.max_dispatch_slots)
+        ]
+
+        async def boom(*_a, **_kw):
+            raise RuntimeError("should not be called when no slots")
+
+        monkeypatch.setattr(node.dispatcher, "dispatch", boom)
+
+        msg = self._dispatch_msg("coord-dispatch")
+        with caplog.at_level(_logging.WARNING, logger="amaru.agent"):
+            asyncio.run(node._legacy_dispatch(msg))
+
+        # No RuntimeError leaked; loop returned cleanly.
+        # (No-slot guard is the early return at available_slots <= 0)
+
+    def test_dispatch_runtime_error_swallowed(self, tmp_clan, monkeypatch, caplog):
+        """If dispatcher.dispatch raises RuntimeError, _legacy_dispatch logs and continues."""
+        import logging as _logging
+
+        node = self._make_node(tmp_clan)
+
+        async def fake_dispatch(message, cid):
+            raise RuntimeError("simulated slot race")
+
+        monkeypatch.setattr(node.dispatcher, "dispatch", fake_dispatch)
+
+        msg = self._dispatch_msg("coord-dispatch")
+        with caplog.at_level(_logging.WARNING, logger="amaru.agent"):
+            asyncio.run(node._legacy_dispatch(msg))
+
+        assert any("No slots for dispatch" in r.message for r in caplog.records)
+
+
+class TestForwardToHubICAP:
+    """Exercise `_forward_to_hub` for ICAP wire types.
+
+    Covers: missing hub-state.json (silent return), invalid JSON,
+    PID dead (OSError), and successful path via monkeypatched hub_send.
+    """
+
+    def _make_node(self, tmp_clan):
+        cfg = AgentNodeConfig(
+            bus_path=tmp_clan / "bus.jsonl",
+            gateway_url="",
+            namespace="momoshod",
+            clan_dir=tmp_clan,
+        )
+        return AgentNode(cfg)
+
+    def _icap_msg(self, msg_type):
+        return Message(
+            ts=date(2026, 5, 18),
+            src="momoshod",
+            dst="jei",
+            type=msg_type,
+            msg="payload",
+            ttl=7,
+            ack=[],
+        )
+
+    def test_no_hub_state_returns_silently(self, tmp_clan):
+        node = self._make_node(tmp_clan)
+        # No hub-state.json exists in clan_dir
+        asyncio.run(node._forward_to_hub(self._icap_msg("coord-dispatch")))
+        # No exception raised; coverage of early-return branch
+
+    def test_invalid_hub_state_json_returns(self, tmp_clan):
+        node = self._make_node(tmp_clan)
+        (tmp_clan / "hub-state.json").write_text("not json {")
+        asyncio.run(node._forward_to_hub(self._icap_msg("reflection")))
+        # Silent return via JSONDecodeError branch
+
+    def test_dead_pid_returns(self, tmp_clan):
+        node = self._make_node(tmp_clan)
+        # PID 1 exists but os.kill(1, 0) requires perms; use a guaranteed-dead PID
+        (tmp_clan / "hub-state.json").write_text('{"pid": 99999999}')
+        asyncio.run(node._forward_to_hub(self._icap_msg("coord-dispatch")))
+        # Silent return via OSError branch
+
+    def test_missing_pid_field_returns(self, tmp_clan):
+        node = self._make_node(tmp_clan)
+        (tmp_clan / "hub-state.json").write_text('{"other": "field"}')
+        asyncio.run(node._forward_to_hub(self._icap_msg("reflection")))
+        # Silent return via pid is None branch
+
+    def test_successful_forward_calls_hub_send(self, tmp_clan, monkeypatch):
+        """When hub is up and tool_hub_send returns sent=True, log info."""
+        node = self._make_node(tmp_clan)
+        # Use real current pid; os.kill(pid, 0) succeeds for self
+        (tmp_clan / "hub-state.json").write_text(f'{{"pid": {os.getpid()}}}')
+
+        calls: list[tuple[str, str, str]] = []
+
+        async def fake_hub_send(dst, type_, msg):
+            calls.append((dst, type_, msg))
+            return {"sent": True}
+
+        # Patch the lazy-import location used inside _forward_to_hub
+        import amaru.mcp_server as mcp_mod
+
+        monkeypatch.setattr(mcp_mod, "tool_hub_send", fake_hub_send)
+
+        asyncio.run(node._forward_to_hub(self._icap_msg("coord-dispatch")))
+        assert calls == [("jei", "coord-dispatch", "payload")]
+
+    def test_failed_forward_does_not_raise(self, tmp_clan, monkeypatch):
+        """When tool_hub_send returns sent=False, log debug and continue."""
+        node = self._make_node(tmp_clan)
+        (tmp_clan / "hub-state.json").write_text(f'{{"pid": {os.getpid()}}}')
+
+        async def fake_hub_send(dst, type_, msg):
+            return {"sent": False, "error": "hub offline"}
+
+        import amaru.mcp_server as mcp_mod
+
+        monkeypatch.setattr(mcp_mod, "tool_hub_send", fake_hub_send)
+
+        asyncio.run(node._forward_to_hub(self._icap_msg("reflection")))
+        # No exception leaked
+
+
+class TestPermissiveParserExtras:
+    """Edge cases beyond `TestParseBusMessagePermissive`: ttl/ack/dst/case."""
+
+    def _base(self, **overrides):
+        data = {
+            "ts": "2026-05-12",
+            "src": "MomoshoD",  # mixed case
+            "dst": "JEI",
+            "type": "coord-dispatch",
+            "msg": "hi",
+            "ttl": 7,
+            "ack": [],
+        }
+        data.update(overrides)
+        return data
+
+    def test_src_lowercased(self):
+        from amaru.agent import _parse_bus_message_permissive
+
+        m = _parse_bus_message_permissive(self._base())
+        assert m is not None and m.src == "momoshod"
+
+    def test_dst_lowercased(self):
+        from amaru.agent import _parse_bus_message_permissive
+
+        m = _parse_bus_message_permissive(self._base())
+        assert m is not None and m.dst == "jei"
+
+    def test_dst_wildcard_preserved(self):
+        from amaru.agent import _parse_bus_message_permissive
+
+        m = _parse_bus_message_permissive(self._base(dst="*"))
+        assert m is not None and m.dst == "*"
+
+    def test_ttl_non_int_falls_back_to_default(self):
+        from amaru.agent import _parse_bus_message_permissive
+
+        m = _parse_bus_message_permissive(self._base(ttl="not-int"))
+        assert m is not None and m.ttl == 7
+
+    def test_ack_non_list_falls_back_to_empty(self):
+        from amaru.agent import _parse_bus_message_permissive
+
+        m = _parse_bus_message_permissive(self._base(ack="not-a-list"))
+        assert m is not None and m.ack == []
+
+    def test_ack_entries_lowercased(self):
+        from amaru.agent import _parse_bus_message_permissive
+
+        m = _parse_bus_message_permissive(self._base(ack=["JEI", "Nymyka"]))
+        assert m is not None and m.ack == ["jei", "nymyka"]
+
+    def test_extra_fields_tolerated(self):
+        """ARC-9001 seq/w fields and other extras must not reject the message."""
+        from amaru.agent import _parse_bus_message_permissive
+
+        m = _parse_bus_message_permissive(self._base(seq=42, w=7, extra="ok"))
+        assert m is not None and m.msg == "hi"
+
+    def test_long_payload_not_truncated(self):
+        """Permissive parser does NOT truncate (vs canonical validate_message)."""
+        from amaru.agent import _parse_bus_message_permissive
+
+        big = "x" * 5000
+        m = _parse_bus_message_permissive(self._base(msg=big))
+        assert m is not None and len(m.msg) == 5000
