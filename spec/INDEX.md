@@ -49,6 +49,7 @@ Core protocol standards governing message formats, transport, addressing, and se
 | [ARC-9001](ARC-9001.md) | Bus Integrity Protocol | — (MVCC/OCC) | SS7 sequence numbering (ITU-T Q.703); Database OCC; 3GPP TS 23.501 NF state | IMPLEMENTED | Core |
 | [ARC-COORD-01](ARC-COORD-01.md) | Coordinated Dispatch Type | — (Original) | FIPA Contract Net (1→N task announcement); 3GPP TS 23.502 (procedural orchestration); SIP forking (RFC 3261) | DRAFT | Extension |
 | [ARC-REFLECT-01](ARC-REFLECT-01.md) | Reflection Message Type | — (Original) | OODA loop (Boyd); FIPA ACL `inform` performative; SBA NF observability (3GPP TS 28.531) | DRAFT | Extension |
+| [ARC-ICAP-01](ARC-ICAP-01.md) | Inter-Clan Autonomy Protocol (Agent Escalation Taxonomy) | — (Original) | Arendt (responsibility & banality of bureaucratic systems); SRE error budgets (Google); 3GPP TS 33.501 access authorization | DRAFT | Core Governance |
 
 ## ATR -- Agent Telecom Recommendations (ITU-T Lineage)
 
